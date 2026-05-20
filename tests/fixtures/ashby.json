@@ -1,0 +1,14 @@
+{
+  "jobs": [
+    {
+      "id": "ashby-job-1",
+      "title": "Software Engineer Intern",
+      "location": {
+        "name": "San Francisco, CA"
+      },
+      "jobUrl": "https://jobs.ashbyhq.com/perplexity/ashby-job-1",
+      "descriptionHtml": "<p>Build a search assistant internship project.</p>",
+      "publishedAt": "2026-05-18T12:00:00.000Z"
+    }
+  ]
+}

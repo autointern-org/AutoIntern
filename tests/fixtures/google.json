@@ -1,0 +1,16 @@
+{
+  "jobs": [
+    {
+      "id": "123456789",
+      "title": "Software Engineering Intern, Summer 2027",
+      "locations": [
+        {
+          "display": "Mountain View, CA, USA"
+        }
+      ],
+      "url": "/jobs/results/123456789/",
+      "description": ["Build products used by billions."],
+      "publish_date": "2026-05-18"
+    }
+  ]
+}

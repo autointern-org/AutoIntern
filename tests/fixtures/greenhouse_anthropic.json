@@ -1,0 +1,19 @@
+{
+  "jobs": [
+    {
+      "id": 654321,
+      "title": "Software Engineer Intern, Product",
+      "absolute_url": "https://job-boards.greenhouse.io/anthropic/jobs/654321",
+      "location": {
+        "name": "San Francisco, CA"
+      },
+      "content": "<p>Join Anthropic as a software engineering intern.</p><p>Build useful AI systems.</p>",
+      "updated_at": "2026-05-18T10:20:00-07:00",
+      "first_published": "2026-05-18T09:00:00-07:00",
+      "offices": []
+    }
+  ],
+  "meta": {
+    "total": 1
+  }
+}
