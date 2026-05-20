@@ -1,0 +1,75 @@
+companies:
+  - name: anthropic
+    adapter: greenhouse
+    slug: anthropic
+    tier: S
+    include_keywords: []
+    exclude_keywords: ["new grad"]
+
+  - name: stripe
+    adapter: greenhouse
+    slug: stripe
+    tier: S
+    include_keywords: []
+    exclude_keywords: ["new grad"]
+
+  - name: databricks
+    adapter: greenhouse
+    slug: databricks
+    tier: A
+    include_keywords: []
+    exclude_keywords: ["new grad"]
+
+  - name: perplexity
+    adapter: ashby
+    slug: perplexity
+    tier: S
+    include_keywords: []
+    exclude_keywords: ["new grad"]
+
+  - name: openai
+    adapter: ashby
+    slug: openai
+    tier: S
+    include_keywords: []
+    exclude_keywords: ["new grad"]
+
+  - name: scale-ai
+    adapter: greenhouse
+    slug: scaleai
+    tier: A
+    include_keywords: []
+    exclude_keywords: ["new grad"]
+
+  - name: google
+    adapter: google
+    tier: S
+    include_keywords: ["software", "research", "machine learning", "STEP"]
+    exclude_keywords: ["new grad"]
+
+  - name: microsoft
+    adapter: microsoft
+    tier: A
+    include_keywords: ["software", "research", "machine learning"]
+    exclude_keywords: ["new grad"]
+
+  - name: amazon
+    adapter: amazon
+    tier: A
+    include_keywords: ["software", "sde", "machine learning"]
+    exclude_keywords: ["new grad"]
+
+  - name: apple
+    adapter: apple
+    tier: A
+    include_keywords: ["software", "machine learning", "systems"]
+    exclude_keywords: ["new grad"]
+
+  - name: nvidia
+    adapter: workday
+    host: nvidia.wd5.myworkdayjobs.com
+    tenant: nvidia
+    site: NVIDIAExternalCareerSite
+    tier: S
+    include_keywords: ["software", "machine learning", "research", "systems"]
+    exclude_keywords: ["new grad"]
