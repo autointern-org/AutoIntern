@@ -1,6 +1,6 @@
 # AutoIntern
 
-Cron-only internship monitor that runs from GitHub Actions every 15 minutes, checks whitelisted career sites, generates a resume tailoring recommendation with Claude, and posts new intern roles to Discord through a webhook. It has no persistent server and scales to zero between ticks.
+Cron-only internship monitor that runs from GitHub Actions every 15 minutes, checks whitelisted career sites, generates a resume tailoring recommendation with a configurable LLM (default: Gemini 3.1 Flash Lite), and posts new intern roles to Discord through a webhook. It has no persistent server and scales to zero between ticks.
 
 ## How It Works
 
@@ -8,7 +8,7 @@ Cron-only internship monitor that runs from GitHub Actions every 15 minutes, che
 2. Adapters in `adapters/` fetch company job boards and normalize postings into `Job`.
 3. `core.filters` applies the whitelist rules from `config/whitelist.yaml`.
 4. `core.kv` stores seen jobs, Discord message IDs, and dismissals in Cloudflare KV.
-5. `core.classifier` calls Claude with `config/skill_context.md`.
+5. `core.classifier` calls the configured LLM with `config/skill_context.md`.
 6. `core.discord` posts a Discord embed with `?wait=true` and stores the returned message ID.
 7. The next tick checks stored messages for a ✅ reaction and marks those jobs dismissed.
 
@@ -39,28 +39,47 @@ The script stores:
 - `job:{job_id}` for seen notifications and Discord message metadata
 - `dismissed:{job_id}` for dismissed postings
 
-### 3. Configure Anthropic
+### 3. Configure resume LLM
 
-Set `ANTHROPIC_API_KEY`. The default model is `claude-sonnet-4-6`; override with `ANTHROPIC_MODEL` if needed.
+Default provider is Gemini (`gemini-3.1-flash-lite`). Set `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey).
+
+To use Anthropic instead, set GitHub secret `ANTHROPIC_API_KEY` and repository variable `RESUME_LLM_PROVIDER` to `anthropic`.
+
+Environment variables:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `RESUME_LLM_PROVIDER` | `gemini` | `gemini` or `anthropic` |
+| `RESUME_LLM_MODEL` | provider default | Override model id |
+| `GEMINI_API_KEY` | — | Gemini API key (`GOOGLE_API_KEY` also works) |
+| `ANTHROPIC_API_KEY` | — | Only when provider is `anthropic` |
+
+If no API key is set for the active provider, the scanner still posts to Discord with a placeholder resume block.
 
 Paste your internship-hunting skill into `config/skill_context.md`. The checked-in file is a minimal placeholder with the expected output shape.
 
-### 4. Set GitHub Secrets
+### 4. Set GitHub Secrets (minimum viable)
 
-Required:
+**Required** (repo → Settings → Secrets and variables → Actions → Secrets):
 
-- `DISCORD_WEBHOOK_URL`
-- `CF_ACCOUNT_ID`
-- `CF_KV_NAMESPACE_ID`
-- `CF_API_TOKEN`
-- `ANTHROPIC_API_KEY`
+| Secret | Where to get it |
+| --- | --- |
+| `DISCORD_WEBHOOK_URL` | Discord channel → Integrations → Webhooks → copy URL |
+| `CF_ACCOUNT_ID` | Cloudflare dashboard → account ID in URL/sidebar |
+| `CF_KV_NAMESPACE_ID` | Workers → KV → your namespace → ID |
+| `CF_API_TOKEN` | Cloudflare API token with Workers KV Storage read/write |
+| `GEMINI_API_KEY` | Google AI Studio API key |
 
-Optional:
+**Optional secrets:**
 
-- `DISCORD_BOT_TOKEN`
-- `DISCORD_CHANNEL_ID`
+- `ANTHROPIC_API_KEY` — only if `RESUME_LLM_PROVIDER=anthropic`
+- `DISCORD_BOT_TOKEN` — reaction fallback if webhook cannot read ✅
+- `DISCORD_CHANNEL_ID` — required with bot-token fallback
 
-`DISCORD_CHANNEL_ID` is only needed for the bot-token fallback.
+**Optional variables** (Settings → Actions → Variables):
+
+- `RESUME_LLM_PROVIDER` — `gemini` (default) or `anthropic`
+- `RESUME_LLM_MODEL` — e.g. `gemini-3.1-flash-lite-preview`
 
 ### 5. Customize the whitelist
 
@@ -105,13 +124,13 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
 
-Run one dry scan without posting to Discord or calling Claude:
+Run one dry scan without posting to Discord or calling the LLM:
 
 ```bash
 make scan-local
 ```
 
-Run a dry scan that calls Claude when `ANTHROPIC_API_KEY` is set:
+Run a dry scan that calls the LLM when `GEMINI_API_KEY` (or provider key) is set:
 
 ```bash
 PYTHONPATH=. python -m scripts.scan --dry-run
@@ -129,7 +148,7 @@ PYTHONPATH=. python -m scripts.scan
 make test
 ```
 
-Adapter tests use saved JSON fixtures in `tests/fixtures/` and do not hit the network. The pipeline test mocks Claude and Discord.
+Adapter tests use saved JSON fixtures in `tests/fixtures/` and do not hit the network. The pipeline test mocks the LLM and Discord.
 
 ## Adapter Notes
 
