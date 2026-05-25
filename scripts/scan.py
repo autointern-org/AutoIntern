@@ -9,7 +9,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Scan whitelisted internship boards.")
     parser.add_argument("--config", default="config/whitelist.yaml", help="Path to whitelist YAML")
     parser.add_argument("--dry-run", action="store_true", help="Print intended Discord posts instead of posting")
-    parser.add_argument("--skip-claude", action="store_true", help="Use deterministic placeholder resume configs")
+    parser.add_argument(
+        "--skip-claude",
+        action="store_true",
+        help="Use deterministic placeholder resume configs (skip RESUME_LLM_PROVIDER)",
+    )
     args = parser.parse_args()
 
     result = run_scan(

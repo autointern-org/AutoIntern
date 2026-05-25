@@ -12,7 +12,7 @@ from adapters.google import GoogleAdapter
 from adapters.greenhouse import GreenhouseAdapter
 from adapters.microsoft import MicrosoftAdapter
 from adapters.workday import WorkdayAdapter
-from core.classifier import Classifier
+from core.classifier import Classifier, build_classifier_from_env
 from core.config import CompanyConfig, Whitelist
 from core.discord import DiscordClient
 from core.filters import passes_filter
@@ -50,10 +50,7 @@ def run_scan(
         channel_id=os.getenv("DISCORD_CHANNEL_ID"),
         dry_run=dry_run,
     )
-    classifier = Classifier(
-        os.getenv("ANTHROPIC_API_KEY"),
-        model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6"),
-    )
+    classifier = build_classifier_from_env()
     return scan(
         adapters=adapters,
         configs=configs,
@@ -172,7 +169,7 @@ def build_adapters(companies: list[CompanyConfig]) -> list[Adapter]:
 
 
 def _resume_config(classifier: Classifier, job: Job, *, dry_run: bool, skip_claude: bool) -> str:
-    if skip_claude or (dry_run and not classifier.api_key):
+    if skip_claude or not classifier.api_key:
         return (
             "target_role: intern\n"
             f"company: {job.company}\n"
