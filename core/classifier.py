@@ -129,8 +129,8 @@ def build_classifier_from_env(
     timeout: int = 60,
     session: requests.Session | None = None,
 ) -> Classifier:
-    provider_name = os.getenv("RESUME_LLM_PROVIDER", DEFAULT_PROVIDER).strip().lower()
-    model = os.getenv("RESUME_LLM_MODEL", "").strip() or DEFAULT_MODELS.get(
+    provider_name = (os.getenv("RESUME_LLM_PROVIDER") or DEFAULT_PROVIDER).strip().lower()
+    model = (os.getenv("RESUME_LLM_MODEL") or "").strip() or DEFAULT_MODELS.get(
         provider_name, DEFAULT_MODELS[DEFAULT_PROVIDER]
     )
     llm = _build_provider(provider_name, model=model, timeout=timeout, session=session)

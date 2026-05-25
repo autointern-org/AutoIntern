@@ -63,6 +63,15 @@ def test_build_classifier_from_env_defaults_to_gemini(monkeypatch: pytest.Monkey
     assert classifier.api_key == "test-gemini"
 
 
+def test_build_classifier_treats_empty_provider_as_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RESUME_LLM_PROVIDER", "")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+
+    classifier = build_classifier_from_env()
+
+    assert classifier.provider.provider == "gemini"
+
+
 def test_classifier_reads_skill_context(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
     skill = tmp_path / "skill.md"
     skill.write_text("Tailor resumes.", encoding="utf-8")
