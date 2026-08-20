@@ -1,0 +1,16 @@
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "ibm-intern-1",
+        "_source": {
+          "title": "Software Engineer Intern",
+          "url": "/careers/us-en/job/ibm-intern-1",
+          "field_keyword_05": ["Austin"],
+          "field_keyword_08": ["Software Engineering"],
+          "field_keyword_18": ["United States"]
+        }
+      }
+    ]
+  }
+}

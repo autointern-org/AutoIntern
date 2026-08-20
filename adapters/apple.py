@@ -1,79 +1,165 @@
 from __future__ import annotations
 
+from math import ceil
 from typing import Any
 
 import requests
 
-from adapters.base import Job, compact_text, html_to_text
+from adapters.base import DEFAULT_USER_AGENT, Job, compact_text, html_to_text
+from core.http import new_session
+
+
+SEARCH_URL = "https://jobs.apple.com/api/v1/search"
+CSRF_URL = "https://jobs.apple.com/api/v1/csrfToken"
+PAGE_SIZE = 20
+MAX_PAGES = 30
+
+_FORMAT = {"longDate": "MMMM D, YYYY", "mediumDate": "MMM D, YYYY"}
+_COVERAGE_FILTERS: dict[str, Any] = {"locations": ["postLocation-USA"]}
+_PRECISION_FILTERS: dict[str, Any] = {
+    "locations": ["postLocation-USA"],
+    "teams": [{"team": "teamsAndSubTeams-STDNT", "subTeam": "subTeam-INTRN"}],
+}
 
 
 class AppleAdapter:
-    API = "https://jobs.apple.com/api/role/search"
+    API = SEARCH_URL
 
     def __init__(self, *, timeout: int = 30, session: requests.Session | None = None) -> None:
         self.timeout = timeout
-        self.session = session or requests.Session()
+        self.session = session or new_session()
 
     def fetch(self) -> list[Job]:
-        response = self.session.post(
-            self.API,
-            json={"query": "intern", "filters": {"locations": ["postLocation-USA"]}},
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
-        return [self._normalize(raw) for raw in _find_jobs(response.json())]
+        headers = self._post_headers()
+        jobs: list[Job] = []
+        seen: set[str] = set()
+        for filters in (_COVERAGE_FILTERS, _PRECISION_FILTERS):
+            for raw in self._search(filters, headers):
+                job = self._normalize(raw)
+                if job.id in seen:
+                    continue
+                seen.add(job.id)
+                jobs.append(job)
+        return jobs
+
+    def _post_headers(self) -> dict[str, str]:
+        headers = {
+            "Content-Type": "application/json",
+            "Origin": "https://jobs.apple.com",
+            "Referer": "https://jobs.apple.com/en-us/search",
+            "User-Agent": DEFAULT_USER_AGENT,
+        }
+        try:
+            response = self.session.get(CSRF_URL, timeout=self.timeout)
+            token = _header(response, "x-apple-csrf-token") or _header(response, "X-Apple-CSRF-Token")
+            if token:
+                headers["X-Apple-CSRF-Token"] = token
+        except Exception:
+            pass
+        return headers
+
+    def _search(self, filters: dict[str, Any], headers: dict[str, str]) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        page = 1
+        total_pages = 1
+        while page <= min(total_pages, MAX_PAGES):
+            body = {
+                "query": "intern",
+                "filters": filters,
+                "page": page,
+                "locale": "en-us",
+                "sort": "",
+                "format": _FORMAT,
+            }
+            response = self.session.post(SEARCH_URL, json=body, headers=headers, timeout=self.timeout)
+            data = _parse_search(response)
+            envelope = data["res"] if isinstance(data.get("res"), dict) else data
+            results = envelope.get("searchResults") or []
+            if page == 1:
+                total_records = _as_int(envelope.get("totalRecords"))
+                total_pages = min(MAX_PAGES, max(1, ceil(total_records / PAGE_SIZE))) if total_records else 1
+            for raw in results:
+                if isinstance(raw, dict):
+                    rows.append(raw)
+            if not results:
+                break
+            page += 1
+        return rows
 
     def _normalize(self, raw: dict[str, Any]) -> Job:
-        job_id = raw.get("id") or raw.get("positionId") or raw.get("jobId") or raw.get("postingNumber")
-        title = raw.get("postingTitle") or raw.get("title") or raw.get("name")
-        url = raw.get("url") or raw.get("jobDetailUrl") or raw.get("canonicalUrl")
-        if url and str(url).startswith("/"):
-            url = f"https://jobs.apple.com{url}"
-        elif not url and job_id:
-            url = f"https://jobs.apple.com/en-us/details/{job_id}"
-        location = raw.get("locations") or raw.get("location") or raw.get("postLocation")
+        job_id = raw.get("id") or raw.get("reqId")
+        title = raw.get("postingTitle") or raw.get("title")
+        slug = raw.get("transformedPostingTitle") or ""
+        team = raw.get("team") if isinstance(raw.get("team"), dict) else {}
+        team_code = team.get("teamCode") or ""
+        url = f"https://jobs.apple.com/en-us/details/{job_id}"
+        if slug:
+            url += f"/{slug}"
+        if team_code:
+            url += f"?team={team_code}"
         return Job(
             id=f"apple:{job_id}",
             company="apple",
-            title=compact_text(title),
-            location=_location_text(location) or "Unspecified",
-            url=compact_text(str(url or "")),
-            jd_text=html_to_text(raw.get("description") or raw.get("summary") or raw.get("team") or ""),
-            posted_at=raw.get("postDate") or raw.get("postedDate") or raw.get("createdDate"),
+            title=compact_text(str(title or "")),
+            location=_location(raw) or "Unspecified",
+            url=compact_text(url),
+            jd_text=html_to_text(str(raw.get("jobSummary") or raw.get("description") or "")),
+            posted_at=raw.get("postDateInGMT") or raw.get("postDate"),
         )
 
 
-def _find_jobs(data: Any) -> list[dict[str, Any]]:
-    found: list[dict[str, Any]] = []
-
-    def visit(node: Any) -> None:
-        if isinstance(node, dict):
-            title_like = node.get("postingTitle") or node.get("title") or node.get("name")
-            id_like = node.get("id") or node.get("positionId") or node.get("jobId") or node.get("postingNumber")
-            if title_like and id_like:
-                found.append(node)
-                return
-            for value in node.values():
-                visit(value)
-        elif isinstance(node, list):
-            for item in node:
-                visit(item)
-
-    visit(data)
-    return found
+def _header(response: Any, name: str) -> str | None:
+    headers = getattr(response, "headers", None) or {}
+    try:
+        value = headers.get(name)
+    except Exception:
+        return None
+    return str(value) if value else None
 
 
-def _location_text(value: Any) -> str:
-    if isinstance(value, str):
-        return compact_text(value)
-    if isinstance(value, list):
-        parts = []
-        for item in value:
-            if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict):
-                parts.append(item.get("name") or item.get("displayName") or item.get("city") or "")
-        return ", ".join(compact_text(part) for part in parts if compact_text(part))
-    if isinstance(value, dict):
-        return compact_text(value.get("name") or value.get("displayName") or value.get("city"))
-    return ""
+def _parse_search(response: Any) -> dict[str, Any]:
+    status = getattr(response, "status_code", 200)
+    headers = getattr(response, "headers", None) or {}
+    content_type = str(headers.get("Content-Type") or headers.get("content-type") or "")
+    text = getattr(response, "text", "") or ""
+    data: Any = None
+    try:
+        data = response.json()
+    except Exception:
+        data = None
+    has_shape = isinstance(data, dict) and ("res" in data or "searchResults" in data)
+    if "json" not in content_type.lower() or not has_shape:
+        raise RuntimeError(f"{status} {text[:200]}")
+    return data
+
+
+def _as_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _location(raw: dict[str, Any]) -> str:
+    locations = raw.get("locations") or []
+    if not isinstance(locations, list):
+        locations = [locations] if locations else []
+    parts: list[str] = []
+    for item in locations:
+        if isinstance(item, str):
+            text = compact_text(item)
+        elif isinstance(item, dict):
+            name = item.get("name")
+            if name:
+                text = compact_text(str(name))
+            else:
+                text = ", ".join(
+                    compact_text(str(item[key]))
+                    for key in ("city", "stateProvince", "countryName")
+                    if item.get(key)
+                )
+        else:
+            text = ""
+        if text:
+            parts.append(text)
+    return "; ".join(parts)

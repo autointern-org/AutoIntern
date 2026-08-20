@@ -1,0 +1,17 @@
+{
+  "data": {
+    "count": 1,
+    "job_post_list": [
+      {
+        "id": "747123",
+        "title": "Software Engineer Intern",
+        "city_info": {
+          "name": "San Jose",
+          "country_name": "United States"
+        },
+        "description": "Build recommendation systems.",
+        "publish_time": 1747440000
+      }
+    ]
+  }
+}

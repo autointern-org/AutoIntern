@@ -1,0 +1,16 @@
+{
+  "eagerLoadRefineSearch": {
+    "data": {
+      "jobs": [
+        {
+          "jobId": "cisco-1",
+          "title": "Software Engineer Intern",
+          "cityStateCountry": "San Jose, California, United States",
+          "applyUrl": "https://jobs.cisco.com/jobs/cisco-1",
+          "postedDate": "2026-05-18",
+          "descriptionTeaser": "Build networking software."
+        }
+      ]
+    }
+  }
+}

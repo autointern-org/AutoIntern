@@ -1,16 +1,26 @@
 {
-  "searchResults": [
-    {
-      "positionId": "200611111",
-      "postingTitle": "Software Engineering Internship",
-      "locations": [
-        {
-          "name": "Cupertino, California, United States"
-        }
-      ],
-      "jobDetailUrl": "/en-us/details/200611111/software-engineering-internship",
-      "description": "Build delightful products.",
-      "postDate": "2026-05-18"
-    }
-  ]
+  "res": {
+    "totalRecords": 1,
+    "searchResults": [
+      {
+        "id": "200611111",
+        "reqId": "200611111",
+        "postingTitle": "Software Engineering Internship",
+        "transformedPostingTitle": "software-engineering-internship",
+        "postDateInGMT": "2026-05-18T00:00:00Z",
+        "jobSummary": "Build delightful products.",
+        "team": {
+          "teamCode": "STDNT"
+        },
+        "locations": [
+          {
+            "name": "Cupertino, California, United States",
+            "city": "Cupertino",
+            "stateProvince": "California",
+            "countryName": "United States"
+          }
+        ]
+      }
+    ]
+  }
 }

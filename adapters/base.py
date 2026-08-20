@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from html import unescape
 from typing import Protocol
 import re
@@ -45,3 +46,27 @@ def html_to_text(value: str | None) -> str:
     text = re.sub(r"(?i)</(p|div|li|h[1-6])>", "\n", text)
     text = re.sub(r"<[^>]+>", " ", text)
     return compact_text(unescape(text))
+
+
+def posted_at_value(value: object) -> str | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        if stripped.replace(".", "", 1).isdigit():
+            value = float(stripped)
+        else:
+            return compact_text(stripped)
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        timestamp = float(value)
+        if timestamp > 10_000_000_000:
+            timestamp /= 1000.0
+        try:
+            return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+        except (OSError, OverflowError, ValueError):
+            return str(value)
+    return compact_text(str(value))

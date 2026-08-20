@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "TotalJobsCount": 1,
+      "requisitionList": [
+        {
+          "Id": "ORA123",
+          "Title": "Software Engineer Intern",
+          "PrimaryLocation": "Austin, TX, United States",
+          "PostedDate": "2026-05-18",
+          "JobDescription": "Build cloud applications."
+        }
+      ]
+    }
+  ]
+}

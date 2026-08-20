@@ -1,0 +1,12 @@
+[
+  {
+    "id": "lever-job-1",
+    "text": "Software Engineer Intern",
+    "categories": {
+      "location": "San Francisco"
+    },
+    "hostedUrl": "https://jobs.lever.co/example/lever-job-1",
+    "createdAt": 1747440000000,
+    "descriptionPlain": "Build developer tools."
+  }
+]

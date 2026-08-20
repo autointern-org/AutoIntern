@@ -1,0 +1,28 @@
+{
+  "data": {
+    "positions": [
+      {
+        "id": "1827364",
+        "name": "Software Engineering Intern",
+        "standardizedLocations": [
+          {
+            "city": "Redmond",
+            "state": "Washington",
+            "country": "United States"
+          }
+        ],
+        "positionUrl": "/careers/job/1827364",
+        "postedTs": 1747440000,
+        "jobDescription": "<p>Come build cloud services as a Microsoft intern.</p>"
+      },
+      {
+        "id": "1827365",
+        "name": "Research Intern - PhD",
+        "locations": ["Cambridge, Massachusetts, United States"],
+        "positionUrl": "/careers/job/1827365",
+        "postedTs": 1747353600,
+        "jobDescription": "<p>Research internship.</p>"
+      }
+    ]
+  }
+}

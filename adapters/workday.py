@@ -6,6 +6,7 @@ from typing import Any
 import requests
 
 from adapters.base import Job, compact_text, html_to_text
+from core.http import new_session
 
 
 WorkdayBoard = tuple[str, str, str]
@@ -23,25 +24,39 @@ class WorkdayAdapter:
         self.boards = list(boards)
         self.company_names = company_names or {}
         self.timeout = timeout
-        self.session = session or requests.Session()
+        self.session = session or new_session()
 
     def fetch(self) -> list[Job]:
         jobs: list[Job] = []
         for board in self.boards:
-            host, tenant, site = board
-            url = f"https://{host}/wday/cxs/{tenant}/{site}/jobs"
+            jobs.extend(self._fetch_board(board))
+        return jobs
+
+    def _fetch_board(self, board: WorkdayBoard) -> list[Job]:
+        host, tenant, site = board
+        url = f"https://{host}/wday/cxs/{tenant}/{site}/jobs"
+        jobs: list[Job] = []
+        offset = 0
+        limit = 20
+        for _ in range(25):
             try:
                 response = self.session.post(
                     url,
-                    json={"appliedFacets": {}, "limit": 20, "offset": 0, "searchText": "intern"},
+                    json={"appliedFacets": {}, "limit": limit, "offset": offset, "searchText": "intern"},
                     timeout=self.timeout,
                 )
                 response.raise_for_status()
             except requests.RequestException as exc:
                 print(f"[workday] failed to fetch {host}/{tenant}/{site}: {exc}")
-                continue
-            for raw in _find_workday_jobs(response.json()):
+                break
+            payload = response.json()
+            rows = _find_workday_jobs(payload)
+            total = _as_int(payload.get("total")) if isinstance(payload, dict) else 0
+            for raw in rows:
                 jobs.append(self._normalize(board, raw))
+            offset += limit
+            if not rows or (total and offset >= total) or len(rows) < limit:
+                break
         return jobs
 
     def _normalize(self, board: WorkdayBoard, raw: dict[str, Any]) -> Job:
@@ -82,3 +97,10 @@ def _find_workday_jobs(data: Any) -> list[dict[str, Any]]:
             if isinstance(value, list):
                 return [item for item in value if isinstance(item, dict)]
     return []
+
+
+def _as_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0

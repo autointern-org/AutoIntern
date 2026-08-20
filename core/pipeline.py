@@ -4,13 +4,23 @@ from dataclasses import dataclass
 import os
 from typing import Iterable
 
-from adapters.base import Adapter, Job
 from adapters.amazon import AmazonAdapter
 from adapters.apple import AppleAdapter
 from adapters.ashby import AshbyAdapter
+from adapters.atlassian import AtlassianAdapter
+from adapters.base import Adapter, Job
+from adapters.eightfold import EightfoldAdapter, EightfoldBoard, infer_host
 from adapters.google import GoogleAdapter
 from adapters.greenhouse import GreenhouseAdapter
-from adapters.microsoft import MicrosoftAdapter
+from adapters.ibm import IBMAdapter
+from adapters.lever import LeverAdapter
+from adapters.meta import MetaAdapter
+from adapters.optiver import OptiverAdapter
+from adapters.oracle import OracleAdapter, OracleBoard
+from adapters.phenom import PhenomAdapter, PhenomBoard
+from adapters.snap import SnapAdapter
+from adapters.tesla import TeslaAdapter
+from adapters.tiktok import TikTokAdapter
 from adapters.workday import WorkdayAdapter
 from core.classifier import Classifier, build_classifier_from_env
 from core.config import CompanyConfig, Whitelist
@@ -158,14 +168,107 @@ def build_adapters(companies: list[CompanyConfig]) -> list[Adapter]:
     if any(company.adapter == "google" for company in companies):
         adapters.append(GoogleAdapter())
 
-    if any(company.adapter == "microsoft" for company in companies):
-        adapters.append(MicrosoftAdapter())
+    eightfold_boards: list[EightfoldBoard] = []
+    for company in companies:
+        extra: dict[str, str] = {}
+        if company.adapter == "microsoft":
+            extra = {"location": "United States", "filter_employment_type": "internship"}
+            eightfold_boards.append(
+                EightfoldBoard(
+                    company=company.name,
+                    host=company.host or infer_host(company.name) or "apply.careers.microsoft.com",
+                    domain=company.domain or "microsoft.com",
+                    api=company.api or "pcsx",
+                    extra_params=extra,
+                )
+            )
+            continue
+        if company.adapter != "eightfold" or not company.domain:
+            continue
+        host = company.host or infer_host(company.name)
+        if not host:
+            continue
+        if company.name.lower() == "microsoft":
+            extra = {"location": "United States", "filter_employment_type": "internship"}
+        eightfold_boards.append(
+            EightfoldBoard(
+                company=company.name,
+                host=host,
+                domain=company.domain,
+                api=company.api or "pcsx",
+                extra_params=extra,
+            )
+        )
+    if eightfold_boards:
+        adapters.append(EightfoldAdapter(eightfold_boards))
 
-    if any(company.adapter == "amazon" for company in companies):
-        adapters.append(AmazonAdapter())
+    amazon = [company for company in companies if company.adapter == "amazon"]
+    if amazon:
+        adapters.append(
+            AmazonAdapter(
+                [company.name for company in amazon],
+                slugs={company.name: str(company.slug) for company in amazon if company.slug},
+            )
+        )
 
     if any(company.adapter == "apple" for company in companies):
         adapters.append(AppleAdapter())
+
+    lever = [company for company in companies if company.adapter == "lever" and company.slug]
+    if lever:
+        adapters.append(
+            LeverAdapter(
+                [str(company.slug) for company in lever],
+                company_names={str(company.slug): company.name for company in lever},
+            )
+        )
+
+    phenom = [company for company in companies if company.adapter == "phenom" and company.host]
+    if phenom:
+        adapters.append(
+            PhenomAdapter(
+                [
+                    PhenomBoard(
+                        company=company.name,
+                        host=str(company.host),
+                        variant=company.variant or "widgets",
+                    )
+                    for company in phenom
+                ]
+            )
+        )
+
+    oracle = [
+        company
+        for company in companies
+        if company.adapter == "oracle" and company.host and company.site_number
+    ]
+    if oracle:
+        adapters.append(
+            OracleAdapter(
+                [
+                    OracleBoard(
+                        company=company.name,
+                        host=str(company.host),
+                        site_number=str(company.site_number),
+                    )
+                    for company in oracle
+                ]
+            )
+        )
+
+    simple = {
+        "tesla": TeslaAdapter,
+        "snap": SnapAdapter,
+        "tiktok": TikTokAdapter,
+        "ibm": IBMAdapter,
+        "optiver": OptiverAdapter,
+        "atlassian": AtlassianAdapter,
+        "meta": MetaAdapter,
+    }
+    for adapter_name, adapter_cls in simple.items():
+        if any(company.adapter == adapter_name for company in companies):
+            adapters.append(adapter_cls())
 
     return adapters
 
