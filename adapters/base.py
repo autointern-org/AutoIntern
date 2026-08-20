@@ -6,6 +6,12 @@ from typing import Protocol
 import re
 
 
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+)
+
+
 @dataclass(frozen=True)
 class Job:
     id: str
@@ -15,6 +21,9 @@ class Job:
     url: str
     jd_text: str
     posted_at: str | None = None
+    location_unknown: bool = False
+    degree_flag: str | None = None
+    term_flag: str | None = None
 
 
 class Adapter(Protocol):

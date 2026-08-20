@@ -2,6 +2,7 @@
   "jobs": [
     {
       "id": 654321,
+      "internal_job_id": 111111,
       "title": "Software Engineer Intern, Product",
       "absolute_url": "https://job-boards.greenhouse.io/anthropic/jobs/654321",
       "location": {

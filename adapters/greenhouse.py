@@ -49,8 +49,9 @@ class GreenhouseAdapter:
         if not location_name and office_locations:
             location_name = ", ".join(item for item in office_locations if item)
 
+        job_id = raw.get("internal_job_id") or raw.get("id")
         return Job(
-            id=f"greenhouse:{slug}:{raw.get('id')}",
+            id=f"greenhouse:{slug}:{job_id}",
             company=self.company_names.get(slug, slug),
             title=compact_text(raw.get("title")),
             location=location_name or "Unspecified",

@@ -25,13 +25,22 @@ def test_filter_requires_intern_in_title() -> None:
     assert not passes_filter(make_job(title="Software Engineer"), config)
     assert not passes_filter(make_job(title="Internal Communications Manager"), config)
     assert not passes_filter(make_job(title="International Equity Manager"), config)
+    assert not passes_filter(make_job(title="Design Verification Engineer - Internal IP"), config)
+    assert passes_filter(make_job(title="Student Researcher, BS/MS"), config)
+    assert passes_filter(make_job(title="Women's Winternship"), config)
+    assert passes_filter(make_job(title="New Grad Software Engineer"), config)
 
 
 def test_filter_excludes_phd_by_default() -> None:
     config = CompanyConfig(name="google", adapter="google")
 
     assert not passes_filter(make_job(title="Research Intern - PhD"), config)
-    assert passes_filter(make_job(title="Research Intern - PhD"), CompanyConfig(name="google", adapter="google", include_phd=True))
+    assert not passes_filter(make_job(title="Student Researcher, PhD, Fall 2026"), config)
+    assert passes_filter(make_job(title="Student Researcher, BS/MS, Fall 2026"), config)
+    assert passes_filter(
+        make_job(title="Research Intern - PhD"),
+        CompanyConfig(name="google", adapter="google", include_phd=True),
+    )
 
 
 def test_filter_applies_keywords_and_us_location() -> None:
@@ -39,12 +48,14 @@ def test_filter_applies_keywords_and_us_location() -> None:
         name="google",
         adapter="google",
         include_keywords=["machine learning"],
-        exclude_keywords=["new grad"],
+        exclude_keywords=["hardware only"],
     )
 
     assert passes_filter(make_job(jd_text="Machine learning infrastructure."), config)
-    assert not passes_filter(make_job(jd_text="Machine learning new grad role."), config)
+    assert not passes_filter(make_job(jd_text="Machine learning hardware only role."), config)
     assert not passes_filter(make_job(location="London, United Kingdom", jd_text="Machine learning."), config)
     assert not passes_filter(make_job(location="Denmark, Roskilde", jd_text="Machine learning."), config)
     assert not passes_filter(make_job(location="Taiwan, Taipei", jd_text="Machine learning."), config)
     assert passes_filter(make_job(location="US, CA, Santa Clara", jd_text="Machine learning."), config)
+    assert passes_filter(make_job(location="2 Locations", jd_text="Machine learning."), config)
+    assert passes_filter(make_job(location="Unspecified", jd_text="Machine learning."), config)

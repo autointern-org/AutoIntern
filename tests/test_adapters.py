@@ -55,7 +55,7 @@ def test_greenhouse_normalizes_jobs() -> None:
         "https://boards-api.greenhouse.io/v1/boards/anthropic/jobs?content=true"
     ]
     assert len(jobs) == 1
-    assert jobs[0].id == "greenhouse:anthropic:654321"
+    assert jobs[0].id == "greenhouse:anthropic:111111"
     assert jobs[0].company == "anthropic"
     assert jobs[0].title == "Software Engineer Intern, Product"
     assert jobs[0].location == "San Francisco, CA"
