@@ -1,75 +1,843 @@
+# AutoIntern whitelist — JSON / requests-only ATS boards.
+# Tier 1 first (priority order), then tier 2 (alphabetical).
+#
+# Skipped (no clean JSON path, or folded into another board):
+#   LinkedIn, HashiCorp, Replicate (Cloudflare greenhouse), Cruise (GM Workday),
+#   Weights & Biases (CoreWeave greenhouse), Rivian/Intuit/Arm/Palo Alto (Radancy),
+#   Bloomberg/Two Sigma/Siemens/EA/Synopsys (Avature HTML), Citadel/Citadel Securities (wp-ajax),
+#   D.E. Shaw/Shopify/Circle (sitemap-only), Ansys (stale), Groq (Gem empty), AI21 (Comeet empty),
+#   DocuSign (iCIMS), Spotify (no adapter), ASML (SSR scrape).
+# DoorDash uses greenhouse doordashusa (not the HTML marketing site).
+# Uber uses Oracle Recruiting Cloud (not the dead search API).
+# Etsy uses Workday (sitemap fallback exists but is not used here).
+# HRT greenhouse hrtcampus and Belvedere lever are included even at 0 jobs.
+
 companies:
-  - name: anthropic
-    adapter: greenhouse
-    slug: anthropic
-    tier: S
-    include_keywords: []
-    exclude_keywords: ["new grad"]
+  # --- Tier 1 ---
+  - name: meta
+    adapter: meta
+    tier: "1"
 
-  - name: stripe
-    adapter: greenhouse
-    slug: stripe
-    tier: S
-    include_keywords: []
-    exclude_keywords: ["new grad"]
+  - name: apple
+    adapter: apple
+    tier: "1"
 
-  - name: databricks
-    adapter: greenhouse
-    slug: databricks
-    tier: A
-    include_keywords: []
-    exclude_keywords: ["new grad"]
+  - name: google
+    adapter: google
+    tier: "1"
 
-  - name: perplexity
-    adapter: ashby
-    slug: perplexity
-    tier: S
-    include_keywords: []
-    exclude_keywords: ["new grad"]
+  - name: microsoft
+    adapter: eightfold
+    host: apply.careers.microsoft.com
+    domain: microsoft.com
+    api: pcsx
+    tier: "1"
 
   - name: openai
     adapter: ashby
     slug: openai
-    tier: S
-    include_keywords: []
-    exclude_keywords: ["new grad"]
+    tier: "1"
+
+  - name: anthropic
+    adapter: greenhouse
+    slug: anthropic
+    tier: "1"
+
+  - name: amazon
+    adapter: amazon
+    tier: "1"
+
+  - name: aws
+    adapter: amazon
+    slug: aws
+    tier: "1"
+
+  - name: nvidia
+    adapter: eightfold
+    host: jobs.nvidia.com
+    domain: nvidia.com
+    api: pcsx
+    tier: "1"
+
+  - name: tiktok
+    adapter: tiktok
+    tier: "1"
+
+  - name: cisco
+    adapter: phenom
+    host: careers.cisco.com
+    variant: widgets
+    tier: "1"
+
+  - name: stripe
+    adapter: greenhouse
+    slug: stripe
+    tier: "1"
+
+  - name: databricks
+    adapter: greenhouse
+    slug: databricks
+    tier: "1"
+
+  - name: snowflake
+    adapter: phenom
+    host: careers.snowflake.com
+    variant: widgets
+    tier: "1"
 
   - name: scale-ai
     adapter: greenhouse
     slug: scaleai
-    tier: A
-    include_keywords: []
-    exclude_keywords: ["new grad"]
+    tier: "1"
 
-  - name: google
-    adapter: google
-    tier: S
-    include_keywords: ["software", "research", "machine learning", "STEP"]
-    exclude_keywords: ["new grad"]
+  - name: uber
+    adapter: oracle
+    host: iaziqy.fa.ocs.oraclecloud.com
+    site_number: CX_1
+    tier: "1"
 
-  - name: microsoft
-    adapter: microsoft
-    tier: A
-    include_keywords: ["software", "research", "machine learning"]
-    exclude_keywords: ["new grad"]
-
-  - name: amazon
-    adapter: amazon
-    tier: A
-    include_keywords: ["software", "sde", "machine learning"]
-    exclude_keywords: ["new grad"]
-
-  - name: apple
-    adapter: apple
-    tier: A
-    include_keywords: ["software", "machine learning", "systems"]
-    exclude_keywords: ["new grad"]
-
-  - name: nvidia
+  - name: salesforce
     adapter: workday
-    host: nvidia.wd5.myworkdayjobs.com
-    tenant: nvidia
-    site: NVIDIAExternalCareerSite
-    tier: S
-    include_keywords: ["software", "machine learning", "research", "systems"]
-    exclude_keywords: ["new grad"]
+    host: salesforce.wd12.myworkdayjobs.com
+    tenant: salesforce
+    site: External_Career_Site
+    tier: "1"
+
+  - name: adobe
+    adapter: workday
+    host: adobe.wd5.myworkdayjobs.com
+    tenant: adobe
+    site: external_experienced
+    tier: "1"
+
+  - name: oracle
+    adapter: oracle
+    host: eeho.fa.us2.oraclecloud.com
+    site_number: CX_1
+    tier: "1"
+
+  - name: ibm
+    adapter: ibm
+    tier: "1"
+
+  - name: netflix
+    adapter: eightfold
+    host: explore.jobs.netflix.net
+    domain: netflix.com
+    api: apply
+    tier: "1"
+
+  - name: tesla
+    adapter: tesla
+    tier: "1"
+
+  - name: qualcomm
+    adapter: eightfold
+    host: careers.qualcomm.com
+    domain: qualcomm.com
+    api: pcsx
+    tier: "1"
+
+  - name: amd
+    adapter: phenom
+    host: careers.amd.com
+    variant: get
+    tier: "1"
+
+  - name: intel
+    adapter: workday
+    host: intel.wd1.myworkdayjobs.com
+    tenant: intel
+    site: External
+    tier: "1"
+
+  - name: cloudflare
+    adapter: greenhouse
+    slug: cloudflare
+    tier: "1"
+
+  - name: datadog
+    adapter: greenhouse
+    slug: datadog
+    tier: "1"
+
+  - name: mongodb
+    adapter: greenhouse
+    slug: mongodb
+    tier: "1"
+
+  - name: confluent
+    adapter: ashby
+    slug: confluent
+    tier: "1"
+
+  - name: coinbase
+    adapter: greenhouse
+    slug: coinbase
+    tier: "1"
+    exclude_keywords: []  # intern regex already excludes Internal/International
+
+  - name: block
+    adapter: greenhouse
+    slug: block
+    tier: "1"
+
+  - name: plaid
+    adapter: ashby
+    slug: plaid
+    tier: "1"
+
+  - name: airbnb
+    adapter: greenhouse
+    slug: airbnb
+    tier: "1"
+
+  - name: doordash
+    adapter: greenhouse
+    slug: doordashusa
+    tier: "1"
+
+  - name: lyft
+    adapter: greenhouse
+    slug: lyft
+    tier: "1"
+
+  - name: pinterest
+    adapter: greenhouse
+    slug: pinterest
+    tier: "1"
+
+  - name: snap
+    adapter: snap
+    tier: "1"
+
+  - name: roblox
+    adapter: greenhouse
+    slug: roblox
+    tier: "1"
+
+  - name: reddit
+    adapter: greenhouse
+    slug: reddit
+    tier: "1"
+
+  - name: discord
+    adapter: greenhouse
+    slug: discord
+    tier: "1"
+
+  - name: dropbox
+    adapter: greenhouse
+    slug: dropbox
+    tier: "1"
+
+  - name: figma
+    adapter: greenhouse
+    slug: figma
+    tier: "1"
+
+  - name: notion
+    adapter: ashby
+    slug: notion
+    tier: "1"
+
+  - name: atlassian
+    adapter: atlassian
+    tier: "1"
+
+  - name: github
+    adapter: phenom
+    host: www.github.careers
+    variant: get
+    tier: "1"
+
+  - name: xai
+    adapter: greenhouse
+    slug: xai
+    tier: "1"
+
+  - name: cohere
+    adapter: ashby
+    slug: cohere
+    tier: "1"
+
+  - name: hugging-face
+    adapter: workable
+    slug: huggingface
+    tier: "1"
+
+  - name: mistral-ai
+    adapter: ashby
+    slug: "mistral.ai"
+    tier: "1"
+
+  - name: perplexity
+    adapter: ashby
+    slug: perplexity
+    tier: "1"
+
+  - name: hpe
+    adapter: workday
+    host: hpe.wd5.myworkdayjobs.com
+    tenant: hpe
+    site: Jobsathpe
+    tier: "1"
+
+  - name: samsung-research-america
+    adapter: greenhouse
+    slug: samsungresearchamerica
+    tier: "1"
+
+  - name: sony
+    adapter: workday
+    host: sonyglobal.wd1.myworkdayjobs.com
+    tenant: sonyglobal
+    site: SonyGlobalCareers
+    tier: "1"
+
+  - name: toyota-research-institute
+    adapter: lever
+    slug: tri
+    tier: "1"
+
+  - name: jane-street
+    adapter: greenhouse
+    slug: janestreet
+    tier: "1"
+
+  - name: hudson-river-trading
+    adapter: greenhouse
+    slug: hrtcampus
+    tier: "1"
+
+  - name: jump-trading
+    adapter: greenhouse
+    slug: jumptrading
+    tier: "1"
+
+  - name: five-rings
+    adapter: greenhouse
+    slug: fiveringsllc
+    tier: "1"
+
+  - name: imc-trading
+    adapter: greenhouse
+    slug: imc
+    tier: "1"
+
+  - name: optiver
+    adapter: optiver
+    tier: "1"
+
+  - name: tower-research-capital
+    adapter: greenhouse
+    slug: towerresearchcapital
+    tier: "1"
+
+  - name: akuna-capital
+    adapter: greenhouse
+    slug: akunacapital
+    tier: "1"
+
+  - name: drw
+    adapter: greenhouse
+    slug: drweng
+    tier: "1"
+
+  - name: sig
+    adapter: phenom
+    host: careers.sig.com
+    variant: get
+    tier: "1"
+
+  - name: virtu-financial
+    adapter: greenhouse
+    slug: virtu
+    tier: "1"
+
+  - name: belvedere-trading
+    adapter: lever
+    slug: belvederetrading
+    tier: "1"
+
+  - name: boeing
+    adapter: workday
+    host: boeing.wd1.myworkdayjobs.com
+    tenant: boeing
+    site: EXTERNAL_CAREERS
+    tier: "1"
+
+  - name: dell
+    adapter: oracle
+    host: enterpriseplatform.dell.com
+    site_number: CX_1
+    tier: "1"
+
+  - name: hp
+    adapter: workday
+    host: hp.wd5.myworkdayjobs.com
+    tenant: hp
+    site: ExternalCareerSite
+    tier: "1"
+
+  - name: paypal
+    adapter: workday
+    host: paypal.wd1.myworkdayjobs.com
+    tenant: paypal
+    site: jobs
+    tier: "1"
+
+  - name: robinhood
+    adapter: greenhouse
+    slug: robinhood
+    tier: "1"
+
+  - name: brex
+    adapter: greenhouse
+    slug: brex
+    tier: "1"
+
+  - name: ramp
+    adapter: ashby
+    slug: ramp
+    tier: "1"
+
+  - name: okta
+    adapter: greenhouse
+    slug: okta
+    tier: "1"
+
+  - name: epic-games
+    adapter: greenhouse
+    slug: epicgames
+    tier: "1"
+
+  - name: unity
+    adapter: workday
+    host: unitytech.wd1.myworkdayjobs.com
+    tenant: unitytech
+    site: Unity
+    tier: "1"
+
+  - name: niantic
+    adapter: ashby
+    slug: niantic-spatial
+    tier: "1"
+
+  - name: twitch
+    adapter: greenhouse
+    slug: twitch
+    tier: "1"
+
+  - name: take-two
+    adapter: greenhouse
+    slug: taketwo
+    tier: "1"
+
+  - name: duolingo
+    adapter: greenhouse
+    slug: duolingo
+    tier: "1"
+
+  - name: asana
+    adapter: greenhouse
+    slug: asana
+    tier: "1"
+
+  - name: instacart
+    adapter: greenhouse
+    slug: instacart
+    tier: "1"
+
+  - name: vercel
+    adapter: greenhouse
+    slug: vercel
+    tier: "1"
+
+  - name: sofi
+    adapter: greenhouse
+    slug: sofi
+    tier: "1"
+
+  - name: harvey
+    adapter: ashby
+    slug: harvey
+    tier: "1"
+
+  - name: decagon
+    adapter: ashby
+    slug: decagon
+    tier: "1"
+
+  - name: spacex
+    adapter: greenhouse
+    slug: spacex
+    tier: "1"
+
+  - name: cursor
+    adapter: ashby
+    slug: cursor
+    tier: "1"
+
+  - name: physical-intelligence
+    adapter: ashby
+    slug: physicalintelligence
+    tier: "1"
+
+  - name: micron
+    adapter: eightfold
+    host: micron.eightfold.ai
+    domain: micron.com
+    api: pcsx
+    tier: "1"
+
+  - name: thinking-machines
+    adapter: ashby
+    slug: thinkingmachines
+    tier: "1"
+
+  # --- Tier 2 ---
+  - name: affirm
+    adapter: greenhouse
+    slug: affirm
+    tier: "2"
+
+  - name: akamai
+    adapter: oracle
+    host: fa-extu-saasfaprod1.fa.ocs.oraclecloud.com
+    site_number: CX_1
+    tier: "2"
+
+  - name: allen-institute
+    adapter: greenhouse
+    slug: thealleninstitute
+    tier: "2"
+
+  - name: applied-intuition
+    adapter: ashby
+    slug: applied
+    tier: "2"
+
+  - name: applied-materials
+    adapter: workday
+    host: amat.wd1.myworkdayjobs.com
+    tenant: amat
+    site: External
+    tier: "2"
+
+  - name: applovin
+    adapter: greenhouse
+    slug: applovin
+    tier: "2"
+
+  - name: aurora
+    adapter: aurora
+    tier: "2"
+
+  - name: autodesk
+    adapter: workday
+    host: autodesk.wd1.myworkdayjobs.com
+    tenant: autodesk
+    site: Ext
+    tier: "2"
+
+  - name: box
+    adapter: greenhouse
+    slug: boxinc
+    tier: "2"
+
+  - name: broadcom
+    adapter: workday
+    host: broadcom.wd1.myworkdayjobs.com
+    tenant: broadcom
+    site: External_Career
+    tier: "2"
+
+  - name: cadence
+    adapter: workday
+    host: cadence.wd1.myworkdayjobs.com
+    tenant: cadence
+    site: External_Careers
+    tier: "2"
+
+  - name: cerebras
+    adapter: ashby
+    slug: cerebras
+    tier: "2"
+
+  - name: character
+    adapter: ashby
+    slug: character
+    tier: "2"
+
+  - name: chime
+    adapter: greenhouse
+    slug: chime
+    tier: "2"
+
+  - name: coreweave
+    adapter: greenhouse
+    slug: coreweave
+    tier: "2"
+
+  - name: crowdstrike
+    adapter: workday
+    host: crowdstrike.wd5.myworkdayjobs.com
+    tenant: crowdstrike
+    site: crowdstrikecareers
+    tier: "2"
+
+  - name: d-matrix
+    adapter: ashby
+    slug: "d-Matrix"
+    tier: "2"
+
+  - name: elastic
+    adapter: greenhouse
+    slug: elastic
+    tier: "2"
+
+  - name: etched
+    adapter: ashby
+    slug: Etched
+    tier: "2"
+
+  - name: etsy
+    adapter: workday
+    host: etsy.wd5.myworkdayjobs.com
+    tenant: etsy
+    site: Etsy_Careers
+    tier: "2"
+
+  - name: fastly
+    adapter: greenhouse
+    slug: fastly
+    tier: "2"
+
+  - name: figure-ai
+    adapter: greenhouse
+    slug: figureai
+    tier: "2"
+
+  - name: fortinet
+    adapter: oracle
+    host: edel.fa.us2.oraclecloud.com
+    site_number: CX_2001
+    tier: "2"
+
+  - name: general-dynamics
+    adapter: workday
+    host: gdit.wd5.myworkdayjobs.com
+    tenant: gdit
+    site: External_Career_Site
+    tier: "2"
+
+  - name: general-motors
+    adapter: workday
+    host: generalmotors.wd5.myworkdayjobs.com
+    tenant: generalmotors
+    site: Careers_GM
+    tier: "2"
+
+  - name: gitlab
+    adapter: greenhouse
+    slug: gitlab
+    tier: "2"
+
+  - name: headlands
+    adapter: greenhouse
+    slug: headlandstechnologiesllc
+    tier: "2"
+
+  - name: hubspot
+    adapter: greenhouse
+    slug: hubspotjobs
+    tier: "2"
+
+  - name: intrinsic
+    adapter: greenhouse
+    slug: intrinsicrobotics
+    tier: "2"
+
+  - name: kensho
+    adapter: workday
+    host: spgi.wd5.myworkdayjobs.com
+    tenant: spgi
+    site: Kensho_Careers
+    tier: "2"
+
+  - name: kensho-spgi
+    adapter: workday
+    host: spgi.wd5.myworkdayjobs.com
+    tenant: spgi
+    site: SPGI_Careers
+    tier: "2"
+
+  - name: kla
+    adapter: workday
+    host: kla.wd1.myworkdayjobs.com
+    tenant: kla
+    site: Search
+    tier: "2"
+
+  - name: lam-research
+    adapter: eightfold
+    host: careers.lamresearch.com
+    domain: lamresearch.com
+    api: pcsx
+    tier: "2"
+
+  - name: lambda
+    adapter: ashby
+    slug: lambda
+    tier: "2"
+
+  - name: marvell
+    adapter: workday
+    host: marvell.wd1.myworkdayjobs.com
+    tenant: marvell
+    site: MarvellCareers
+    tier: "2"
+
+  - name: motorola-solutions
+    adapter: workday
+    host: motorolasolutions.wd5.myworkdayjobs.com
+    tenant: motorolasolutions
+    site: Careers
+    tier: "2"
+
+  - name: nuro
+    adapter: greenhouse
+    slug: nuro
+    tier: "2"
+
+  - name: pure-storage
+    adapter: greenhouse
+    slug: purestorage
+    tier: "2"
+
+  - name: redhat
+    adapter: workday
+    host: redhat.wd5.myworkdayjobs.com
+    tenant: redhat
+    site: jobs
+    tier: "2"
+
+  - name: replit
+    adapter: ashby
+    slug: replit
+    tier: "2"
+
+  - name: rippling
+    adapter: rippling
+    slug: rippling
+    tier: "2"
+
+  - name: rtx
+    adapter: workday
+    host: globalhr.wd5.myworkdayjobs.com
+    tenant: globalhr
+    site: REC_RTX_Ext_Gateway
+    tier: "2"
+
+  - name: rubrik
+    adapter: greenhouse
+    slug: rubrik
+    tier: "2"
+
+  - name: runway
+    adapter: ashby
+    slug: runway-ml
+    tier: "2"
+
+  - name: safe-superintelligence
+    adapter: ashby
+    slug: ssi
+    tier: "2"
+
+  - name: sambanova
+    adapter: greenhouse
+    slug: sambanovasystems
+    tier: "2"
+
+  - name: servicenow
+    adapter: smartrecruiters
+    slug: ServiceNow
+    tier: "2"
+
+  - name: shield-ai
+    adapter: lever
+    slug: shieldai
+    tier: "2"
+
+  - name: sierra
+    adapter: ashby
+    slug: sierra
+    tier: "2"
+
+  - name: skydio
+    adapter: ashby
+    slug: skydio
+    tier: "2"
+
+  - name: tenstorrent
+    adapter: greenhouse
+    slug: tenstorrent
+    tier: "2"
+
+  - name: the-trade-desk
+    adapter: greenhouse
+    slug: thetradedesk
+    tier: "2"
+
+  - name: together-ai
+    adapter: greenhouse
+    slug: togetherai
+    tier: "2"
+
+  - name: twilio
+    adapter: greenhouse
+    slug: twilio
+    tier: "2"
+
+  - name: upstart
+    adapter: greenhouse
+    slug: upstart
+    tier: "2"
+
+  - name: verkada
+    adapter: greenhouse
+    slug: verkada
+    tier: "2"
+
+  - name: waymo
+    adapter: greenhouse
+    slug: waymo
+    tier: "2"
+
+  - name: wiz
+    adapter: greenhouse
+    slug: wizinc
+    tier: "2"
+
+  - name: workday
+    adapter: workday
+    host: workday.wd5.myworkdayjobs.com
+    tenant: workday
+    site: Workday
+    tier: "2"
+
+  - name: world-labs
+    adapter: greenhouse
+    slug: worldlabs
+    tier: "2"
+
+  - name: zoox
+    adapter: lever
+    slug: zoox
+    tier: "2"
+
+  - name: zscaler
+    adapter: greenhouse
+    slug: zscaler
+    tier: "2"
