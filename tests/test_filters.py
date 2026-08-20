@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from adapters.base import Job
 from core.config import CompanyConfig
-from core.filters import passes_filter
+from core.filters import apply_decision, evaluate_job, passes_filter, sort_alert_jobs
 
 
 def make_job(**overrides: str) -> Job:
@@ -31,16 +31,64 @@ def test_filter_requires_intern_in_title() -> None:
     assert passes_filter(make_job(title="New Grad Software Engineer"), config)
 
 
-def test_filter_excludes_phd_by_default() -> None:
+def test_filter_tags_degree_and_never_drops_phd() -> None:
     config = CompanyConfig(name="google", adapter="google")
 
-    assert not passes_filter(make_job(title="Research Intern - PhD"), config)
-    assert not passes_filter(make_job(title="Student Researcher, PhD, Fall 2026"), config)
-    assert passes_filter(make_job(title="Student Researcher, BS/MS, Fall 2026"), config)
-    assert passes_filter(
-        make_job(title="Research Intern - PhD"),
-        CompanyConfig(name="google", adapter="google", include_phd=True),
+    phd = evaluate_job(make_job(title="Research Intern - PhD"), config)
+    assert phd.keep
+    assert phd.degree_flag == "phd_likely"
+
+    bs_ms = evaluate_job(make_job(title="Student Researcher, BS/MS/PhD, Fall 2026"), config)
+    assert bs_ms.keep
+    assert bs_ms.degree_flag == "undergrad_ok"
+
+    override = evaluate_job(
+        make_job(
+            title="Research Scientist Intern, PhD",
+            jd_text="Open to exceptional undergraduates with research experience.",
+        ),
+        config,
     )
+    assert override.keep
+    assert override.degree_flag == "undergrad_ok"
+
+    plain = evaluate_job(make_job(title="Software Engineer Intern"), config)
+    assert plain.keep
+    assert plain.degree_flag == "degree_unknown"
+
+
+def test_filter_tags_term_and_never_drops_past_terms() -> None:
+    config = CompanyConfig(name="google", adapter="google")
+
+    past = evaluate_job(make_job(title="Software Engineer Intern, Summer 2026"), config)
+    assert past.keep
+    assert past.term_flag == "past"
+
+    target = evaluate_job(make_job(title="Software Engineer Intern, Summer 2027"), config)
+    assert target.keep
+    assert target.term_flag == "target"
+
+    unknown = evaluate_job(make_job(title="Software Engineer Intern"), config)
+    assert unknown.keep
+    assert unknown.term_flag == "unknown"
+
+
+def test_sort_alert_jobs_puts_phd_and_past_terms_last() -> None:
+    config = CompanyConfig(name="google", adapter="google")
+
+    def tagged(**overrides: str) -> Job:
+        job = make_job(**overrides)
+        return apply_decision(job, evaluate_job(job, config))
+
+    ordered = sort_alert_jobs(
+        [
+            tagged(id="1", title="PhD Intern"),
+            tagged(id="2", title="Software Engineer Intern, Summer 2026"),
+            tagged(id="3", title="Software Engineer Intern, Summer 2027"),
+            tagged(id="4", title="Software Engineer Intern"),
+        ]
+    )
+    assert [job.id for job in ordered] == ["3", "4", "2", "1"]
 
 
 def test_filter_applies_keywords_and_us_location() -> None:

@@ -15,8 +15,17 @@ INTERN_TITLE_RE = re.compile(
     r"predoctoral|industrial trainee)\b",
     re.IGNORECASE,
 )
-PHD_RE = re.compile(r"\b(ph\.?d|doctoral|postdoc|post-doc)\b", re.IGNORECASE)
-BACHELORS_RE = re.compile(r"\b(bs|ba|bachelor|undergrad|bs/ms|ms/phd)\b", re.IGNORECASE)
+PHD_RE = re.compile(r"\b(ph\.?d|doctoral|post-?doc)\b", re.IGNORECASE)
+UNDERGRAD_RE = re.compile(
+    r"\b(bs|b\.s|ba|bachelor'?s?|undergrad(uate)?|sophomore|junior|rising senior)\b",
+    re.IGNORECASE,
+)
+UNDERGRAD_OVERRIDE_RE = re.compile(
+    r"exceptional undergraduate|outstanding undergraduate|open to undergraduates|"
+    r"currently enrolled in a bachelor'?s?,?\s*master'?s?,?\s*or\s*ph\.?d|"
+    r"equivalent practical experience|rising senior|penultimate year",
+    re.IGNORECASE,
+)
 MULTI_LOCATION_RE = re.compile(r"^\d+\s+locations?$", re.IGNORECASE)
 
 PAST_TERM_RE = re.compile(
@@ -184,50 +193,28 @@ class FilterDecision:
 
 def evaluate_job(job: Job, config: CompanyConfig) -> FilterDecision:
     title = job.title
-    haystack = f"{job.title}\n{job.location}\n{job.jd_text}".lower()
+    haystack = f"{job.title}\n{job.location}\n{job.jd_text}"
 
     if not INTERN_TITLE_RE.search(title):
         return FilterDecision(keep=False, stage="intern")
 
-    phd_only = bool(PHD_RE.search(title) and not BACHELORS_RE.search(title))
-    if phd_only and not config.include_phd:
-        return FilterDecision(keep=False, stage="degree", degree_flag="phd_title")
-
-    degree_flag = "phd_title" if phd_only else "unknown"
-
     location_kind = classify_location(job.location)
     if not config.include_intl and location_kind == "non_us":
-        return FilterDecision(keep=False, stage="us", degree_flag=degree_flag)
+        return FilterDecision(keep=False, stage="us")
     location_unknown = location_kind == "unknown"
 
-    if config.include_keywords and not any(keyword.lower() in haystack for keyword in config.include_keywords):
-        return FilterDecision(
-            keep=False,
-            stage="keywords",
-            location_unknown=location_unknown,
-            degree_flag=degree_flag,
-        )
-    if any(keyword.lower() in haystack for keyword in config.exclude_keywords):
-        return FilterDecision(
-            keep=False,
-            stage="keywords",
-            location_unknown=location_unknown,
-            degree_flag=degree_flag,
-        )
-
-    if TARGET_TERM_RE.search(title):
-        term_flag = "target"
-    elif PAST_TERM_RE.search(title):
-        term_flag = "past"
-    else:
-        term_flag = "unknown"
+    lowered_haystack = haystack.lower()
+    if config.include_keywords and not any(keyword.lower() in lowered_haystack for keyword in config.include_keywords):
+        return FilterDecision(keep=False, stage="keywords", location_unknown=location_unknown)
+    if any(keyword.lower() in lowered_haystack for keyword in config.exclude_keywords):
+        return FilterDecision(keep=False, stage="keywords", location_unknown=location_unknown)
 
     return FilterDecision(
         keep=True,
         stage="keep",
         location_unknown=location_unknown,
-        degree_flag=degree_flag,
-        term_flag=term_flag,
+        degree_flag=classify_degree(title, job.jd_text),
+        term_flag=classify_term(f"{title}\n{job.jd_text}"),
     )
 
 
@@ -259,7 +246,39 @@ def filter_jobs(jobs: list[Job], configs: dict[str, CompanyConfig]) -> list[Job]
         decision = evaluate_job(job, config)
         if decision.keep:
             filtered.append(apply_decision(job, decision))
-    return filtered
+    return sort_alert_jobs(filtered)
+
+
+def classify_degree(title: str, jd_text: str) -> str:
+    blob = f"{title}\n{jd_text}"
+    undergrad = bool(UNDERGRAD_RE.search(blob) or UNDERGRAD_OVERRIDE_RE.search(blob))
+    if undergrad:
+        return "undergrad_ok"
+    if PHD_RE.search(blob):
+        return "phd_likely"
+    return "degree_unknown"
+
+
+def classify_term(text: str) -> str:
+    if TARGET_TERM_RE.search(text):
+        return "target"
+    if PAST_TERM_RE.search(text):
+        return "past"
+    return "unknown"
+
+
+def sort_alert_jobs(jobs: list[Job]) -> list[Job]:
+    degree_rank = {"undergrad_ok": 0, "degree_unknown": 0, "phd_likely": 1}
+    term_rank = {"target": 0, "unknown": 1, "past": 2}
+    return sorted(
+        jobs,
+        key=lambda job: (
+            degree_rank.get(job.degree_flag or "degree_unknown", 0),
+            term_rank.get(job.term_flag or "unknown", 1),
+            job.company.lower(),
+            job.title.lower(),
+        ),
+    )
 
 
 def classify_location(location: str) -> str:
