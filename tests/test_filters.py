@@ -19,28 +19,52 @@ def make_job(**overrides: str) -> Job:
     return Job(**values)
 
 
-def test_filter_requires_intern_in_title() -> None:
+def test_filter_requires_internish_and_tech_title() -> None:
     config = CompanyConfig(name="google", adapter="google")
 
     assert not passes_filter(make_job(title="Software Engineer"), config)
     assert not passes_filter(make_job(title="Internal Communications Manager"), config)
     assert not passes_filter(make_job(title="International Equity Manager"), config)
     assert not passes_filter(make_job(title="Design Verification Engineer - Internal IP"), config)
+    assert not passes_filter(make_job(title="New Grad Software Engineer"), config)
+    assert not passes_filter(make_job(title="Women's Winternship"), config)
     assert passes_filter(make_job(title="Student Researcher, BS/MS"), config)
-    assert passes_filter(make_job(title="Women's Winternship"), config)
-    assert passes_filter(make_job(title="New Grad Software Engineer"), config)
+    assert passes_filter(make_job(title="Software Engineer (Campus)"), config)
+    assert passes_filter(make_job(title="Software Engineering Intern"), config)
 
 
-def test_filter_tags_degree_and_never_drops_phd() -> None:
+def test_filter_hard_drops_recruiter_and_full_time_without_intern() -> None:
     config = CompanyConfig(name="google", adapter="google")
 
-    phd = evaluate_job(make_job(title="Research Intern - PhD"), config)
-    assert phd.keep
-    assert phd.degree_flag == "phd_likely"
+    assert not passes_filter(make_job(title="Campus Recruiter"), config)
+    assert not passes_filter(make_job(title="Campus AI Research Engineer (Full-Time)"), config)
+    assert passes_filter(make_job(title="Full-Time Software Engineer Intern"), config)
+    assert passes_filter(make_job(title="Software Engineer Intern/Full-Time"), config)
 
-    bs_ms = evaluate_job(make_job(title="Student Researcher, BS/MS/PhD, Fall 2026"), config)
-    assert bs_ms.keep
-    assert bs_ms.degree_flag == "undergrad_ok"
+
+def test_filter_keeps_tech_roles_and_drops_ee_pm_security() -> None:
+    config = CompanyConfig(name="google", adapter="google")
+
+    assert passes_filter(make_job(title="Backend Intern"), config)
+    assert passes_filter(make_job(title="SRE Intern"), config)
+    assert passes_filter(make_job(title="Data Engineer Intern"), config)
+    assert passes_filter(make_job(title="Quantitative Trader Intern"), config)
+    assert passes_filter(make_job(title="ML Intern"), config)
+    assert not passes_filter(make_job(title="FPGA Intern"), config)
+    assert not passes_filter(make_job(title="Electrical Engineer Intern"), config)
+    assert not passes_filter(make_job(title="Hardware Intern"), config)
+    assert not passes_filter(make_job(title="Security Intern"), config)
+    assert not passes_filter(make_job(title="Product Management Intern"), config)
+    assert not passes_filter(make_job(title="PM Intern"), config)
+    assert not passes_filter(make_job(title="Accounting Intern"), config)
+
+
+def test_filter_drops_phd_unless_undergrad_language() -> None:
+    config = CompanyConfig(name="google", adapter="google")
+
+    phd = evaluate_job(make_job(title="Research Intern - PhD", jd_text="PhD required."), config)
+    assert not phd.keep
+    assert phd.stage == "phd"
 
     override = evaluate_job(
         make_job(
@@ -52,40 +76,38 @@ def test_filter_tags_degree_and_never_drops_phd() -> None:
     assert override.keep
     assert override.degree_flag == "undergrad_ok"
 
+    bachelors_or_phd = evaluate_job(
+        make_job(
+            title="Software Engineer Intern",
+            jd_text="Pursuit of a Bachelor's, Master's, or PhD degree in computer science.",
+        ),
+        config,
+    )
+    assert bachelors_or_phd.keep
+    assert bachelors_or_phd.degree_flag == "undergrad_ok"
+
     plain = evaluate_job(make_job(title="Software Engineer Intern"), config)
     assert plain.keep
     assert plain.degree_flag == "degree_unknown"
 
 
-def test_filter_tags_term_and_never_drops_past_terms() -> None:
+def test_filter_term_keeps_summer_2027_and_part_time() -> None:
     config = CompanyConfig(name="google", adapter="google")
 
-    past = evaluate_job(make_job(title="Software Engineer Intern, Summer 2026"), config)
-    assert past.keep
-    assert past.term_flag == "term_past"
+    assert not passes_filter(make_job(title="Software Engineer Intern, Summer 2026"), config)
+    assert not passes_filter(make_job(title="Software Engineer Intern, Winter 2027"), config)
+    assert not passes_filter(make_job(title="Software Engineer Intern, Fall 2026"), config)
+    assert passes_filter(make_job(title="Software Engineer Intern, Summer 2027"), config)
+    assert passes_filter(make_job(title="Part-Time Software Engineer Intern, Winter 2027"), config)
+    assert passes_filter(make_job(title="Summer 2026/2027 Software Engineering Internship"), config)
+    assert passes_filter(make_job(title="2026-2027 Software Engineer Intern Program"), config)
+    assert passes_filter(make_job(title="Software Engineer Intern"), config)
 
     target = evaluate_job(make_job(title="Software Engineer Intern, Summer 2027"), config)
-    assert target.keep
     assert target.term_flag == "term_target"
 
-    winter = evaluate_job(make_job(title="Software Engineer Intern, Winter 2027"), config)
-    assert winter.keep
-    assert winter.term_flag == "term_target"
 
-    both = evaluate_job(make_job(title="Summer 2026/2027 Internship"), config)
-    assert both.keep
-    assert both.term_flag == "term_target"
-
-    span = evaluate_job(make_job(title="2026-2027 Intern Program"), config)
-    assert span.keep
-    assert span.term_flag == "term_target"
-
-    unknown = evaluate_job(make_job(title="Software Engineer Intern"), config)
-    assert unknown.keep
-    assert unknown.term_flag == "term_unknown"
-
-
-def test_sort_alert_jobs_puts_phd_and_past_terms_last() -> None:
+def test_sort_alert_jobs_puts_phd_last() -> None:
     config = CompanyConfig(name="google", adapter="google")
 
     def tagged(**overrides: str) -> Job:
@@ -94,16 +116,41 @@ def test_sort_alert_jobs_puts_phd_and_past_terms_last() -> None:
 
     ordered = sort_alert_jobs(
         [
-            tagged(id="1", title="PhD Intern"),
-            tagged(id="2", title="Software Engineer Intern, Summer 2026"),
+            tagged(
+                id="1",
+                title="Research Intern, PhD",
+                jd_text="Open to exceptional undergraduates.",
+            ),
             tagged(id="3", title="Software Engineer Intern, Summer 2027"),
             tagged(id="4", title="Software Engineer Intern"),
         ]
     )
-    assert [job.id for job in ordered] == ["3", "4", "2", "1"]
+    assert [job.id for job in ordered] == ["3", "1", "4"]
 
 
-def test_filter_applies_keywords_and_us_location() -> None:
+def test_filter_us_location_title_and_field() -> None:
+    config = CompanyConfig(name="google", adapter="google")
+
+    assert not passes_filter(make_job(location="London, United Kingdom"), config)
+    assert not passes_filter(make_job(location="Denmark, Roskilde"), config)
+    assert not passes_filter(make_job(location="Taiwan, Taipei"), config)
+    assert not passes_filter(make_job(location="Dublin"), config)
+    assert not passes_filter(make_job(location="Dublin HQ"), config)
+    assert not passes_filter(make_job(location="IE-Dublin"), config)
+    assert not passes_filter(make_job(title="Software Engineer Intern (Mexico)", location="Unspecified"), config)
+    assert passes_filter(make_job(location="Dublin, OH"), config)
+    assert passes_filter(make_job(location="Indiana"), config)
+    assert passes_filter(make_job(location="US, CA, Santa Clara"), config)
+    assert passes_filter(make_job(location="San Francisco, CA; London, UK"), config)
+    assert passes_filter(make_job(location="2 Locations"), config)
+    assert passes_filter(make_job(location="Unspecified"), config)
+    assert passes_filter(
+        make_job(location="Unspecified", jd_text="This team also staffs our Dublin HQ."),
+        config,
+    )
+
+
+def test_filter_applies_keywords() -> None:
     config = CompanyConfig(
         name="google",
         adapter="google",
@@ -113,9 +160,3 @@ def test_filter_applies_keywords_and_us_location() -> None:
 
     assert passes_filter(make_job(jd_text="Machine learning infrastructure."), config)
     assert not passes_filter(make_job(jd_text="Machine learning hardware only role."), config)
-    assert not passes_filter(make_job(location="London, United Kingdom", jd_text="Machine learning."), config)
-    assert not passes_filter(make_job(location="Denmark, Roskilde", jd_text="Machine learning."), config)
-    assert not passes_filter(make_job(location="Taiwan, Taipei", jd_text="Machine learning."), config)
-    assert passes_filter(make_job(location="US, CA, Santa Clara", jd_text="Machine learning."), config)
-    assert passes_filter(make_job(location="2 Locations", jd_text="Machine learning."), config)
-    assert passes_filter(make_job(location="Unspecified", jd_text="Machine learning."), config)

@@ -106,9 +106,9 @@ companies:
 
 Filtering rules:
 
-- Requires an internship-like title (`intern`, `student`, `new grad`, …), using word boundaries so `Internal` does not match.
-- Keeps PhD-titled roles and tags them; does not drop them.
-- Drops non-US locations when they are clearly abroad; keeps the role if location is missing or unreadable.
+- Requires an intern-like title (`intern`, `campus`, `student`, `co-op`, …) **and** a tech function (SWE/ML/research/quant/SRE/data). Recruiter/ambassador titles are dropped. `new grad` is not enough.
+- Drops PhD-only internships unless the JD opens to undergrads. Drops winter/spring/fall internships unless they are part-time; Summer 2027 and unstated terms are kept.
+- Drops clearly non-US locations using the title plus location field (US state wins; empty location is kept). Does not read the JD for country.
 - Applies per-company `include_keywords` and `exclude_keywords`.
 
 Tiers control Discord embed color:
