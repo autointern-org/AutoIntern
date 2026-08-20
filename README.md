@@ -64,7 +64,9 @@ Paste your internship-hunting skill into `config/skill_context.md`. The checked-
 
 | Secret | Where to get it |
 | --- | --- |
-| `DISCORD_WEBHOOK_URL` | Discord channel → Integrations → Webhooks → copy URL |
+| `DISCORD_WEBHOOK_URL` | Main alerts channel webhook |
+| `DISCORD_FORUM_WEBHOOK_URL` | Forum channel webhook (full list when a company has more than 5 new roles) |
+| `DISCORD_ISSUES_WEBHOOK_URL` | `#issues` channel webhook (broken fetches) |
 | `CF_ACCOUNT_ID` | Cloudflare dashboard → account ID in URL/sidebar |
 | `CF_KV_NAMESPACE_ID` | Workers → KV → your namespace → ID |
 | `CF_API_TOKEN` | Cloudflare API token with Workers KV Storage read/write |
@@ -104,9 +106,9 @@ companies:
 
 Filtering rules:
 
-- Requires `intern` in the title.
-- Excludes `PhD` unless `include_phd: true`.
-- Excludes non-US locations unless `include_intl: true`.
+- Requires an internship-like title (`intern`, `student`, `new grad`, …), using word boundaries so `Internal` does not match.
+- Keeps PhD-titled roles and tags them; does not drop them.
+- Drops non-US locations when they are clearly abroad; keeps the role if location is missing or unreadable.
 - Applies per-company `include_keywords` and `exclude_keywords`.
 
 Tiers control Discord embed color:

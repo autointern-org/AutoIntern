@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 import os
+from time import perf_counter
 from typing import Iterable
 
 from adapters.amazon import AmazonAdapter
@@ -24,8 +26,9 @@ from adapters.tiktok import TikTokAdapter
 from adapters.workday import WorkdayAdapter
 from core.classifier import Classifier, build_classifier_from_env
 from core.config import CompanyConfig, Whitelist
-from core.discord import DiscordClient
-from core.filters import passes_filter
+from core.discord import DiscordClient, DiscordMessage
+from core.filters import apply_decision, evaluate_job, sort_alert_jobs
+from core.health import CompanyHealth, anomaly_lines, format_health
 from core.kv import CloudflareKV, StateStore
 
 
@@ -36,6 +39,8 @@ class ScanResult:
     notified: int = 0
     dismissed: int = 0
     skipped_seen: int = 0
+    recaps: int = 0
+    issues: int = 0
 
 
 def run_scan(
@@ -56,6 +61,8 @@ def run_scan(
     )
     discord = DiscordClient(
         os.getenv("DISCORD_WEBHOOK_URL"),
+        forum_webhook_url=os.getenv("DISCORD_FORUM_WEBHOOK_URL"),
+        issues_webhook_url=os.getenv("DISCORD_ISSUES_WEBHOOK_URL"),
         bot_token=os.getenv("DISCORD_BOT_TOKEN"),
         channel_id=os.getenv("DISCORD_CHANNEL_ID"),
         dry_run=dry_run,
@@ -84,37 +91,146 @@ def scan(
 ) -> ScanResult:
     result = ScanResult()
     result.dismissed = mark_reaction_dismissals(state, discord)
+    fetched_by_company: dict[str, int] = defaultdict(int)
+    matched_jobs: dict[str, list[Job]] = defaultdict(list)
+    health_rows: list[CompanyHealth] = []
 
     for adapter in adapters:
+        started = perf_counter()
         try:
             jobs = adapter.fetch()
         except Exception as exc:
-            print(f"[scan] adapter {adapter.__class__.__name__} failed: {exc}")
+            duration_ms = int((perf_counter() - started) * 1000)
+            label = adapter.__class__.__name__
+            print(f"[scan] adapter {label} failed: {exc}")
+            health_rows.append(
+                CompanyHealth(company=label, status="error", duration_ms=duration_ms, error=str(exc))
+            )
+            _report_issue(discord, result, f"{label} fetch failed", str(exc), dry_run=dry_run)
             continue
+        duration_ms = int((perf_counter() - started) * 1000)
         result.fetched += len(jobs)
+        companies_in_batch: set[str] = set()
         for job in jobs:
-            config = configs.get(job.company.lower())
-            if not config or not passes_filter(job, config):
+            company_key = job.company.lower()
+            fetched_by_company[company_key] += 1
+            companies_in_batch.add(company_key)
+            config = configs.get(company_key)
+            if not config:
+                continue
+            decision = evaluate_job(job, config)
+            if not decision.keep:
                 continue
             result.matched += 1
+            matched_jobs[company_key].append(apply_decision(job, decision))
+        for company_key in companies_in_batch:
+            health_rows.append(
+                CompanyHealth(
+                    company=company_key,
+                    fetched=fetched_by_company[company_key],
+                    matched=len(matched_jobs.get(company_key, [])),
+                    status="ok",
+                    duration_ms=duration_ms,
+                )
+            )
+
+    print(format_health(health_rows))
+    previous = {
+        row.company: int((state.get_health(row.company) or {}).get("fetched") or 0)
+        for row in health_rows
+        if row.status == "ok"
+    }
+    for line in anomaly_lines(health_rows, previous):
+        print(line)
+        _report_issue(discord, result, "Company fetch looks off", line, dry_run=dry_run)
+
+    for company_key, jobs in matched_jobs.items():
+        config = configs[company_key]
+        jobs = sort_alert_jobs(jobs)
+        if not state.is_bootstrapped(company_key):
+            unseen = [
+                job
+                for job in jobs
+                if not state.is_seen(job.id) and not state.is_dismissed(job.id)
+            ]
+            for job in jobs:
+                if state.is_seen(job.id) or state.is_dismissed(job.id):
+                    result.skipped_seen += 1
+                    if not dry_run:
+                        state.refresh_seen(job.id)
+            if unseen:
+                result.recaps += 1
+                recap = discord.post_recap(config.name, unseen, color=config.color)
+                for job in unseen:
+                    _remember(state, job, recap, dry_run=dry_run)
+                    result.notified += 1
+            if not dry_run:
+                state.mark_bootstrapped(company_key)
+                state.record_health(company_key, fetched=fetched_by_company[company_key], matched=len(jobs))
+            continue
+
+        fresh: list[tuple[Job, str, int]] = []
+        for job in jobs:
             if state.is_seen(job.id) or state.is_dismissed(job.id):
                 result.skipped_seen += 1
                 if not dry_run:
                     state.refresh_seen(job.id)
                 continue
             resume_config = _resume_config(classifier, job, dry_run=dry_run, skip_claude=skip_claude)
-            message = discord.post_job(job, resume_config, color=config.color)
+            fresh.append((job, resume_config, config.color))
+        if not fresh:
             if not dry_run:
-                state.record_notification(
-                    job_id=job.id,
-                    company=job.company,
-                    title=job.title,
-                    url=job.url,
-                    message_id=message.id,
-                    channel_id=message.channel_id,
-                )
+                state.record_health(company_key, fetched=fetched_by_company[company_key], matched=len(jobs))
+            continue
+        thread_id = state.get_forum_thread(company_key)
+        if thread_id:
+            discord.thread_ids[config.name] = thread_id
+        messages = discord.post_jobs_for_company(config.name, fresh)
+        for (job, _, _), message in zip(fresh, _job_messages(messages, len(fresh))):
+            _remember(state, job, message, dry_run=dry_run)
             result.notified += 1
+        if not dry_run:
+            stored_thread = discord.thread_ids.get(config.name)
+            if stored_thread:
+                state.record_forum_thread(company_key, stored_thread)
+            state.record_health(company_key, fetched=fetched_by_company[company_key], matched=len(jobs))
     return result
+
+
+def _job_messages(messages: list[DiscordMessage], job_count: int) -> list[DiscordMessage]:
+    if len(messages) == job_count:
+        return messages
+    if len(messages) == job_count + 1:
+        return messages[1:]
+    return messages[-job_count:]
+
+
+def _remember(state: StateStore, job: Job, message: DiscordMessage, *, dry_run: bool) -> None:
+    if dry_run:
+        return
+    state.record_notification(
+        job_id=job.id,
+        company=job.company,
+        title=job.title,
+        url=job.url,
+        message_id=message.id,
+        channel_id=message.channel_id,
+    )
+
+
+def _report_issue(
+    discord: DiscordClient,
+    result: ScanResult,
+    title: str,
+    body: str,
+    *,
+    dry_run: bool,
+) -> None:
+    result.issues += 1
+    if dry_run:
+        print(f"[dry-run] issue {title}: {body}")
+        return
+    discord.post_issue(title, body)
 
 
 def mark_reaction_dismissals(state: StateStore, discord: DiscordClient) -> int:

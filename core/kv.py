@@ -117,6 +117,40 @@ class StateStore:
             return
         self._put(self._job_key(job_id), job, ttl_seconds=DEFAULT_SEEN_TTL_SECONDS)
 
+    def is_bootstrapped(self, company: str) -> bool:
+        return self._get(self._bootstrap_key(company)) is not None
+
+    def mark_bootstrapped(self, company: str) -> None:
+        self._put(
+            self._bootstrap_key(company),
+            {"company": company, "bootstrapped_at": now_iso()},
+            ttl_seconds=60 * 60 * 24 * 400,
+        )
+
+    def record_forum_thread(self, company: str, thread_id: str) -> None:
+        self._put(
+            self._thread_key(company),
+            {"company": company, "thread_id": thread_id},
+            ttl_seconds=60 * 60 * 24 * 400,
+        )
+
+    def get_forum_thread(self, company: str) -> str | None:
+        value = self._get(self._thread_key(company))
+        if not value:
+            return None
+        thread_id = value.get("thread_id")
+        return str(thread_id) if thread_id else None
+
+    def get_health(self, company: str) -> dict[str, Any] | None:
+        return self._get(self._health_key(company))
+
+    def record_health(self, company: str, *, fetched: int, matched: int) -> None:
+        self._put(
+            self._health_key(company),
+            {"company": company, "fetched": fetched, "matched": matched, "at": now_iso()},
+            ttl_seconds=60 * 60 * 24 * 90,
+        )
+
     def record_notification(
         self,
         *,
@@ -192,6 +226,18 @@ class StateStore:
     @staticmethod
     def _dismissed_key(job_id: str) -> str:
         return f"dismissed:{job_id}"
+
+    @staticmethod
+    def _bootstrap_key(company: str) -> str:
+        return f"bootstrapped:{company.lower()}"
+
+    @staticmethod
+    def _thread_key(company: str) -> str:
+        return f"thread:{company.lower()}"
+
+    @staticmethod
+    def _health_key(company: str) -> str:
+        return f"health:{company.lower()}"
 
 
 def now_iso() -> str:

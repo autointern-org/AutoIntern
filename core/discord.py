@@ -29,6 +29,7 @@ class DiscordClient:
         webhook_url: str | None,
         *,
         forum_webhook_url: str | None = None,
+        issues_webhook_url: str | None = None,
         bot_token: str | None = None,
         channel_id: str | None = None,
         dry_run: bool = False,
@@ -37,6 +38,7 @@ class DiscordClient:
     ) -> None:
         self.webhook_url = webhook_url
         self.forum_webhook_url = forum_webhook_url
+        self.issues_webhook_url = issues_webhook_url
         self.bot_token = bot_token
         self.channel_id = channel_id
         self.dry_run = dry_run
@@ -89,6 +91,46 @@ class DiscordClient:
         for job, resume_config, color in jobs_with_resume:
             messages.append(self.post_job(job, resume_config, color=color))
         return messages
+
+    def post_recap(self, company: str, jobs: list[Job], *, color: int) -> DiscordMessage:
+        payload = {
+            "embeds": [
+                build_summary_embed(
+                    company,
+                    [(job, "", color) for job in jobs],
+                    title=f"{company} — {len(jobs)} intern roles currently open",
+                    footer="First look — later new roles ping as they appear",
+                )
+            ]
+        }
+        return self._post_webhook(
+            self.webhook_url,
+            payload,
+            dry_run_id=f"dry-run-recap-{company}",
+            missing_url_error="DISCORD_WEBHOOK_URL is required unless dry_run is enabled",
+        )
+
+    def post_issue(self, title: str, body: str) -> DiscordMessage | None:
+        print(f"[issues] {title}: {body}")
+        if self.dry_run and not self.issues_webhook_url:
+            return DiscordMessage(id=f"dry-run-issue-{title}", channel_id=None, payload={"title": title, "body": body})
+        if not self.issues_webhook_url:
+            return None
+        payload = {
+            "embeds": [
+                {
+                    "title": title[:256],
+                    "description": body[:4000],
+                    "color": 0xF59E0B,
+                }
+            ]
+        }
+        return self._post_webhook(
+            self.issues_webhook_url,
+            payload,
+            dry_run_id=f"dry-run-issue-{title}",
+            missing_url_error="DISCORD_ISSUES_WEBHOOK_URL is required unless dry_run is enabled",
+        )
 
     def fetch_message(self, message_id: str, channel_id: str | None = None) -> dict[str, Any] | None:
         if self.dry_run:
@@ -183,14 +225,21 @@ def build_job_embed(job: Job, resume_config: str, *, color: int) -> dict[str, An
     }
 
 
-def build_summary_embed(company: str, jobs_with_resume: list[tuple[Job, str, int]]) -> dict[str, Any]:
+def build_summary_embed(
+    company: str,
+    jobs_with_resume: list[tuple[Job, str, int]],
+    *,
+    title: str | None = None,
+    footer: str = "Details in forum thread",
+) -> dict[str, Any]:
     count = len(jobs_with_resume)
     links = [f"- [{job.title}]({job.url})" for job, _, _ in jobs_with_resume[:SUMMARY_TITLE_LIMIT]]
+    extra = f"\n- …and {count - SUMMARY_TITLE_LIMIT} more" if count > SUMMARY_TITLE_LIMIT else ""
     return {
-        "title": f"{company} — {count} new intern postings"[:256],
-        "description": "\n".join(links),
-        "color": jobs_with_resume[0][2],
-        "footer": {"text": "Details in forum thread"},
+        "title": (title or f"{company} — {count} new intern postings")[:256],
+        "description": "\n".join(links) + extra,
+        "color": jobs_with_resume[0][2] if jobs_with_resume else 0x6B7280,
+        "footer": {"text": footer},
     }
 
 
