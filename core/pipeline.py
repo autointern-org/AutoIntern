@@ -89,6 +89,8 @@ def scan(
             result.matched += 1
             if state.is_seen(job.id) or state.is_dismissed(job.id):
                 result.skipped_seen += 1
+                if not dry_run:
+                    state.refresh_seen(job.id)
                 continue
             resume_config = _resume_config(classifier, job, dry_run=dry_run, skip_claude=skip_claude)
             message = discord.post_job(job, resume_config, color=config.color)

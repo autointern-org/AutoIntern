@@ -1,13 +1,33 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from adapters.base import Job
 from core.config import CompanyConfig
 from core.discord import DiscordMessage
-from core.kv import StateStore
+from core.kv import DEFAULT_SEEN_TTL_SECONDS, StateStore
 from core.pipeline import scan
+
+
+class FakeKV:
+    def __init__(self) -> None:
+        self.values: dict[str, dict[str, Any]] = {}
+        self.puts: list[tuple[str, int | None]] = []
+
+    @property
+    def enabled(self) -> bool:
+        return True
+
+    def get_json(self, key: str) -> dict[str, Any] | None:
+        value = self.values.get(key)
+        return dict(value) if value else None
+
+    def put_json(self, key: str, value: dict[str, Any], *, ttl_seconds: int | None = None) -> None:
+        self.values[key] = dict(value)
+        self.puts.append((key, ttl_seconds))
+
+    def list_keys(self, prefix: str) -> list[str]:
+        return [key for key in self.values if key.startswith(prefix)]
 
 
 class FakeAdapter:
@@ -101,3 +121,33 @@ def test_scan_marks_dismissed_reactions_before_notifying() -> None:
     assert result.dismissed == 1
     assert result.notified == 0
     assert state.is_dismissed("greenhouse:anthropic:1")
+
+
+def test_scan_refreshes_seen_ttl_without_reposting() -> None:
+    job = make_job()
+    kv = FakeKV()
+    state = StateStore(kv)
+    state.record_notification(
+        job_id=job.id,
+        company=job.company,
+        title=job.title,
+        url=job.url,
+        message_id="message-1",
+        channel_id="channel-1",
+    )
+    kv.puts.clear()
+    discord = FakeDiscord()
+
+    result = scan(
+        adapters=[FakeAdapter([job])],
+        configs={"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse")},
+        state=state,
+        discord=discord,
+        classifier=FakeClassifier(),
+    )
+
+    assert result.notified == 0
+    assert result.skipped_seen == 1
+    assert discord.posts == []
+    assert kv.puts == [(f"job:{job.id}", DEFAULT_SEEN_TTL_SECONDS)]
+    assert state.is_seen(job.id)

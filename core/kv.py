@@ -111,6 +111,12 @@ class StateStore:
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         return self._get(self._job_key(job_id))
 
+    def refresh_seen(self, job_id: str) -> None:
+        job = self.get_job(job_id)
+        if not job:
+            return
+        self._put(self._job_key(job_id), job, ttl_seconds=DEFAULT_SEEN_TTL_SECONDS)
+
     def record_notification(
         self,
         *,
