@@ -258,7 +258,7 @@ def _job_flags(job: Job) -> list[str]:
     if job.degree_flag:
         flags.append(job.degree_flag if job.degree_flag != "unknown" else "degree_unknown")
     if job.term_flag:
-        flags.append(job.term_flag if job.term_flag != "unknown" else "term_unknown")
+        flags.append(job.term_flag)
     return flags
 
 

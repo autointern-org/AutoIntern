@@ -62,15 +62,27 @@ def test_filter_tags_term_and_never_drops_past_terms() -> None:
 
     past = evaluate_job(make_job(title="Software Engineer Intern, Summer 2026"), config)
     assert past.keep
-    assert past.term_flag == "past"
+    assert past.term_flag == "term_past"
 
     target = evaluate_job(make_job(title="Software Engineer Intern, Summer 2027"), config)
     assert target.keep
-    assert target.term_flag == "target"
+    assert target.term_flag == "term_target"
+
+    winter = evaluate_job(make_job(title="Software Engineer Intern, Winter 2027"), config)
+    assert winter.keep
+    assert winter.term_flag == "term_target"
+
+    both = evaluate_job(make_job(title="Summer 2026/2027 Internship"), config)
+    assert both.keep
+    assert both.term_flag == "term_target"
+
+    span = evaluate_job(make_job(title="2026-2027 Intern Program"), config)
+    assert span.keep
+    assert span.term_flag == "term_target"
 
     unknown = evaluate_job(make_job(title="Software Engineer Intern"), config)
     assert unknown.keep
-    assert unknown.term_flag == "unknown"
+    assert unknown.term_flag == "term_unknown"
 
 
 def test_sort_alert_jobs_puts_phd_and_past_terms_last() -> None:

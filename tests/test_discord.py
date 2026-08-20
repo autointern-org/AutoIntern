@@ -92,11 +92,11 @@ def test_build_job_embed_omits_posted_when_none() -> None:
 
 
 def test_build_job_embed_includes_flags() -> None:
-    job = make_job(location_unknown=True, term_flag="unknown", degree_flag="phd_title")
+    job = make_job(location_unknown=True, term_flag="term_unknown", degree_flag="phd_likely")
 
     embed = build_job_embed(job, "resume_config: test", color=0xEF4444)
 
-    assert "**Flags:** location_unknown, phd_title, term_unknown" in embed["description"]
+    assert "**Flags:** location_unknown, phd_likely, term_unknown" in embed["description"]
 
 
 def test_has_checkmark_reaction() -> None:

@@ -29,11 +29,11 @@ UNDERGRAD_OVERRIDE_RE = re.compile(
 MULTI_LOCATION_RE = re.compile(r"^\d+\s+locations?$", re.IGNORECASE)
 
 PAST_TERM_RE = re.compile(
-    r"\b(summer|spring|fall|winter|autumn)\s*(20)?(23|24|25|26)\b|\b20(23|24|25)\b",
+    r"\b(summer|spring|fall|winter|autumn)\s*(20)?(23|24|25|26)\b|\b20(23|24|25|26)\b",
     re.IGNORECASE,
 )
 TARGET_TERM_RE = re.compile(
-    r"\b(summer\s*)?(20)?27\b|\bsummer\s*'?27\b|\b\[?2027\s*summer\]?\b",
+    r"\b20'?27\b|\bsummer\s*'?27\b|\(2027\s+start\)|\[2027\s+summer\]",
     re.IGNORECASE,
 )
 
@@ -261,20 +261,20 @@ def classify_degree(title: str, jd_text: str) -> str:
 
 def classify_term(text: str) -> str:
     if TARGET_TERM_RE.search(text):
-        return "target"
+        return "term_target"
     if PAST_TERM_RE.search(text):
-        return "past"
-    return "unknown"
+        return "term_past"
+    return "term_unknown"
 
 
 def sort_alert_jobs(jobs: list[Job]) -> list[Job]:
     degree_rank = {"undergrad_ok": 0, "degree_unknown": 0, "phd_likely": 1}
-    term_rank = {"target": 0, "unknown": 1, "past": 2}
+    term_rank = {"term_target": 0, "term_unknown": 1, "term_past": 2}
     return sorted(
         jobs,
         key=lambda job: (
             degree_rank.get(job.degree_flag or "degree_unknown", 0),
-            term_rank.get(job.term_flag or "unknown", 1),
+            term_rank.get(job.term_flag or "term_unknown", 1),
             job.company.lower(),
             job.title.lower(),
         ),
