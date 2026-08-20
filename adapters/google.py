@@ -20,6 +20,8 @@ CARD_HREF_RE = re.compile(
     r"/about/careers/applications/jobs/results/(\d+)-([a-z0-9-]+)",
     re.IGNORECASE,
 )
+_DS1_CALLBACK_RE = re.compile(r"AF_initDataCallback\s*\(")
+_DS1_KEY_RE = re.compile(r"""key\s*:\s*['"]ds:1['"]""")
 
 
 class GoogleAdapter:
@@ -84,6 +86,8 @@ def _jobs_from_blob(html: str) -> tuple[list[Job], int | None, bool]:
     records = payload[0] if payload else []
     if not isinstance(records, list):
         raise RuntimeError("Google ds:1 data[0] is not a job list")
+    if not _records_look_like_jobs(records):
+        return [], None, False
     total = payload[2] if len(payload) > 2 and isinstance(payload[2], int) else None
     jobs: list[Job] = []
     for record in records:
@@ -96,14 +100,50 @@ def _jobs_from_blob(html: str) -> tuple[list[Job], int | None, bool]:
 
 
 def _extract_ds1_data(html: str) -> list[Any] | None:
-    marker = html.find("ds:1")
-    if marker < 0:
-        return None
-    data_idx = html.find("data:", marker)
-    if data_idx < 0:
-        data_idx = html.find('"data"', marker)
-    if data_idx < 0:
-        return None
+    """Return the AF_initDataCallback ds:1 job list, skipping key registries and company filters."""
+    empty_job_blob: list[Any] | None = None
+    search_from = 0
+    while True:
+        match = _DS1_CALLBACK_RE.search(html, search_from)
+        if match is None:
+            return empty_job_blob
+        callback_idx = match.start()
+        data_idx = _data_key_index(html, callback_idx)
+        if data_idx < 0:
+            search_from = match.end()
+            continue
+        header = html[callback_idx:data_idx]
+        if not _DS1_KEY_RE.search(header) or header.count("AF_initDataCallback") > 1:
+            search_from = match.end()
+            continue
+        data = _parse_js_array(html, data_idx)
+        if data is None:
+            search_from = match.end()
+            continue
+        records = data[0] if data else []
+        if isinstance(records, list) and any(
+            isinstance(record, list) and len(record) == RECORD_LEN for record in records
+        ):
+            return data
+        if (
+            isinstance(records, list)
+            and not records
+            and len(data) > 2
+            and isinstance(data[2], int)
+            and empty_job_blob is None
+        ):
+            empty_job_blob = data
+        search_from = match.end()
+
+
+def _data_key_index(html: str, start: int) -> int:
+    unquoted = html.find("data:", start)
+    quoted = html.find('"data"', start)
+    candidates = [index for index in (unquoted, quoted) if index >= 0]
+    return min(candidates) if candidates else -1
+
+
+def _parse_js_array(html: str, data_idx: int) -> list[Any] | None:
     start = html.find("[", data_idx)
     if start < 0:
         return None
@@ -124,6 +164,12 @@ def _extract_ds1_data(html: str) -> list[Any] | None:
                         return None
                 return data if isinstance(data, list) else None
     return None
+
+
+def _records_look_like_jobs(records: list[Any]) -> bool:
+    if not records:
+        return True
+    return any(isinstance(record, list) and len(record) == RECORD_LEN for record in records)
 
 
 def _jobs_from_html_cards(html: str) -> list[Job]:

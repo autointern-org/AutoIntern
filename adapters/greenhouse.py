@@ -38,16 +38,7 @@ class GreenhouseAdapter:
         return jobs
 
     def _normalize(self, slug: str, raw: dict[str, Any]) -> Job:
-        location = raw.get("location") or {}
-        offices = raw.get("offices") or []
-        office_locations = [
-            compact_text(office.get("location") or office.get("name"))
-            for office in offices
-            if isinstance(office, dict)
-        ]
-        location_name = compact_text(location.get("name")) if isinstance(location, dict) else ""
-        if not location_name and office_locations:
-            location_name = ", ".join(item for item in office_locations if item)
+        location_name = _location_string(raw.get("location"), raw.get("offices"))
 
         job_id = raw.get("internal_job_id") or raw.get("id")
         return Job(
@@ -59,3 +50,31 @@ class GreenhouseAdapter:
             jd_text=html_to_text(raw.get("content")),
             posted_at=raw.get("first_published") or raw.get("updated_at"),
         )
+
+
+def _location_string(location: Any, offices: Any) -> str:
+    parts: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: Any) -> None:
+        if value is None:
+            return
+        text = compact_text(value if isinstance(value, str) else str(value))
+        if not text:
+            return
+        key = text.casefold()
+        if key in seen:
+            return
+        seen.add(key)
+        parts.append(text)
+
+    if isinstance(location, dict):
+        add(location.get("name"))
+    elif isinstance(location, str):
+        add(location)
+    for office in offices or []:
+        if not isinstance(office, dict):
+            continue
+        add(office.get("name"))
+        add(office.get("location"))
+    return "; ".join(parts)

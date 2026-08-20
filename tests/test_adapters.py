@@ -118,6 +118,30 @@ def test_greenhouse_normalizes_jobs() -> None:
     assert jobs[0].posted_at == "2026-05-18T09:00:00-07:00"
 
 
+def test_greenhouse_includes_office_country() -> None:
+    session = FakeSession(
+        {
+            "jobs": [
+                {
+                    "id": 8097801,
+                    "internal_job_id": 8097801,
+                    "title": "Software Engineer Intern",
+                    "absolute_url": "https://job-boards.greenhouse.io/stripe/jobs/8097801",
+                    "location": {"name": "Dublin"},
+                    "content": "<p>Build payments infrastructure.</p>",
+                    "offices": [{"name": "IE-Dublin", "location": "Dublin, Dublin, Ireland"}],
+                }
+            ]
+        }
+    )
+    adapter = GreenhouseAdapter(["stripe"], company_names={"stripe": "stripe"}, session=session)
+
+    jobs = adapter.fetch()
+
+    assert jobs[0].location == "Dublin; IE-Dublin; Dublin, Dublin, Ireland"
+    assert "ireland" in jobs[0].location.lower() or "IE-Dublin" in jobs[0].location
+
+
 def test_eightfold_pcsx_normalizes_jobs() -> None:
     session = FakeSession(load_fixture("eightfold_pcsx.json"))
     adapter = EightfoldAdapter(
@@ -234,6 +258,60 @@ def test_google_parses_ds1_blob() -> None:
     assert "Mountain View, CA, USA" in jobs[0].location
     assert jobs[0].url.endswith("123456789-student-researcher")
     assert "About the job" in jobs[0].jd_text
+
+
+def test_google_parses_ds1_blob_after_registry_and_company_list() -> None:
+    record = [
+        "123456789",
+        "Student Researcher, BS/MS",
+        "/about/careers/applications/jobs/results/123456789-student-researcher",
+        [None, "Responsibilities"],
+        [None, "Min quals"],
+        None,
+        None,
+        "Google",
+        None,
+        [["Mountain View, CA, USA", [], "Mountain View", "94043", "CA", "USA"]],
+        [None, "About the job"],
+        [4],
+        [1710000000, 0],
+        [1710000001, 0],
+        1710000002,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    ]
+    registry = (
+        'var AF_initDataKeys = ["ds:0","ds:1"]; '
+        "var AF_dataServiceRequests = {'ds:0' : {id:'x',request:[]},'ds:1' : {id:'y',request:[[\"intern\"]]}};"
+    )
+    company_list = (
+        "AF_initDataCallback({key:'ds:0', data:"
+        + json.dumps(
+            [
+                [
+                    ["uuid-dm", "DeepMind", "deepmind"],
+                    ["uuid-gf", "GFiber", "gfiber"],
+                    ["uuid-g", "Google", "google"],
+                ]
+            ]
+        )
+        + "});"
+    )
+    jobs_blob = (
+        "AF_initDataCallback({key:'ds:1', data:"
+        + json.dumps([[record], None, 1, 20])
+        + ", sideChannel:{}});"
+    )
+    html = f"<html>{registry}{company_list}{jobs_blob}</html>"
+    session = FakeSession(html)
+    jobs = GoogleAdapter(session=session).fetch()
+
+    assert jobs[0].id == "google:123456789"
+    assert jobs[0].title == "Student Researcher, BS/MS"
 
 
 def test_google_falls_back_to_html_cards() -> None:
