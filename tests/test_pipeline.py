@@ -31,6 +31,10 @@ class FakeKV:
     def list_keys(self, prefix: str) -> list[str]:
         return [key for key in self.values if key.startswith(prefix)]
 
+    def delete_keys(self, keys: list[str]) -> None:
+        for key in keys:
+            self.values.pop(key, None)
+
     def clear_io(self) -> None:
         self.puts.clear()
         self.gets.clear()
@@ -62,6 +66,7 @@ class FakeDiscord:
         self.recaps: list[tuple[str, list[Job]]] = []
         self.issues: list[tuple[str, str]] = []
         self.thread_ids: dict[str, str] = {}
+        self.reaction_checks: list[str] = []
 
     def post_job(self, job: Job, resume_config: str, *, color: int) -> DiscordMessage:
         self.posts.append((job, resume_config, color))
@@ -87,6 +92,7 @@ class FakeDiscord:
         return DiscordMessage(id=f"issue-{title}", channel_id="issues", payload={})
 
     def has_dismiss_reaction(self, message_id: str, channel_id: str | None = None) -> bool:
+        self.reaction_checks.append(message_id)
         return message_id in self.dismissed_message_ids
 
 
@@ -187,6 +193,34 @@ def test_scan_marks_dismissed_reactions_before_notifying() -> None:
     assert result.dismissed == 1
     assert result.notified == 0
     assert state.is_dismissed("greenhouse:anthropic:1")
+
+
+def test_scan_checks_shared_recap_message_once() -> None:
+    state = StateStore()
+    for job_id in ("job-a", "job-b"):
+        state.record_notification(
+            job_id=job_id,
+            company="anthropic",
+            title="Software Engineer Intern",
+            url="https://example.com/job",
+            message_id="recap-1",
+            channel_id="channel-1",
+        )
+    discord = FakeDiscord(dismissed_message_ids={"recap-1"})
+    state.mark_bootstrapped("anthropic")
+
+    result = scan(
+        adapters=[FakeAdapter([])],
+        configs={"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse")},
+        state=state,
+        discord=discord,
+        classifier=FakeClassifier(),
+    )
+
+    assert discord.reaction_checks == ["recap-1"]
+    assert result.dismissed == 2
+    assert state.is_dismissed("job-a")
+    assert state.is_dismissed("job-b")
 
 
 def test_scan_skips_still_listed_jobs_without_rewriting_seen() -> None:

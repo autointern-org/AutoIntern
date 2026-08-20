@@ -86,6 +86,19 @@ class CloudflareKV:
             if not cursor:
                 return keys
 
+    def delete_keys(self, keys: list[str]) -> None:
+        for offset in range(0, len(keys), 10000):
+            chunk = keys[offset : offset + 10000]
+            if not chunk:
+                continue
+            response = self.session.post(
+                f"{self.base_url}/bulk/delete",
+                headers={**self._headers(), "content-type": "application/json"},
+                json=chunk,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+
     def _headers(self) -> dict[str, str]:
         if not self.api_token:
             raise RuntimeError("CF_API_TOKEN is required")
@@ -453,6 +466,27 @@ class StateStore:
     @staticmethod
     def _health_key(company: str) -> str:
         return f"health:{company.lower()}"
+
+
+SCAN_STATE_PREFIXES = (
+    "job:",
+    "seen:",
+    "bootstrapped:",
+    "health:",
+    "thread:",
+    "dismissed:",
+)
+
+
+def wipe_scan_state(kv: CloudflareKV) -> int:
+    deleted = 0
+    for prefix in SCAN_STATE_PREFIXES:
+        keys = kv.list_keys(prefix)
+        if not keys:
+            continue
+        kv.delete_keys(keys)
+        deleted += len(keys)
+    return deleted
 
 
 def now_iso() -> str:

@@ -256,16 +256,23 @@ def _report_issue(
 
 def mark_reaction_dismissals(state: StateStore, discord: DiscordClient) -> int:
     count = 0
+    checked: set[str] = set()
+    dismissed_messages: set[str] = set()
     for notification in state.list_undismissed_notifications(days=7):
         message_id = str(notification["message_id"])
         channel_id = notification.get("channel_id")
-        if discord.has_dismiss_reaction(message_id, channel_id=channel_id):
-            company = notification.get("company")
-            state.mark_dismissed(
-                str(notification["job_id"]),
-                company=str(company) if company else None,
-            )
-            count += 1
+        if message_id not in checked:
+            checked.add(message_id)
+            if discord.has_dismiss_reaction(message_id, channel_id=channel_id):
+                dismissed_messages.add(message_id)
+        if message_id not in dismissed_messages:
+            continue
+        company = notification.get("company")
+        state.mark_dismissed(
+            str(notification["job_id"]),
+            company=str(company) if company else None,
+        )
+        count += 1
     return count
 
 

@@ -172,3 +172,22 @@ def test_overflow_without_forum_webhook_fails_open_to_main(capsys) -> None:
     assert all(MAIN_WEBHOOK in call["url"] for call in session.calls)
     assert session.calls[0]["json"]["embeds"][0]["title"] == "TikTok — 6 new intern postings"
     assert session.calls[1]["json"]["embeds"][0]["title"] == "🚨 TikTok - Intern 0"
+
+
+def test_fetch_message_skips_rate_limit(capsys) -> None:
+    class RateLimitedSession:
+        def get(self, url: str, **kwargs: Any) -> Any:
+            class Response:
+                status_code = 429
+
+                def json(self) -> dict[str, Any]:
+                    return {}
+
+                def raise_for_status(self) -> None:
+                    raise RuntimeError("429 should not raise")
+
+            return Response()
+
+    client = DiscordClient(MAIN_WEBHOOK, session=RateLimitedSession())
+    assert client.fetch_message("1539815221068046357") is None
+    assert "rate limited" in capsys.readouterr().out

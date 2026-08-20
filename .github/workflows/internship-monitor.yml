@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
+    inputs:
+      reset_state:
+        description: Wipe KV seen/bootstrap keys for a clean first-look recap
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -25,6 +30,14 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Reset KV state
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.reset_state == 'true' }}
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: PYTHONPATH=. python -m scripts.reset_kv
 
       - name: Scan career sites
         env:

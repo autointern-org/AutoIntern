@@ -141,6 +141,9 @@ class DiscordClient:
             response = self.session.get(url, timeout=self.timeout)
             if response.status_code == 200:
                 return response.json()
+            if response.status_code == 429:
+                print("[discord] warning: rate limited while reading reactions; skipping dismiss check")
+                return None
             if response.status_code not in {401, 403, 404}:
                 response.raise_for_status()
 
@@ -153,7 +156,9 @@ class DiscordClient:
             headers={"Authorization": f"Bot {token}"},
             timeout=self.timeout,
         )
-        if response.status_code == 404:
+        if response.status_code in {404, 429}:
+            if response.status_code == 429:
+                print("[discord] warning: rate limited while reading reactions; skipping dismiss check")
             return None
         response.raise_for_status()
         return response.json()

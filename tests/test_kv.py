@@ -168,3 +168,20 @@ def test_prune_seen_only_when_ids_change() -> None:
     state.flush_seen("anthropic")
     assert kv.puts == [("seen:anthropic", SEEN_LIST_TTL_SECONDS)]
     assert set(kv.values["seen:anthropic"]["jobs"]) == {"keep"}
+
+
+def test_wipe_scan_state_deletes_prefixed_keys() -> None:
+    kv = FakeKV()
+    kv.values["job:old"] = {"job_id": "old"}
+    kv.values["seen:stripe"] = {"jobs": {}}
+    kv.values["bootstrapped:stripe"] = {"company": "stripe"}
+    kv.values["keep-me"] = {"ok": True}
+
+    from core.kv import wipe_scan_state
+
+    deleted = wipe_scan_state(kv)
+    assert deleted == 3
+    assert "keep-me" in kv.values
+    assert "job:old" not in kv.values
+    assert "seen:stripe" not in kv.values
+    assert "bootstrapped:stripe" not in kv.values
