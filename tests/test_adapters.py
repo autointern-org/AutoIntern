@@ -197,15 +197,61 @@ def test_workday_normalizes_jobs() -> None:
     assert session.calls[0]["json"]["offset"] == 0
 
 
-def test_google_normalizes_resilient_payload() -> None:
-    session = FakeSession(load_fixture("google.json"))
-    adapter = GoogleAdapter(session=session)
-
-    jobs = adapter.fetch()
+def test_google_parses_ds1_blob() -> None:
+    record = [
+        "123456789",
+        "Student Researcher, BS/MS",
+        "/about/careers/applications/jobs/results/123456789-student-researcher",
+        [None, "Responsibilities"],
+        [None, "Min quals"],
+        None,
+        None,
+        "Google",
+        None,
+        [["Mountain View, CA, USA", [], "Mountain View", "94043", "CA", "USA"]],
+        [None, "About the job"],
+        [4],
+        [1710000000, 0],
+        [1710000001, 0],
+        1710000002,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    ]
+    html = (
+        "<html>AF_initDataCallback({key:'ds:1', data:"
+        + json.dumps([[record], None, 1, 20])
+        + ", sideChannel:{}});</html>"
+    )
+    session = FakeSession(html)
+    jobs = GoogleAdapter(session=session).fetch()
 
     assert jobs[0].id == "google:123456789"
-    assert jobs[0].location == "Mountain View, CA, USA"
-    assert jobs[0].url == "https://careers.google.com/jobs/results/123456789/"
+    assert jobs[0].title == "Student Researcher, BS/MS"
+    assert "Mountain View, CA, USA" in jobs[0].location
+    assert jobs[0].url.endswith("123456789-student-researcher")
+    assert "About the job" in jobs[0].jd_text
+
+
+def test_google_falls_back_to_html_cards() -> None:
+    html = '<a href="/about/careers/applications/jobs/results/555-software-intern">Intern</a>'
+    session = FakeSession(html)
+    jobs = GoogleAdapter(session=session).fetch()
+    assert jobs[0].id == "google:555"
+    assert jobs[0].url.endswith("555-software-intern")
+
+
+def test_google_fails_loudly_when_page_has_no_jobs() -> None:
+    session = FakeSession("<html><body>no jobs here</body></html>")
+    try:
+        GoogleAdapter(session=session).fetch()
+    except RuntimeError as exc:
+        assert "no job records were parsed" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError")
 
 
 def test_amazon_normalizes_jobs() -> None:
