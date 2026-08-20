@@ -11,6 +11,9 @@ from adapters.base import Job
 
 CHECK_EMOJI = "\u2705"
 DISCORD_API_BASE = "https://discord.com/api/v10"
+PREVIEW_MAX = 5
+SUMMARY_TITLE_LIMIT = 10
+THREAD_NAME_MAX = 100
 
 
 @dataclass(frozen=True)
@@ -25,6 +28,7 @@ class DiscordClient:
         self,
         webhook_url: str | None,
         *,
+        forum_webhook_url: str | None = None,
         bot_token: str | None = None,
         channel_id: str | None = None,
         dry_run: bool = False,
@@ -32,32 +36,59 @@ class DiscordClient:
         session: requests.Session | None = None,
     ) -> None:
         self.webhook_url = webhook_url
+        self.forum_webhook_url = forum_webhook_url
         self.bot_token = bot_token
         self.channel_id = channel_id
         self.dry_run = dry_run
         self.timeout = timeout
         self.session = session or requests.Session()
         self.webhook_id, self.webhook_token = _parse_webhook(webhook_url) if webhook_url else (None, None)
+        self.thread_ids: dict[str, str] = {}
 
     def post_job(self, job: Job, resume_config: str, *, color: int) -> DiscordMessage:
         payload = {"embeds": [build_job_embed(job, resume_config, color=color)]}
-        if self.dry_run:
-            print("[dry-run] Discord payload:")
-            print(payload)
-            return DiscordMessage(id=f"dry-run-{job.id}", channel_id=self.channel_id, payload=payload)
-
-        if not self.webhook_url:
-            raise RuntimeError("DISCORD_WEBHOOK_URL is required unless dry_run is enabled")
-
-        separator = "&" if "?" in self.webhook_url else "?"
-        response = self.session.post(
-            f"{self.webhook_url}{separator}wait=true",
-            json=payload,
-            timeout=self.timeout,
+        return self._post_webhook(
+            self.webhook_url,
+            payload,
+            dry_run_id=f"dry-run-{job.id}",
+            missing_url_error="DISCORD_WEBHOOK_URL is required unless dry_run is enabled",
         )
-        response.raise_for_status()
-        message = response.json()
-        return DiscordMessage(id=str(message["id"]), channel_id=message.get("channel_id"), payload=message)
+
+    def post_jobs_for_company(
+        self,
+        company: str,
+        jobs_with_resume: list[tuple[Job, str, int]],
+    ) -> list[DiscordMessage]:
+        if not jobs_with_resume:
+            return []
+
+        if len(jobs_with_resume) <= PREVIEW_MAX:
+            return [
+                self.post_job(job, resume_config, color=color)
+                for job, resume_config, color in jobs_with_resume
+            ]
+
+        messages = [
+            self._post_webhook(
+                self.webhook_url,
+                {"embeds": [build_summary_embed(company, jobs_with_resume)]},
+                dry_run_id=f"dry-run-summary-{company}",
+                missing_url_error="DISCORD_WEBHOOK_URL is required unless dry_run is enabled",
+            )
+        ]
+
+        if self.forum_webhook_url:
+            for job, resume_config, color in jobs_with_resume:
+                messages.append(self._post_forum_job(company, job, resume_config, color=color))
+            return messages
+
+        print(
+            "[discord] warning: DISCORD_FORUM_WEBHOOK_URL is not set; "
+            "posting overflow jobs to the main channel"
+        )
+        for job, resume_config, color in jobs_with_resume:
+            messages.append(self.post_job(job, resume_config, color=color))
+        return messages
 
     def fetch_message(self, message_id: str, channel_id: str | None = None) -> dict[str, Any] | None:
         if self.dry_run:
@@ -91,16 +122,75 @@ class DiscordClient:
             return False
         return has_checkmark_reaction(message)
 
+    def _post_forum_job(self, company: str, job: Job, resume_config: str, *, color: int) -> DiscordMessage:
+        payload: dict[str, Any] = {"embeds": [build_job_embed(job, resume_config, color=color)]}
+        thread_id = self.thread_ids.get(company)
+        if not thread_id:
+            payload["thread_name"] = company[:THREAD_NAME_MAX]
+        message = self._post_webhook(
+            self.forum_webhook_url,
+            payload,
+            dry_run_id=f"dry-run-forum-{job.id}",
+            thread_id=thread_id,
+            missing_url_error="DISCORD_FORUM_WEBHOOK_URL is required unless dry_run is enabled",
+        )
+        if company not in self.thread_ids:
+            stored = message.channel_id or f"dry-run-thread-{company}"
+            self.thread_ids[company] = stored
+        return message
+
+    def _post_webhook(
+        self,
+        webhook_url: str | None,
+        payload: dict[str, Any],
+        *,
+        dry_run_id: str,
+        missing_url_error: str,
+        thread_id: str | None = None,
+    ) -> DiscordMessage:
+        if self.dry_run:
+            print("[dry-run] Discord payload:")
+            print(payload)
+            return DiscordMessage(id=dry_run_id, channel_id=thread_id or self.channel_id, payload=payload)
+
+        if not webhook_url:
+            raise RuntimeError(missing_url_error)
+
+        response = self.session.post(
+            _webhook_execute_url(webhook_url, thread_id=thread_id),
+            json=payload,
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        message = response.json()
+        return DiscordMessage(id=str(message["id"]), channel_id=message.get("channel_id"), payload=message)
+
 
 def build_job_embed(job: Job, resume_config: str, *, color: int) -> dict[str, Any]:
     resume_block = _truncate_for_code_block(resume_config)
-    posted_at = job.posted_at or "Unknown"
+    lines = [f"**Location:** {job.location}"]
+    if job.posted_at:
+        lines.append(f"**Posted:** {job.posted_at}")
+    flags = _job_flags(job)
+    if flags:
+        lines.append(f"**Flags:** {', '.join(flags)}")
     return {
         "title": f"\U0001f6a8 {job.company} - {job.title}"[:256],
         "url": job.url,
-        "description": f"**Location:** {job.location}\n**Posted:** {posted_at}\n\n```text\n{resume_block}\n```",
+        "description": "\n".join(lines) + f"\n\n```text\n{resume_block}\n```",
         "color": color,
         "footer": {"text": f"React {CHECK_EMOJI} to dismiss"},
+    }
+
+
+def build_summary_embed(company: str, jobs_with_resume: list[tuple[Job, str, int]]) -> dict[str, Any]:
+    count = len(jobs_with_resume)
+    links = [f"- [{job.title}]({job.url})" for job, _, _ in jobs_with_resume[:SUMMARY_TITLE_LIMIT]]
+    return {
+        "title": f"{company} — {count} new intern postings"[:256],
+        "description": "\n".join(links),
+        "color": jobs_with_resume[0][2],
+        "footer": {"text": "Details in forum thread"},
     }
 
 
@@ -112,11 +202,31 @@ def has_checkmark_reaction(message: dict[str, Any]) -> bool:
     return False
 
 
+def _job_flags(job: Job) -> list[str]:
+    flags: list[str] = []
+    if job.location_unknown:
+        flags.append("location_unknown")
+    if job.degree_flag:
+        flags.append(job.degree_flag if job.degree_flag != "unknown" else "degree_unknown")
+    if job.term_flag:
+        flags.append(job.term_flag if job.term_flag != "unknown" else "term_unknown")
+    return flags
+
+
 def _truncate_for_code_block(value: str, limit: int = 3600) -> str:
     cleaned = value.replace("```", "'''").strip()
     if len(cleaned) <= limit:
         return cleaned
     return f"{cleaned[: limit - 20].rstrip()}\n... [truncated]"
+
+
+def _webhook_execute_url(webhook_url: str, *, thread_id: str | None = None) -> str:
+    params = []
+    if thread_id:
+        params.append(f"thread_id={thread_id}")
+    params.append("wait=true")
+    separator = "&" if "?" in webhook_url else "?"
+    return f"{webhook_url}{separator}{'&'.join(params)}"
 
 
 def _parse_webhook(webhook_url: str | None) -> tuple[str | None, str | None]:
