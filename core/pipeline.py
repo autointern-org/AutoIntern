@@ -147,17 +147,17 @@ def scan(
     for company_key, jobs in matched_jobs.items():
         config = configs[company_key]
         jobs = sort_alert_jobs(jobs)
+        fetched = fetched_by_company[company_key]
         if not state.is_bootstrapped(company_key):
             unseen = [
                 job
                 for job in jobs
-                if not state.is_seen(job.id) and not state.is_dismissed(job.id)
+                if not state.is_seen(job.id, company=company_key)
+                and not state.is_dismissed(job.id, company=company_key)
             ]
             for job in jobs:
-                if state.is_seen(job.id) or state.is_dismissed(job.id):
+                if state.is_seen(job.id, company=company_key) or state.is_dismissed(job.id, company=company_key):
                     result.skipped_seen += 1
-                    if not dry_run:
-                        state.refresh_seen(job.id)
             if unseen:
                 result.recaps += 1
                 recap = discord.post_recap(config.name, unseen, color=config.color)
@@ -166,21 +166,21 @@ def scan(
                     result.notified += 1
             if not dry_run:
                 state.mark_bootstrapped(company_key)
-                state.record_health(company_key, fetched=fetched_by_company[company_key], matched=len(jobs))
+                state.record_health(company_key, fetched=fetched, matched=len(jobs))
+                _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs)
             continue
 
         fresh: list[tuple[Job, str, int]] = []
         for job in jobs:
-            if state.is_seen(job.id) or state.is_dismissed(job.id):
+            if state.is_seen(job.id, company=company_key) or state.is_dismissed(job.id, company=company_key):
                 result.skipped_seen += 1
-                if not dry_run:
-                    state.refresh_seen(job.id)
                 continue
             resume_config = _resume_config(classifier, job, dry_run=dry_run, skip_claude=skip_claude)
             fresh.append((job, resume_config, config.color))
         if not fresh:
             if not dry_run:
-                state.record_health(company_key, fetched=fetched_by_company[company_key], matched=len(jobs))
+                state.record_health(company_key, fetched=fetched, matched=len(jobs))
+                _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs)
             continue
         thread_id = state.get_forum_thread(company_key)
         if thread_id:
@@ -193,7 +193,16 @@ def scan(
             stored_thread = discord.thread_ids.get(config.name)
             if stored_thread:
                 state.record_forum_thread(company_key, stored_thread)
-            state.record_health(company_key, fetched=fetched_by_company[company_key], matched=len(jobs))
+            state.record_health(company_key, fetched=fetched, matched=len(jobs))
+            _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs)
+
+    if not dry_run:
+        for company_key, fetched in fetched_by_company.items():
+            if company_key in matched_jobs or fetched <= 0 or company_key not in configs:
+                continue
+            state.record_health(company_key, fetched=fetched, matched=0)
+            _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=[])
+        state.flush_dirty_seen()
     return result
 
 
@@ -203,6 +212,18 @@ def _job_messages(messages: list[DiscordMessage], job_count: int) -> list[Discor
     if len(messages) == job_count + 1:
         return messages[1:]
     return messages[-job_count:]
+
+
+def _finalize_company_seen(
+    state: StateStore,
+    company_key: str,
+    *,
+    fetched: int,
+    live_jobs: list[Job],
+) -> None:
+    if fetched > 0:
+        state.prune_seen(company_key, {job.id for job in live_jobs})
+    state.flush_seen(company_key)
 
 
 def _remember(state: StateStore, job: Job, message: DiscordMessage, *, dry_run: bool) -> None:
@@ -239,7 +260,11 @@ def mark_reaction_dismissals(state: StateStore, discord: DiscordClient) -> int:
         message_id = str(notification["message_id"])
         channel_id = notification.get("channel_id")
         if discord.has_dismiss_reaction(message_id, channel_id=channel_id):
-            state.mark_dismissed(str(notification["job_id"]))
+            company = notification.get("company")
+            state.mark_dismissed(
+                str(notification["job_id"]),
+                company=str(company) if company else None,
+            )
             count += 1
     return count
 

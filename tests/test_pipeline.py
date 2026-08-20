@@ -5,7 +5,7 @@ from typing import Any
 from adapters.base import Job
 from core.config import CompanyConfig
 from core.discord import DiscordMessage
-from core.kv import DEFAULT_SEEN_TTL_SECONDS, StateStore
+from core.kv import DEFAULT_SEEN_TTL_SECONDS, SEEN_LIST_TTL_SECONDS, StateStore, now_iso
 from core.pipeline import scan
 
 
@@ -13,12 +13,14 @@ class FakeKV:
     def __init__(self) -> None:
         self.values: dict[str, dict[str, Any]] = {}
         self.puts: list[tuple[str, int | None]] = []
+        self.gets: list[str] = []
 
     @property
     def enabled(self) -> bool:
         return True
 
     def get_json(self, key: str) -> dict[str, Any] | None:
+        self.gets.append(key)
         value = self.values.get(key)
         return dict(value) if value else None
 
@@ -28,6 +30,10 @@ class FakeKV:
 
     def list_keys(self, prefix: str) -> list[str]:
         return [key for key in self.values if key.startswith(prefix)]
+
+    def clear_io(self) -> None:
+        self.puts.clear()
+        self.gets.clear()
 
 
 class FakeAdapter:
@@ -100,7 +106,8 @@ def make_job(**overrides: Any) -> Job:
 
 def test_scan_notifies_new_matching_jobs_and_records_state() -> None:
     job = make_job()
-    state = StateStore()
+    kv = FakeKV()
+    state = StateStore(kv)
     discord = FakeDiscord()
     classifier = FakeClassifier()
 
@@ -121,6 +128,9 @@ def test_scan_notifies_new_matching_jobs_and_records_state() -> None:
     assert discord.posts == []
     assert state.is_seen(job.id)
     assert state.is_bootstrapped("anthropic")
+    assert not any(key.startswith("job:") for key, _ in kv.puts)
+    assert ("seen:anthropic", SEEN_LIST_TTL_SECONDS) in kv.puts
+    assert job.id in kv.values["seen:anthropic"]["jobs"]
 
 
 def test_scan_posts_new_jobs_after_first_look() -> None:
@@ -179,26 +189,25 @@ def test_scan_marks_dismissed_reactions_before_notifying() -> None:
     assert state.is_dismissed("greenhouse:anthropic:1")
 
 
-def test_scan_refreshes_seen_ttl_without_reposting() -> None:
+def test_scan_skips_still_listed_jobs_without_rewriting_seen() -> None:
     job = make_job()
     kv = FakeKV()
     state = StateStore(kv)
-    state.record_notification(
-        job_id=job.id,
-        company=job.company,
-        title=job.title,
-        url=job.url,
-        message_id="message-1",
-        channel_id="channel-1",
+    configs = {"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse")}
+    scan(
+        adapters=[FakeAdapter([job])],
+        configs=configs,
+        state=state,
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
     )
-    kv.puts.clear()
+    kv.clear_io()
     discord = FakeDiscord()
-    state.mark_bootstrapped(job.company)
 
     result = scan(
         adapters=[FakeAdapter([job])],
-        configs={"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse")},
-        state=state,
+        configs=configs,
+        state=StateStore(kv),
         discord=discord,
         classifier=FakeClassifier(),
     )
@@ -206,5 +215,183 @@ def test_scan_refreshes_seen_ttl_without_reposting() -> None:
     assert result.notified == 0
     assert result.skipped_seen == 1
     assert discord.posts == []
-    assert (f"job:{job.id}", DEFAULT_SEEN_TTL_SECONDS) in kv.puts
+    assert discord.recaps == []
+    assert not any(key.startswith("job:") for key, _ in kv.puts)
+    assert not any(key.startswith("seen:") for key, _ in kv.puts)
+    assert not any(key.startswith("health:") for key, _ in kv.puts)
+    assert not any(key.startswith("job:") for key in kv.gets)
+    assert (f"job:{job.id}", DEFAULT_SEEN_TTL_SECONDS) not in kv.puts
     assert state.is_seen(job.id)
+
+
+def test_scan_prunes_job_that_disappeared_on_healthy_fetch() -> None:
+    kept = make_job(id="job-keep")
+    gone = make_job(id="job-gone")
+    kv = FakeKV()
+    state = StateStore(kv)
+    configs = {"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse")}
+    scan(
+        adapters=[FakeAdapter([kept, gone])],
+        configs=configs,
+        state=state,
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+    assert kept.id in kv.values["seen:anthropic"]["jobs"]
+    assert gone.id in kv.values["seen:anthropic"]["jobs"]
+    kv.clear_io()
+
+    result = scan(
+        adapters=[FakeAdapter([kept])],
+        configs=configs,
+        state=StateStore(kv),
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+
+    assert result.notified == 0
+    assert gone.id not in kv.values["seen:anthropic"]["jobs"]
+    assert kept.id in kv.values["seen:anthropic"]["jobs"]
+    assert any(key == "seen:anthropic" for key, _ in kv.puts)
+
+
+def test_scan_does_not_prune_when_fetch_returns_no_jobs() -> None:
+    job = make_job()
+    kv = FakeKV()
+    state = StateStore(kv)
+    configs = {"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse")}
+    scan(
+        adapters=[FakeAdapter([job])],
+        configs=configs,
+        state=state,
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+    kv.clear_io()
+
+    result = scan(
+        adapters=[FakeAdapter([])],
+        configs=configs,
+        state=StateStore(kv),
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+
+    assert result.fetched == 0
+    assert result.notified == 0
+    assert job.id in kv.values["seen:anthropic"]["jobs"]
+    assert not any(key.startswith("seen:") for key, _ in kv.puts)
+
+
+def test_scan_does_not_prune_on_failed_adapter_fetch() -> None:
+    job = make_job()
+    kv = FakeKV()
+    state = StateStore(kv)
+    configs = {"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse")}
+    scan(
+        adapters=[FakeAdapter([job])],
+        configs=configs,
+        state=state,
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+    kv.clear_io()
+
+    class BoomAdapter:
+        def fetch(self) -> list[Job]:
+            raise RuntimeError("board down")
+
+    result = scan(
+        adapters=[BoomAdapter()],
+        configs=configs,
+        state=StateStore(kv),
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+
+    assert result.notified == 0
+    assert result.issues >= 1
+    assert job.id in kv.values["seen:anthropic"]["jobs"]
+    assert not any(key.startswith("seen:") for key, _ in kv.puts)
+
+
+def test_scan_prunes_all_interns_when_fetch_succeeded_with_zero_matches() -> None:
+    intern = make_job()
+    kv = FakeKV()
+    state = StateStore(kv)
+    configs = {"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse")}
+    scan(
+        adapters=[FakeAdapter([intern])],
+        configs=configs,
+        state=state,
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+    kv.clear_io()
+    staff = make_job(id="staff-1", title="Software Engineer")
+
+    result = scan(
+        adapters=[FakeAdapter([staff])],
+        configs=configs,
+        state=StateStore(kv),
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+
+    assert result.fetched == 1
+    assert result.matched == 0
+    assert result.notified == 0
+    assert intern.id not in kv.values["seen:anthropic"]["jobs"]
+    assert any(key == "seen:anthropic" for key, _ in kv.puts)
+
+
+def test_scan_new_job_after_first_look_writes_seen_once() -> None:
+    first = make_job(id="job-old")
+    kv = FakeKV()
+    state = StateStore(kv)
+    configs = {"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse", tier="S")}
+    scan(
+        adapters=[FakeAdapter([first])],
+        configs=configs,
+        state=state,
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+    kv.clear_io()
+    newer = make_job(id="job-new")
+
+    result = scan(
+        adapters=[FakeAdapter([first, newer])],
+        configs=configs,
+        state=StateStore(kv),
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+
+    seen_puts = [key for key, _ in kv.puts if key == "seen:anthropic"]
+    assert result.notified == 1
+    assert len(seen_puts) == 1
+    assert newer.id in kv.values["seen:anthropic"]["jobs"]
+    assert first.id in kv.values["seen:anthropic"]["jobs"]
+    assert not any(key.startswith("job:") for key, _ in kv.puts)
+
+
+def test_is_seen_true_for_legacy_job_key_without_seen_doc() -> None:
+    kv = FakeKV()
+    state = StateStore(kv)
+    job_id = "greenhouse:stripe:123"
+    kv.values[f"job:{job_id}"] = {
+        "job_id": job_id,
+        "company": "stripe",
+        "title": "Software Engineer Intern",
+        "url": "https://example.com/job",
+        "message_id": "m1",
+        "channel_id": "c1",
+        "dismissed": False,
+        "notified_at": now_iso(),
+    }
+
+    assert "seen:stripe" not in kv.values
+    assert state.is_seen(job_id, company="stripe")
+    assert state.is_seen(job_id)
+    assert kv.gets.count(f"job:{job_id}") == 1
