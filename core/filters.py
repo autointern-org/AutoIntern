@@ -23,7 +23,7 @@ TECH_DROP_RE = re.compile(
     r"security|phishing|detection engineer|"
     r"product manager|product management|associate product manager|\bapm\b|"
     r"pm intern|intern(?:ship)?\s*,?\s*pm\b|"
-    r"marketing|accounting|finance|sales)\b",
+    r"marketing|accounting|sales)\b",
     re.IGNORECASE,
 )
 TECH_KEEP_RE = re.compile(
@@ -32,7 +32,7 @@ TECH_KEEP_RE = re.compile(
     r"research(?:\s+intern|\s+engineer|\s+scientist)?|student researcher|"
     r"machine learning|\bml\b|"
     r"ai(?:\s+engineer)?|applied scientist|"
-    r"data scientist|data engineer|site reliability|\bsre\b|"
+    r"data scientist|data science|data engineer|site reliability|\bsre\b|"
     r"quant(?:itative)?|step)\b",
     re.IGNORECASE,
 )
@@ -189,9 +189,13 @@ US_STATE_NAME_RE = re.compile(
     re.IGNORECASE,
 )
 US_CITY_STATE_RE = re.compile(
-    r"\b[a-z][a-z .'-]+,\s*(" + "|".join(sorted(US_STATE_CODES)) + r")\b",
+    r"\b[a-z][a-z .'-]+,\s*(" + "|".join(sorted(US_STATE_CODES)) + r")\b(?!-)",
     re.IGNORECASE,
 )
+COUNTRY_CODE_COLLISIONS = {
+    "in": re.compile(r"\bindia\b", re.IGNORECASE),
+    "ca": re.compile(r"\bcanada\b", re.IGNORECASE),
+}
 
 NON_US_RE = re.compile(
     r"\b(canada|india|ireland|united kingdom|\buk\b|germany|france|singapore|"
@@ -352,7 +356,13 @@ def _has_us_signal(lowered: str) -> bool:
         return True
     if US_STATE_NAME_RE.search(lowered):
         return True
-    return bool(US_CITY_STATE_RE.search(lowered))
+    for match in US_CITY_STATE_RE.finditer(lowered):
+        code = match.group(1).lower()
+        collision = COUNTRY_CODE_COLLISIONS.get(code)
+        if collision and collision.search(lowered):
+            continue
+        return True
+    return False
 
 
 def _phd_without_undergrad(title: str, jd_text: str) -> bool:

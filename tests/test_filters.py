@@ -48,7 +48,9 @@ def test_filter_keeps_tech_roles_and_drops_ee_pm_security() -> None:
     assert passes_filter(make_job(title="Backend Intern"), config)
     assert passes_filter(make_job(title="SRE Intern"), config)
     assert passes_filter(make_job(title="Data Engineer Intern"), config)
+    assert passes_filter(make_job(title="Data Science Intern"), config)
     assert passes_filter(make_job(title="Quantitative Trader Intern"), config)
+    assert passes_filter(make_job(title="Quantitative Finance Intern"), config)
     assert passes_filter(make_job(title="ML Intern"), config)
     assert not passes_filter(make_job(title="FPGA Intern"), config)
     assert not passes_filter(make_job(title="Electrical Engineer Intern"), config)
@@ -140,6 +142,12 @@ def test_filter_us_location_title_and_field() -> None:
     assert not passes_filter(make_job(title="Software Engineer Intern (Mexico)", location="Unspecified"), config)
     assert passes_filter(make_job(location="Dublin, OH"), config)
     assert passes_filter(make_job(location="Indiana"), config)
+    assert not passes_filter(
+        make_job(title="Software Engineer Intern, Co-op", location="Toronto, Canada"),
+        config,
+    )
+    assert not passes_filter(make_job(location="Bangalore, IN, India"), config)
+    assert not passes_filter(make_job(location="Ontario, CA, Canada"), config)
     assert passes_filter(make_job(location="US, CA, Santa Clara"), config)
     assert passes_filter(make_job(location="San Francisco, CA; London, UK"), config)
     assert passes_filter(make_job(location="2 Locations"), config)
