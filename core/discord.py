@@ -125,14 +125,28 @@ class DiscordClient:
                 }
             ]
         }
-        return self._post_webhook(
-            self.issues_webhook_url,
-            payload,
-            dry_run_id=f"dry-run-issue-{title}",
-            missing_url_error="DISCORD_ISSUES_WEBHOOK_URL is required unless dry_run is enabled",
-        )
+        try:
+            return self._post_webhook(
+                self.issues_webhook_url,
+                payload,
+                dry_run_id=f"dry-run-issue-{title}",
+                missing_url_error="DISCORD_ISSUES_WEBHOOK_URL is required unless dry_run is enabled",
+            )
+        except requests.RequestException as exc:
+            print(f"[issues] warning: failed to post to Discord: {exc}")
+            return None
 
     def fetch_message(self, message_id: str, channel_id: str | None = None) -> dict[str, Any] | None:
+        if self.dry_run:
+            return None
+
+        try:
+            return self._fetch_message(message_id, channel_id=channel_id)
+        except requests.RequestException as exc:
+            print(f"[discord] warning: failed to read message; skipping dismiss check ({exc})")
+            return None
+
+    def _fetch_message(self, message_id: str, channel_id: str | None = None) -> dict[str, Any] | None:
         if self.dry_run:
             return None
 
