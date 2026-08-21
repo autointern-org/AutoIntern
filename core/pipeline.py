@@ -20,9 +20,12 @@ from adapters.meta import MetaAdapter
 from adapters.optiver import OptiverAdapter
 from adapters.oracle import OracleAdapter, OracleBoard
 from adapters.phenom import PhenomAdapter, PhenomBoard
+from adapters.rippling import RipplingAdapter
+from adapters.smartrecruiters import SmartRecruitersAdapter
 from adapters.snap import SnapAdapter
 from adapters.tesla import TeslaAdapter
 from adapters.tiktok import TikTokAdapter
+from adapters.workable import WorkableAdapter
 from adapters.workday import WorkdayAdapter
 from core.classifier import Classifier, build_classifier_from_env
 from core.config import CompanyConfig, Whitelist
@@ -69,6 +72,14 @@ def run_scan(
         dry_run=dry_run,
     )
     classifier = build_classifier_from_env()
+    for company in unknown_adapter_companies(companies):
+        message = f"{company.name} uses adapter '{company.adapter}', which has no implementation; it is never scanned"
+        print(f"[scan] warning: {message}")
+        if not dry_run:
+            try:
+                discord.post_issue("Whitelist adapter not implemented", message)
+            except Exception as exc:
+                print(f"[issues] warning: not posted: {exc}")
     only = os.getenv("SCAN_ONLY_COMPANIES", "").strip()
     return scan(
         adapters=adapters,
@@ -381,6 +392,40 @@ def mark_reaction_dismissals(state: StateStore, discord: DiscordClient) -> int:
     return count
 
 
+SIMPLE_ADAPTERS = {
+    "tesla": TeslaAdapter,
+    "snap": SnapAdapter,
+    "tiktok": TikTokAdapter,
+    "ibm": IBMAdapter,
+    "optiver": OptiverAdapter,
+    "atlassian": AtlassianAdapter,
+    "meta": MetaAdapter,
+}
+KNOWN_ADAPTERS = frozenset(
+    {
+        "greenhouse",
+        "ashby",
+        "workday",
+        "google",
+        "microsoft",
+        "eightfold",
+        "amazon",
+        "apple",
+        "lever",
+        "phenom",
+        "oracle",
+        "workable",
+        "smartrecruiters",
+        "rippling",
+        *SIMPLE_ADAPTERS,
+    }
+)
+
+
+def unknown_adapter_companies(companies: list[CompanyConfig]) -> list[CompanyConfig]:
+    return [company for company in companies if company.adapter not in KNOWN_ADAPTERS]
+
+
 def build_adapters(companies: list[CompanyConfig]) -> list[Adapter]:
     adapters: list[Adapter] = []
     greenhouse = [company for company in companies if company.adapter == "greenhouse" and company.slug]
@@ -507,16 +552,36 @@ def build_adapters(companies: list[CompanyConfig]) -> list[Adapter]:
             )
         )
 
-    simple = {
-        "tesla": TeslaAdapter,
-        "snap": SnapAdapter,
-        "tiktok": TikTokAdapter,
-        "ibm": IBMAdapter,
-        "optiver": OptiverAdapter,
-        "atlassian": AtlassianAdapter,
-        "meta": MetaAdapter,
-    }
-    for adapter_name, adapter_cls in simple.items():
+    workable = [company for company in companies if company.adapter == "workable" and company.slug]
+    if workable:
+        adapters.append(
+            WorkableAdapter(
+                [str(company.slug) for company in workable],
+                company_names={str(company.slug): company.name for company in workable},
+            )
+        )
+
+    smartrecruiters = [
+        company for company in companies if company.adapter == "smartrecruiters" and company.slug
+    ]
+    if smartrecruiters:
+        adapters.append(
+            SmartRecruitersAdapter(
+                [str(company.slug) for company in smartrecruiters],
+                company_names={str(company.slug): company.name for company in smartrecruiters},
+            )
+        )
+
+    rippling = [company for company in companies if company.adapter == "rippling" and company.slug]
+    if rippling:
+        adapters.append(
+            RipplingAdapter(
+                [str(company.slug) for company in rippling],
+                company_names={str(company.slug): company.name for company in rippling},
+            )
+        )
+
+    for adapter_name, adapter_cls in SIMPLE_ADAPTERS.items():
         if any(company.adapter == adapter_name for company in companies):
             adapters.append(adapter_cls())
 

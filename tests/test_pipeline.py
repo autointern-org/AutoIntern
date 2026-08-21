@@ -772,3 +772,42 @@ def test_scan_marks_all_fresh_seen_when_only_summary_returns() -> None:
     seen = kv.values["seen:anthropic"]["jobs"]
     for job in jobs[1:]:
         assert seen[job.id]["message_id"] == "summary-anthropic"
+
+
+def test_build_adapters_wires_workable_and_smartrecruiters() -> None:
+    from adapters.smartrecruiters import SmartRecruitersAdapter
+    from adapters.workable import WorkableAdapter
+    from core.pipeline import build_adapters
+
+    adapters = build_adapters(
+        [
+            CompanyConfig(name="hugging-face", adapter="workable", slug="huggingface"),
+            CompanyConfig(name="servicenow", adapter="smartrecruiters", slug="ServiceNow"),
+            CompanyConfig(name="rippling", adapter="rippling", slug="rippling"),
+        ]
+    )
+    assert [type(adapter).__name__ for adapter in adapters] == ["WorkableAdapter", "SmartRecruitersAdapter", "RipplingAdapter"]
+    workable = adapters[0]
+    assert isinstance(workable, WorkableAdapter) and workable.account_slugs == ["huggingface"]
+    assert workable.company_names == {"huggingface": "hugging-face"}
+    smart = adapters[1]
+    assert isinstance(smart, SmartRecruitersAdapter) and smart.company_slugs == ["ServiceNow"]
+
+
+def test_unknown_adapter_companies_are_reported() -> None:
+    from core.pipeline import build_adapters, unknown_adapter_companies
+
+    companies = [
+        CompanyConfig(name="ok", adapter="greenhouse", slug="ok"),
+        CompanyConfig(name="mystery", adapter="nosuchats"),
+    ]
+    assert [company.name for company in unknown_adapter_companies(companies)] == ["mystery"]
+    assert [type(adapter).__name__ for adapter in build_adapters(companies)] == ["GreenhouseAdapter"]
+
+
+def test_whitelist_uses_only_implemented_adapters() -> None:
+    from core.config import Whitelist
+    from core.pipeline import unknown_adapter_companies
+
+    companies = Whitelist.load("config/whitelist.yaml").companies
+    assert [(company.name, company.adapter) for company in unknown_adapter_companies(companies)] == []

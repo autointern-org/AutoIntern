@@ -1,0 +1,13 @@
+{
+  "uuid": "aaa-111",
+  "name": "Machine Learning Software Engineer Intern - Winter 2027",
+  "description": {
+    "company": "<p><strong>About Rippling</strong></p><p>Rippling gives businesses one place to run HR.</p>",
+    "role": "<p>Build <b>ML</b> systems.</p>",
+    "requirements": "<ul><li>Currently pursuing a Bachelor's degree</li></ul>"
+  },
+  "employmentType": "INTERN",
+  "createdOn": "2026-08-15T10:00:00Z",
+  "url": "https://ats.rippling.com/rippling/jobs/aaa-111",
+  "workLocations": [{"name": "San Francisco, CA", "country": "United States", "countryCode": "US"}]
+}

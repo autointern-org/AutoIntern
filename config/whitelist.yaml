@@ -7,6 +7,8 @@
 #   Bloomberg/Two Sigma/Siemens/EA/Synopsys (Avature HTML), Citadel/Citadel Securities (wp-ajax),
 #   D.E. Shaw/Shopify/Circle (sitemap-only), Ansys (stale), Groq (Gem empty), AI21 (Comeet empty),
 #   DocuSign (iCIMS), Spotify (no adapter), ASML (SSR scrape).
+# Aurora posts on Ashby (aurora-operations-inc); Rippling on its own ATS board API;
+# Hugging Face on Workable; ServiceNow on SmartRecruiters.
 # DoorDash uses greenhouse doordashusa (not the HTML marketing site).
 # Uber uses Oracle Recruiting Cloud (not the dead search API).
 # Etsy uses Workday (sitemap fallback exists but is not used here).
@@ -532,7 +534,8 @@ companies:
     tier: "2"
 
   - name: aurora
-    adapter: aurora
+    adapter: ashby
+    slug: aurora-operations-inc
     tier: "2"
 
   - name: autodesk

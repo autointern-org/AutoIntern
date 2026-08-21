@@ -19,6 +19,9 @@ from adapters.lever import LeverAdapter
 from adapters.optiver import OptiverAdapter
 from adapters.oracle import OracleAdapter, OracleBoard
 from adapters.phenom import PhenomAdapter, PhenomBoard
+from adapters.rippling import RipplingAdapter
+from adapters.smartrecruiters import SmartRecruitersAdapter
+from adapters.workable import WorkableAdapter
 from adapters.snap import SnapAdapter
 from adapters.tesla import TeslaAdapter
 from adapters.tiktok import TikTokAdapter
@@ -1021,3 +1024,132 @@ def test_phenom_jobs_carry_structured_locations() -> None:
     adapter = PhenomAdapter([PhenomBoard(company="amd", host="careers.amd.com", variant="get")], session=session)
     job = adapter.fetch()[0]
     assert job.location_names == ("Austin, TX, United States",)
+
+
+def test_workable_normalizes_jobs() -> None:
+    session = FakeSession(load_fixture("workable.json"))
+    adapter = WorkableAdapter(["huggingface"], company_names={"huggingface": "hugging-face"}, session=session)
+
+    jobs = adapter.fetch()
+
+    assert session.urls == ["https://www.workable.com/api/accounts/huggingface?details=true"]
+    assert adapter.board_errors == []
+    assert [job.id for job in jobs] == ["workable:huggingface:ABC123", "workable:huggingface:DEF456"]
+    intern = jobs[0]
+    assert intern.company == "hugging-face"
+    assert intern.title == "Machine Learning Intern"
+    assert intern.location == "New York, New York, United States"
+    assert intern.url == "https://apply.workable.com/j/ABC123"
+    assert "Train transformers with us." in intern.jd_text and "Python" in intern.jd_text
+    assert intern.posted_at == "2026-08-01"
+    assert intern.country_codes == ("US", "FR")
+    assert intern.country_names == ("United States", "France")
+    assert intern.location_names == (
+        "New York, New York, United States",
+        "Paris, Île-de-France, France",
+    )
+    assert jobs[1].country_codes == ("FR",)
+
+
+def test_workable_isolates_failed_account() -> None:
+    class MixedSession(FakeSession):
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if "bad" in url:
+                return FakeResponse("Not Found", status_code=404)
+            return FakeResponse(load_fixture("workable.json"))
+
+    adapter = WorkableAdapter(["bad", "huggingface"], session=MixedSession())
+    jobs = adapter.fetch()
+    assert len(jobs) == 2
+    assert adapter.board_errors and adapter.board_errors[0][0] == "bad"
+
+
+def test_smartrecruiters_lists_then_fetches_intern_details() -> None:
+    base = "https://api.smartrecruiters.com/v1/companies/ServiceNow/postings"
+    session = FakeSession(
+        by_url={
+            f"{base}?limit=100&offset=0": load_fixture("smartrecruiters_list.json"),
+            f"{base}/744000001": load_fixture("smartrecruiters_detail.json"),
+            f"{base}/744000002": {"id": "744000002", "postingUrl": "https://jobs.smartrecruiters.com/ServiceNow/744000002-intern", "jobAd": {"sections": {}}},
+        }
+    )
+    adapter = SmartRecruitersAdapter(["ServiceNow"], company_names={"ServiceNow": "servicenow"}, session=session)
+
+    jobs = adapter.fetch()
+
+    # One list page (totalFound=3 reached) + one detail per intern-titled posting; the staff role is skipped.
+    assert session.urls == [f"{base}?limit=100&offset=0", f"{base}/744000001", f"{base}/744000002"]
+    assert [job.id for job in jobs] == ["smartrecruiters:ServiceNow:744000001", "smartrecruiters:ServiceNow:744000002"]
+    intern = jobs[0]
+    assert intern.company == "servicenow"
+    assert intern.title == "Software Engineer Intern"
+    assert intern.location == "San Diego, California, United States"
+    assert intern.url == "https://jobs.smartrecruiters.com/ServiceNow/744000001-software-engineer-intern"
+    assert "Build platform features." in intern.jd_text
+    assert "Pursuing a Bachelor's degree" in intern.jd_text
+    assert "About ServiceNow" not in intern.jd_text
+    assert intern.posted_at == "2026-08-20T18:45:00.129Z"
+    assert intern.country_codes == ("US",)
+    assert intern.location_names == ("San Diego, California, United States", "Remote")
+    assert jobs[1].country_codes == ("AU",)
+
+
+def test_smartrecruiters_survives_detail_failure() -> None:
+    base = "https://api.smartrecruiters.com/v1/companies/ServiceNow/postings"
+
+    class FlakySession(FakeSession):
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if url.endswith("offset=0"):
+                return FakeResponse(load_fixture("smartrecruiters_list.json"))
+            return FakeResponse("boom", status_code=500)
+
+    adapter = SmartRecruitersAdapter(["ServiceNow"], session=FlakySession())
+    jobs = adapter.fetch()
+    assert len(jobs) == 2
+    assert jobs[0].jd_text == ""
+    assert jobs[0].url == "https://api.smartrecruiters.com/v1/companies/ServiceNow/postings/744000001"
+    assert adapter.board_errors == []
+
+
+def test_rippling_lists_then_fetches_intern_details() -> None:
+    base = "https://ats.rippling.com/api/v2/board/rippling/jobs"
+    session = FakeSession(
+        by_url={
+            f"{base}?page=0&pageSize=100": load_fixture("rippling_list.json"),
+            f"{base}/aaa-111": load_fixture("rippling_detail.json"),
+            f"{base}/bbb-222": {"uuid": "bbb-222", "description": "<p>Plain string description.</p>", "createdOn": "2026-08-10T00:00:00Z"},
+        }
+    )
+    adapter = RipplingAdapter(["rippling"], company_names={"rippling": "rippling"}, session=session)
+
+    jobs = adapter.fetch()
+
+    assert session.urls == [f"{base}?page=0&pageSize=100", f"{base}/aaa-111", f"{base}/bbb-222"]
+    assert [job.id for job in jobs] == ["rippling:rippling:aaa-111", "rippling:rippling:bbb-222"]
+    intern = jobs[0]
+    assert intern.title == "Machine Learning Software Engineer Intern - Winter 2027"
+    assert intern.location == "San Francisco, CA"
+    assert intern.url == "https://ats.rippling.com/rippling/jobs/aaa-111"
+    assert "Build ML systems." in intern.jd_text and "pursuing a Bachelor's degree" in intern.jd_text
+    assert intern.posted_at == "2026-08-15T10:00:00Z"
+    assert intern.country_codes == ("US",)
+    assert intern.country_names == ("United States",)
+    assert intern.location_names == ("San Francisco, CA",)
+    india = jobs[1]
+    assert india.country_codes == ("IN",)
+    assert india.location_names == ("Bangalore, India", "Remote (India)")
+    assert india.jd_text == "Plain string description."
+
+
+def test_rippling_paginates_until_total_pages() -> None:
+    base = "https://ats.rippling.com/api/v2/board/rippling/jobs"
+    page0 = {"items": [{"id": "x1", "name": "Intern A", "url": "u", "locations": []}], "page": 0, "pageSize": 100, "totalItems": 2, "totalPages": 2}
+    page1 = {"items": [{"id": "x2", "name": "Intern B", "url": "u", "locations": []}], "page": 1, "pageSize": 100, "totalItems": 2, "totalPages": 2}
+    session = FakeSession(by_url={f"{base}?page=0&pageSize=100": page0, f"{base}?page=1&pageSize=100": page1, f"{base}/x1": {}, f"{base}/x2": {}})
+    adapter = RipplingAdapter(["rippling"], session=session)
+    jobs = adapter.fetch()
+    assert [job.id for job in jobs] == ["rippling:rippling:x1", "rippling:rippling:x2"]
+    assert session.urls[:2] == [f"{base}?page=0&pageSize=100", f"{base}?page=1&pageSize=100"]
+    assert jobs[0].location == "Unspecified"

@@ -1,0 +1,29 @@
+{
+  "offset": 0,
+  "limit": 100,
+  "totalFound": 3,
+  "content": [
+    {
+      "id": "744000001",
+      "name": "Software Engineer Intern",
+      "uuid": "u1",
+      "refNumber": "JB001",
+      "company": {"identifier": "ServiceNow", "name": "ServiceNow"},
+      "releasedDate": "2026-08-20T18:45:00.129Z",
+      "location": {"city": "San Diego", "region": "California", "country": "us", "remote": true, "fullLocation": "San Diego, California, United States"},
+      "ref": "https://api.smartrecruiters.com/v1/companies/ServiceNow/postings/744000001"
+    },
+    {
+      "id": "744000002",
+      "name": "Intern - Marketing Associate",
+      "releasedDate": "2026-08-19T00:00:00.000Z",
+      "location": {"city": "Sydney", "region": "", "country": "au", "remote": false, "fullLocation": "Sydney, , Australia"}
+    },
+    {
+      "id": "744000003",
+      "name": "Staff Software Engineer",
+      "releasedDate": "2026-08-19T00:00:00.000Z",
+      "location": {"city": "Santa Clara", "region": "California", "country": "us", "fullLocation": "Santa Clara, California, United States"}
+    }
+  ]
+}

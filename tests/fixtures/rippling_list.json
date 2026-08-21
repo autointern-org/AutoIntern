@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "id": "aaa-111",
+      "name": "Machine Learning Software Engineer Intern - Winter 2027",
+      "url": "https://ats.rippling.com/rippling/jobs/aaa-111",
+      "department": {"name": "Engineering"},
+      "locations": [
+        {"name": "San Francisco, CA", "country": "United States", "countryCode": "US", "state": "California", "stateCode": "CA", "city": "San Francisco", "workplaceType": "ON_SITE"}
+      ],
+      "language": "en-US"
+    },
+    {
+      "id": "bbb-222",
+      "name": "Software Engineer Intern",
+      "url": "https://ats.rippling.com/rippling/jobs/bbb-222",
+      "locations": [
+        {"name": "Bangalore, India", "country": "India", "countryCode": "IN", "city": "Bangalore", "workplaceType": "REMOTE"}
+      ]
+    },
+    {
+      "id": "ccc-333",
+      "name": "Senior Software Engineer, Backend",
+      "url": "https://ats.rippling.com/rippling/jobs/ccc-333",
+      "locations": [{"name": "San Francisco, CA", "country": "United States", "countryCode": "US"}]
+    }
+  ],
+  "page": 0,
+  "pageSize": 100,
+  "totalItems": 3,
+  "totalPages": 1
+}

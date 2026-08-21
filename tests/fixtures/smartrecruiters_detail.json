@@ -1,0 +1,15 @@
+{
+  "id": "744000001",
+  "name": "Software Engineer Intern",
+  "postingUrl": "https://jobs.smartrecruiters.com/ServiceNow/744000001-software-engineer-intern",
+  "applyUrl": "https://jobs.smartrecruiters.com/ServiceNow/744000001-software-engineer-intern?oga=true",
+  "jobAd": {
+    "sections": {
+      "companyDescription": {"title": "Company Description", "text": "<p>About ServiceNow.</p>"},
+      "jobDescription": {"title": "Job Description", "text": "<p>Build <b>platform</b> features.</p>"},
+      "qualifications": {"title": "Qualifications", "text": "<ul><li>Pursuing a Bachelor's degree</li></ul>"},
+      "additionalInformation": {"title": "Additional Information", "text": "<p>Summer 2027.</p>"}
+    }
+  },
+  "typeOfEmployment": {"id": "intern", "label": "Intern"}
+}
