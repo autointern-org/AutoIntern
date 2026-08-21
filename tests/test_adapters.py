@@ -278,6 +278,64 @@ def test_workday_retries_empty_json_after_cookie_warmup() -> None:
     assert session.calls[0]["headers"]["Referer"] == "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
 
 
+def _workday_page(start: int, count: int, total: int) -> dict[str, Any]:
+    return {
+        "total": total,
+        "jobPostings": [
+            {
+                "title": f"Intern {index}",
+                "externalPath": f"/Search/job/Intern_{index}",
+                "jobReqId": str(index),
+                "locationsText": "Milpitas, CA",
+            }
+            for index in range(start, start + count)
+        ],
+    }
+
+
+def test_workday_retries_pagination_502(monkeypatch: Any) -> None:
+    monkeypatch.setattr("adapters.workday.sleep", lambda *_args, **_kwargs: None)
+    board = ("kla.wd1.myworkdayjobs.com", "kla", "Search")
+    url = "https://kla.wd1.myworkdayjobs.com/wday/cxs/kla/Search/jobs"
+    session = FakeSession(
+        by_url={
+            url: [
+                _workday_page(0, 20, 40),
+                FakeResponse("", status_code=502),
+                _workday_page(20, 20, 40),
+            ]
+        }
+    )
+    adapter = WorkdayAdapter([board], company_names={board: "kla"}, session=session)
+
+    jobs = adapter.fetch()
+
+    assert len(jobs) == 40
+    assert adapter.board_errors == []
+    assert [call["json"]["offset"] for call in session.calls if call["method"] == "POST"] == [0, 20, 20]
+
+
+def test_workday_keeps_partial_jobs_if_pagination_502_persists(monkeypatch: Any) -> None:
+    monkeypatch.setattr("adapters.workday.sleep", lambda *_args, **_kwargs: None)
+    board = ("kla.wd1.myworkdayjobs.com", "kla", "Search")
+    url = "https://kla.wd1.myworkdayjobs.com/wday/cxs/kla/Search/jobs"
+    session = FakeSession(
+        by_url={
+            url: [
+                _workday_page(0, 20, 40),
+                FakeResponse("", status_code=502),
+                FakeResponse("", status_code=502),
+            ]
+        }
+    )
+    adapter = WorkdayAdapter([board], company_names={board: "kla"}, session=session)
+
+    jobs = adapter.fetch()
+
+    assert len(jobs) == 20
+    assert adapter.board_errors == []
+
+
 def test_google_parses_ds1_blob() -> None:
     record = [
         "123456789",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from time import sleep
 from typing import Any
 
 import requests
@@ -52,17 +53,20 @@ class WorkdayAdapter:
             except Exception as exc:
                 if not jobs and not warmed:
                     warmed = True
-                    print(f"[workday] {host}/{tenant}/{site} empty/non-JSON, warming cookies and retrying")
+                    print(f"[workday] {host}/{tenant}/{site} retry after: {exc}")
                     self._warmup(host, site)
-                    try:
-                        payload = self._post_jobs(url, host=host, site=site, offset=offset, limit=limit)
-                    except Exception as retry_exc:
-                        raise RuntimeError(f"workday {host}/{tenant}/{site}: {retry_exc}") from retry_exc
                 elif jobs:
-                    print(f"[workday] {host}/{tenant}/{site} pagination stopped: {exc}")
-                    break
+                    print(f"[workday] {host}/{tenant}/{site} retry offset={offset}: {exc}")
+                    sleep(1)
                 else:
                     raise RuntimeError(f"workday {host}/{tenant}/{site}: {exc}") from exc
+                try:
+                    payload = self._post_jobs(url, host=host, site=site, offset=offset, limit=limit)
+                except Exception as retry_exc:
+                    if jobs:
+                        print(f"[workday] {host}/{tenant}/{site} pagination stopped: {retry_exc}")
+                        break
+                    raise RuntimeError(f"workday {host}/{tenant}/{site}: {retry_exc}") from retry_exc
             rows = _find_workday_jobs(payload)
             total = _as_int(payload.get("total")) if isinstance(payload, dict) else 0
             for raw in rows:
