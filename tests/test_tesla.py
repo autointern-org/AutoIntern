@@ -434,6 +434,32 @@ def test_cdp_success_skips_other_methods(
     assert jobs[0].id == "tesla:505789688"
 
 
+def test_cdp_block_does_not_hammer_http(
+    monkeypatch: pytest.MonkeyPatch, no_proxy_env: None
+) -> None:
+    later: list[str] = []
+    monkeypatch.setenv("TESLA_CDP_URL", "http://127.0.0.1:9222")
+
+    def cdp(self: TeslaAdapter) -> Any:
+        raise TeslaBlockedError("cdp 403")
+
+    def mark(name: str):
+        def _inner(self: TeslaAdapter) -> Any:
+            later.append(name)
+            raise AssertionError(f"{name} should not run when cdp is configured")
+
+        return _inner
+
+    monkeypatch.setattr(TeslaAdapter, "_fetch_cdp", cdp)
+    monkeypatch.setattr(TeslaAdapter, "_fetch_direct_requests", mark("requests"))
+    monkeypatch.setattr(TeslaAdapter, "_fetch_curl_cffi", mark("curl_cffi"))
+    monkeypatch.setattr(TeslaAdapter, "_fetch_proxy", mark("proxy"))
+    monkeypatch.setattr(TeslaAdapter, "_fetch_playwright", mark("playwright"))
+    with pytest.raises(TeslaBlockedError, match="cdp 403"):
+        TeslaAdapter().fetch()
+    assert later == []
+
+
 def test_cdp_connects_and_does_not_close_browser(
     monkeypatch: pytest.MonkeyPatch, no_proxy_env: None
 ) -> None:
