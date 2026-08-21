@@ -9,9 +9,16 @@ from core.http import new_session
 
 
 API = "https://api.lifeattiktok.com/api/v1/public/supplier/search/job/posts"
-LIMIT = 20
+LIMIT = 100
 MAX_PAGES = 20
-BODY = {"recruitment_id_list": ["202"]}
+RECRUITMENT_IDS = ["202"]
+HEADERS = {
+    "Content-Type": "application/json",
+    "accept-language": "en",
+    "origin": "https://lifeattiktok.com",
+    "Referer": "https://lifeattiktok.com/search",
+    "website-path": "tiktok",
+}
 
 
 class TikTokAdapter:
@@ -25,8 +32,13 @@ class TikTokAdapter:
         jobs: list[Job] = []
         offset = 0
         for _ in range(MAX_PAGES):
-            url = f"{API}?keyword=intern&limit={LIMIT}&offset={offset}"
-            response = self.session.post(url, json=BODY, timeout=self.timeout)
+            body = {
+                "keyword": "",
+                "limit": LIMIT,
+                "offset": offset,
+                "recruitment_id_list": RECRUITMENT_IDS,
+            }
+            response = self.session.post(API, json=body, headers=HEADERS, timeout=self.timeout)
             response.raise_for_status()
             rows = _job_rows(response.json())
             if not rows:
