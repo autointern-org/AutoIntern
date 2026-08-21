@@ -212,9 +212,14 @@ class TeslaAdapter:
                 page.on("response", on_response)
                 page.goto(CAREERS_PAGE, wait_until="domcontentloaded", timeout=remaining_ms())
                 try:
-                    page.wait_for_load_state("networkidle", timeout=min(10_000, remaining_ms()))
+                    page.wait_for_load_state("networkidle", timeout=min(15_000, remaining_ms()))
                 except Exception:
                     pass
+                if _playwright_headed():
+                    try:
+                        page.wait_for_timeout(min(8_000, remaining_ms()))
+                    except Exception:
+                        pass
 
                 if captured.get("text"):
                     try:
@@ -292,15 +297,20 @@ class TeslaAdapter:
         )
 
 
+def _playwright_headed() -> bool:
+    return os.environ.get("TESLA_PLAYWRIGHT_HEADED", "").strip().lower() in {"1", "true", "yes"}
+
+
 def _launch_playwright_browser(playwright: Any) -> Any:
+    headed = _playwright_headed()
     args = [
         "--disable-blink-features=AutomationControlled",
         "--disable-dev-shm-usage",
     ]
-    if os.environ.get("GITHUB_ACTIONS"):
+    if os.environ.get("GITHUB_ACTIONS") and not headed:
         args.append("--no-sandbox")
     launch_kwargs: dict[str, Any] = {
-        "headless": True,
+        "headless": not headed,
         "args": args,
         "ignore_default_args": ["--enable-automation"],
     }
