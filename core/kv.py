@@ -15,7 +15,10 @@ DEFAULT_SEEN_TTL_SECONDS = 60 * 60 * 24 * 30
 DEFAULT_DISMISSED_TTL_SECONDS = 60 * 60 * 24 * 90
 SEEN_LIST_TTL_SECONDS = 60 * 60 * 24 * 400
 HEALTH_TTL_SECONDS = 60 * 60 * 24 * 90
-PRUNE_AFTER_MISSES = 2
+# A job must be absent from a *successful* fetch for this long before it is
+# forgotten. Search-backed boards (IBM, Eightfold) drop listings in and out
+# between ticks, so a miss-count at a 15-minute cadence re-pinged live roles.
+PRUNE_AFTER_MISSING_SECONDS = 60 * 60 * 24 * 7
 
 
 class CloudflareKV:
@@ -231,25 +234,36 @@ class StateStore:
         doc["jobs"][job_id] = entry
         self._seen_dirty.add(company_key)
 
-    def prune_seen(self, company: str, live_job_ids: Iterable[str]) -> None:
+    def prune_seen(
+        self,
+        company: str,
+        live_job_ids: Iterable[str],
+        *,
+        now: datetime | None = None,
+    ) -> None:
         company_key = company.lower()
         doc = self._load_seen(company_key)
         live = set(live_job_ids)
+        current = now or datetime.now(UTC)
         changed = False
         for job_id, entry in list(doc["jobs"].items()):
             if not isinstance(entry, dict):
                 continue
             if job_id in live:
-                if entry.get("misses"):
-                    entry["misses"] = 0
+                if "missing_since" in entry or "misses" in entry:
+                    entry.pop("missing_since", None)
+                    entry.pop("misses", None)
                     changed = True
                 continue
-            misses = _as_int(entry.get("misses")) + 1
-            if misses >= PRUNE_AFTER_MISSES:
+            missing_since = parse_datetime(entry.get("missing_since"))
+            if missing_since is None:
+                entry["missing_since"] = current.isoformat()
+                entry.pop("misses", None)
+                changed = True
+                continue
+            if (current - missing_since).total_seconds() >= PRUNE_AFTER_MISSING_SECONDS:
                 del doc["jobs"][job_id]
-            else:
-                entry["misses"] = misses
-            changed = True
+                changed = True
         if changed:
             self._seen_dirty.add(company_key)
 

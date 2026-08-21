@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from tests.test_pipeline import FakeKV
 
 from core.kv import CloudflareKV, HEALTH_TTL_SECONDS, SEEN_LIST_TTL_SECONDS, StateStore, now_iso
-
-from core.kv import CloudflareKV, HEALTH_TTL_SECONDS, SEEN_LIST_TTL_SECONDS, StateStore, now_iso
+from core.kv import PRUNE_AFTER_MISSING_SECONDS
 
 
 def test_record_notification_batches_into_one_seen_put() -> None:
@@ -144,40 +144,65 @@ def test_list_undismissed_reads_seen_docs_and_leftover_job_keys() -> None:
     assert kv.gets.count("job:legacy-job") == 1
 
 
-def test_prune_seen_only_when_ids_change() -> None:
+def test_prune_seen_only_after_missing_for_a_week() -> None:
     kv = FakeKV()
     state = StateStore(kv)
-    state.record_notification(
-        job_id="keep",
-        company="anthropic",
-        title="Intern",
-        url="https://example.com/keep",
-        message_id="m1",
-        channel_id="c1",
-    )
-    state.record_notification(
-        job_id="drop",
-        company="anthropic",
-        title="Intern",
-        url="https://example.com/drop",
-        message_id="m2",
-        channel_id="c1",
-    )
+    for job_id in ("keep", "drop"):
+        state.record_notification(
+            job_id=job_id,
+            company="anthropic",
+            title="Intern",
+            url=f"https://example.com/{job_id}",
+            message_id=f"m-{job_id}",
+            channel_id="c1",
+        )
     state.flush_seen("anthropic")
     kv.clear_io()
-    state.prune_seen("anthropic", {"keep", "drop"})
+    t0 = datetime(2026, 8, 21, 12, 0, tzinfo=UTC)
+
+    state.prune_seen("anthropic", {"keep", "drop"}, now=t0)
     state.flush_seen("anthropic")
     assert kv.puts == []
-    state.prune_seen("anthropic", {"keep"})
+
+    # First miss only stamps missing_since; nothing is forgotten.
+    state.prune_seen("anthropic", {"keep"}, now=t0)
     state.flush_seen("anthropic")
     assert kv.puts == [("seen:anthropic", SEEN_LIST_TTL_SECONDS)]
     assert set(kv.values["seen:anthropic"]["jobs"]) == {"keep", "drop"}
-    assert kv.values["seen:anthropic"]["jobs"]["drop"]["misses"] == 1
+    assert kv.values["seen:anthropic"]["jobs"]["drop"]["missing_since"] == t0.isoformat()
     kv.clear_io()
-    state.prune_seen("anthropic", {"keep"})
+
+    # Repeated misses inside the window do not rewrite KV or forget the job.
+    state.prune_seen("anthropic", {"keep"}, now=t0 + timedelta(hours=6))
+    state.flush_seen("anthropic")
+    assert kv.puts == []
+    assert "drop" in kv.values["seen:anthropic"]["jobs"]
+
+    # Reappearing clears the stamp, so a flaky board never re-pings.
+    state.prune_seen("anthropic", {"keep", "drop"}, now=t0 + timedelta(days=3))
     state.flush_seen("anthropic")
     assert kv.puts == [("seen:anthropic", SEEN_LIST_TTL_SECONDS)]
+    assert "missing_since" not in kv.values["seen:anthropic"]["jobs"]["drop"]
+    kv.clear_io()
+
+    # Gone for the full window -> forgotten.
+    t1 = t0 + timedelta(days=3)
+    state.prune_seen("anthropic", {"keep"}, now=t1)
+    state.prune_seen("anthropic", {"keep"}, now=t1 + timedelta(seconds=PRUNE_AFTER_MISSING_SECONDS))
+    state.flush_seen("anthropic")
     assert set(kv.values["seen:anthropic"]["jobs"]) == {"keep"}
+
+
+def test_prune_seen_drops_legacy_misses_counter() -> None:
+    kv = FakeKV()
+    kv.values["seen:anthropic"] = {
+        "company": "anthropic",
+        "jobs": {"old": {"title": "Intern", "url": "https://example.com/old", "misses": 1}},
+    }
+    state = StateStore(kv)
+    state.prune_seen("anthropic", {"old"})
+    state.flush_seen("anthropic")
+    assert "misses" not in kv.values["seen:anthropic"]["jobs"]["old"]
 
 
 def test_is_seen_true_for_same_url_new_id() -> None:

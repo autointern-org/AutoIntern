@@ -305,7 +305,7 @@ def test_scan_skips_still_listed_jobs_without_rewriting_seen() -> None:
     assert state.is_seen(job.id)
 
 
-def test_scan_prunes_job_that_disappeared_on_healthy_fetch() -> None:
+def test_scan_does_not_reping_job_that_blinks_out_of_a_fetch() -> None:
     kept = make_job(id="job-keep")
     gone = make_job(id="job-gone")
     kv = FakeKV()
@@ -320,33 +320,33 @@ def test_scan_prunes_job_that_disappeared_on_healthy_fetch() -> None:
     )
     assert kept.id in kv.values["seen:anthropic"]["jobs"]
     assert gone.id in kv.values["seen:anthropic"]["jobs"]
-    kv.clear_io()
 
+    # Two healthy fetches without the job (the old 2-miss prune window).
+    for _ in range(2):
+        kv.clear_io()
+        result = scan(
+            adapters=[FakeAdapter([kept])],
+            configs=configs,
+            state=StateStore(kv),
+            discord=FakeDiscord(),
+            classifier=FakeClassifier(),
+        )
+        assert result.notified == 0
+        assert gone.id in kv.values["seen:anthropic"]["jobs"]
+        assert kv.values["seen:anthropic"]["jobs"][gone.id].get("missing_since")
+
+    # The job comes back: no new Discord ping, stamp cleared.
+    kv.clear_io()
+    discord = FakeDiscord()
     result = scan(
-        adapters=[FakeAdapter([kept])],
+        adapters=[FakeAdapter([kept, gone])],
         configs=configs,
         state=StateStore(kv),
-        discord=FakeDiscord(),
+        discord=discord,
         classifier=FakeClassifier(),
     )
-
     assert result.notified == 0
-    assert gone.id in kv.values["seen:anthropic"]["jobs"]
-    assert kv.values["seen:anthropic"]["jobs"][gone.id]["misses"] == 1
-    kv.clear_io()
-
-    result = scan(
-        adapters=[FakeAdapter([kept])],
-        configs=configs,
-        state=StateStore(kv),
-        discord=FakeDiscord(),
-        classifier=FakeClassifier(),
-    )
-
-    assert result.notified == 0
-    assert gone.id not in kv.values["seen:anthropic"]["jobs"]
-    assert kept.id in kv.values["seen:anthropic"]["jobs"]
-    assert any(key == "seen:anthropic" for key, _ in kv.puts)
+    assert "missing_since" not in kv.values["seen:anthropic"]["jobs"][gone.id]
 
 
 def test_scan_does_not_prune_when_fetch_returns_no_jobs() -> None:
@@ -434,7 +434,7 @@ def test_scan_survives_issue_webhook_timeout() -> None:
     assert result.recaps == 1
 
 
-def test_scan_prunes_all_interns_when_fetch_succeeded_with_zero_matches() -> None:
+def test_scan_stamps_interns_missing_when_fetch_succeeded_with_zero_matches() -> None:
     intern = make_job()
     kv = FakeKV()
     state = StateStore(kv)
@@ -473,8 +473,10 @@ def test_scan_prunes_all_interns_when_fetch_succeeded_with_zero_matches() -> Non
 
     assert result.fetched == 1
     assert result.matched == 0
-    assert intern.id not in kv.values["seen:anthropic"]["jobs"]
-    assert any(key == "seen:anthropic" for key, _ in kv.puts)
+    # Still remembered (so it cannot re-ping), but stamped as missing so a
+    # week of absence will eventually forget it.
+    assert kv.values["seen:anthropic"]["jobs"][intern.id]["missing_since"]
+    assert kv.puts == []
 
 
 def test_scan_new_job_after_first_look_writes_seen_once() -> None:

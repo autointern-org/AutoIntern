@@ -69,6 +69,7 @@ class EightfoldAdapter:
 
     def _paginate(self, board: EightfoldBoard, extra: dict[str, str]) -> list[Job]:
         jobs: list[Job] = []
+        seen_pages: set[str] = set()
         start = 0
         page_size = 10 if board.api == "apply" else 50
         for _ in range(MAX_PAGES):
@@ -76,12 +77,22 @@ class EightfoldAdapter:
             positions = _positions(board.api, payload)
             if not positions:
                 break
+            # The server caps each page (pcsx returns 10 even when num=50), so
+            # a page repeating the first id means pagination is not advancing.
+            page_key = str((positions[0] or {}).get("id") if isinstance(positions[0], dict) else positions[0])
+            if page_key in seen_pages:
+                break
+            seen_pages.add(page_key)
             for raw in positions:
                 if isinstance(raw, dict):
                     jobs.append(self._normalize(board, raw))
-            if len(positions) < page_size:
+            start += len(positions)
+            total = _count(board.api, payload)
+            if total is not None:
+                if start >= total:
+                    break
+            elif len(positions) < page_size:
                 break
-            start += page_size
         return jobs
 
     def _get_json(
@@ -160,6 +171,18 @@ def _retry_after_seconds(response: requests.Response) -> float:
         except (TypeError, ValueError):
             pass
     return 5.0
+
+
+def _count(api: str, payload: dict[str, Any]) -> int | None:
+    if api == "apply":
+        value = payload.get("count")
+    else:
+        data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+        value = data.get("count") if isinstance(data, dict) else None
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _positions(api: str, payload: dict[str, Any]) -> list[Any]:

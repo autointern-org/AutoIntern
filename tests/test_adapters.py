@@ -863,3 +863,50 @@ def test_ibm_uses_jobid_from_url() -> None:
     assert jobs[0].url.endswith("jobId=128645")
     assert session.calls[0]["json"]["size"] == 100
     assert session.calls[0]["json"]["from"] == 0
+
+
+def test_eightfold_pcsx_paginates_by_server_count() -> None:
+    def page(ids: list[str], count: int) -> dict[str, Any]:
+        return {
+            "status": 200,
+            "data": {
+                "count": count,
+                "positions": [
+                    {"id": job_id, "name": f"Intern {job_id}", "location": "Redmond, WA", "jobDescription": "x"}
+                    for job_id in ids
+                ],
+            },
+        }
+
+    base = "https://apply.careers.microsoft.com/api/pcsx/search?domain=microsoft.com&query=intern"
+    session = FakeSession(
+        by_url={
+            f"{base}&start=0&num=50&sort_by=timestamp": page(["a", "b"], 3),
+            f"{base}&start=2&num=50&sort_by=timestamp": page(["c"], 3),
+            f"{base}&start=3&num=50&sort_by=timestamp": page([], 3),
+        }
+    )
+    adapter = EightfoldAdapter(
+        [EightfoldBoard(company="microsoft", host="apply.careers.microsoft.com", domain="microsoft.com")],
+        session=session,
+    )
+    jobs = adapter.fetch()
+    assert [job.id for job in jobs] == [
+        "eightfold:microsoft:a",
+        "eightfold:microsoft:b",
+        "eightfold:microsoft:c",
+    ]
+    assert len(session.urls) == 2
+    assert adapter.board_errors == []
+
+
+def test_eightfold_stops_when_server_repeats_a_page() -> None:
+    payload = {"data": {"count": 500, "positions": [{"id": "same", "name": "Intern", "location": "x"}]}}
+    session = FakeSession(payload)
+    adapter = EightfoldAdapter(
+        [EightfoldBoard(company="micron", host="micron.eightfold.ai", domain="micron.com")],
+        session=session,
+    )
+    jobs = adapter.fetch()
+    assert len(jobs) == 1
+    assert len(session.urls) == 2
