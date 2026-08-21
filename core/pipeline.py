@@ -26,7 +26,7 @@ from adapters.tiktok import TikTokAdapter
 from adapters.workday import WorkdayAdapter
 from core.classifier import Classifier, build_classifier_from_env
 from core.config import CompanyConfig, Whitelist
-from core.discord import DiscordClient, DiscordMessage
+from core.discord import DiscordClient, DiscordMessage, PREVIEW_MAX
 from core.filters import apply_decision, evaluate_job, sort_alert_jobs
 from core.health import CompanyHealth, anomaly_lines, format_health
 from core.kv import CloudflareKV, StateStore
@@ -198,8 +198,20 @@ def scan(
             if unseen:
                 result.recaps += 1
                 recap = discord.post_recap(config.name, unseen, color=config.color)
-                for job in unseen:
-                    _remember(state, job, recap, dry_run=dry_run)
+                forum_messages: list[DiscordMessage] = []
+                try:
+                    forum_messages = _post_forum_listing(
+                        discord,
+                        state,
+                        config,
+                        unseen,
+                        dry_run=dry_run,
+                    )
+                except Exception as exc:
+                    print(f"[discord] warning: forum listing {config.name} failed: {exc}")
+                for index, job in enumerate(unseen):
+                    message = forum_messages[index] if index < len(forum_messages) else recap
+                    _remember(state, job, message, dry_run=dry_run)
                     result.notified += 1
             if not dry_run:
                 state.mark_bootstrapped(company_key)
@@ -216,6 +228,21 @@ def scan(
             fresh.append((job, resume_config, config.color))
         if not fresh:
             if not dry_run:
+                if not state.get_forum_thread(company_key):
+                    try:
+                        forum_messages = _post_forum_listing(
+                            discord,
+                            state,
+                            config,
+                            jobs,
+                            dry_run=dry_run,
+                        )
+                    except Exception as exc:
+                        print(f"[discord] warning: forum listing {config.name} failed: {exc}")
+                        forum_messages = []
+                    for index, job in enumerate(jobs):
+                        if index < len(forum_messages):
+                            _remember(state, job, forum_messages[index], dry_run=dry_run)
                 state.record_health(company_key, fetched=fetched, matched=len(jobs))
                 _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs)
             continue
@@ -458,13 +485,40 @@ def build_adapters(companies: list[CompanyConfig]) -> list[Adapter]:
     return adapters
 
 
+def _post_forum_listing(
+    discord: DiscordClient,
+    state: StateStore,
+    config: CompanyConfig,
+    jobs: list[Job],
+    *,
+    dry_run: bool,
+) -> list[DiscordMessage]:
+    if len(jobs) <= PREVIEW_MAX or not discord.forum_webhook_url:
+        return []
+    thread_id = state.get_forum_thread(config.name.lower())
+    if thread_id:
+        discord.thread_ids[config.name] = thread_id
+    listing = [(job, _listing_resume(job), config.color) for job in jobs]
+    print(f"[discord] forum listing {config.name}: {len(jobs)} jobs")
+    messages = discord.post_forum_jobs(config.name, listing)
+    if not dry_run:
+        stored_thread = discord.thread_ids.get(config.name)
+        if stored_thread:
+            state.record_forum_thread(config.name.lower(), stored_thread)
+    return messages
+
+
+def _listing_resume(job: Job) -> str:
+    return (
+        "target_role: intern\n"
+        f"company: {job.company}\n"
+        f"title: {job.title}\n"
+        "resume_angle: Emphasize the closest projects, systems work, and measurable impact from the JD.\n"
+        "keywords: [internship, software engineering, relevant technical stack]"
+    )
+
+
 def _resume_config(classifier: Classifier, job: Job, *, dry_run: bool, skip_claude: bool) -> str:
     if skip_claude or not classifier.api_key:
-        return (
-            "target_role: intern\n"
-            f"company: {job.company}\n"
-            f"title: {job.title}\n"
-            "resume_angle: Emphasize the closest projects, systems work, and measurable impact from the JD.\n"
-            "keywords: [internship, software engineering, relevant technical stack]"
-        )
+        return _listing_resume(job)
     return classifier.generate_resume_config(job)

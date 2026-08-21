@@ -67,6 +67,8 @@ class FakeDiscord:
         self.issues: list[tuple[str, str]] = []
         self.thread_ids: dict[str, str] = {}
         self.reaction_checks: list[str] = []
+        self.forum_webhook_url = "https://discord.com/api/webhooks/2/forum"
+        self.forum_posts: list[tuple[str, list[Job]]] = []
 
     def post_job(self, job: Job, resume_config: str, *, color: int) -> DiscordMessage:
         self.posts.append((job, resume_config, color))
@@ -86,6 +88,16 @@ class FakeDiscord:
     def post_recap(self, company: str, jobs: list[Job], *, color: int) -> DiscordMessage:
         self.recaps.append((company, list(jobs)))
         return DiscordMessage(id=f"recap-{company}", channel_id="channel-1", payload={})
+
+    def post_forum_jobs(
+        self, company: str, jobs_with_resume: list[tuple[Job, str, int]]
+    ) -> list[DiscordMessage]:
+        self.forum_posts.append((company, [job for job, _, _ in jobs_with_resume]))
+        self.thread_ids.setdefault(company, f"thread-{company}")
+        return [
+            DiscordMessage(id=f"forum-{job.id}", channel_id=self.thread_ids[company], payload={})
+            for job, _, _ in jobs_with_resume
+        ]
 
     def post_issue(self, title: str, body: str) -> DiscordMessage:
         self.issues.append((title, body))
@@ -528,3 +540,57 @@ def test_scan_reports_partial_board_errors_once() -> None:
     ]
     assert result.fetched == 1
     assert result.matched == 1
+
+
+def test_scan_first_look_overflow_posts_forum_listing() -> None:
+    jobs = [make_job(id=f"job-{index}") for index in range(6)]
+    kv = FakeKV()
+    discord = FakeDiscord()
+    result = scan(
+        adapters=[FakeAdapter(jobs)],
+        configs={"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse", tier="S")},
+        state=StateStore(kv),
+        discord=discord,
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+
+    assert result.recaps == 1
+    assert result.notified == 6
+    assert len(discord.forum_posts) == 1
+    assert len(discord.forum_posts[0][1]) == 6
+    assert kv.values["thread:anthropic"]["thread_id"] == "thread-anthropic"
+    assert kv.values["seen:anthropic"]["jobs"]["job-0"]["message_id"] == "forum-job-0"
+
+
+def test_scan_backfills_forum_when_bootstrapped_without_thread() -> None:
+    jobs = [make_job(id=f"job-{index}") for index in range(6)]
+    kv = FakeKV()
+    first = FakeDiscord()
+    first.forum_webhook_url = None
+    scan(
+        adapters=[FakeAdapter(jobs)],
+        configs={"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse", tier="S")},
+        state=StateStore(kv),
+        discord=first,
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+    assert first.forum_posts == []
+    assert "thread:anthropic" not in kv.values
+
+    discord = FakeDiscord()
+    result = scan(
+        adapters=[FakeAdapter(jobs)],
+        configs={"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse", tier="S")},
+        state=StateStore(kv),
+        discord=discord,
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+
+    assert result.recaps == 0
+    assert result.notified == 0
+    assert len(discord.forum_posts) == 1
+    assert len(discord.forum_posts[0][1]) == 6
+    assert kv.values["thread:anthropic"]["thread_id"] == "thread-anthropic"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import time
 from typing import Any
 from urllib.parse import urlparse
 
@@ -80,8 +81,7 @@ class DiscordClient:
         ]
 
         if self.forum_webhook_url:
-            for job, resume_config, color in jobs_with_resume:
-                messages.append(self._post_forum_job(company, job, resume_config, color=color))
+            messages.extend(self.post_forum_jobs(company, jobs_with_resume))
             return messages
 
         print(
@@ -91,6 +91,18 @@ class DiscordClient:
         for job, resume_config, color in jobs_with_resume:
             messages.append(self.post_job(job, resume_config, color=color))
         return messages
+
+    def post_forum_jobs(
+        self,
+        company: str,
+        jobs_with_resume: list[tuple[Job, str, int]],
+    ) -> list[DiscordMessage]:
+        if not jobs_with_resume or not self.forum_webhook_url:
+            return []
+        return [
+            self._post_forum_job(company, job, resume_config, color=color)
+            for job, resume_config, color in jobs_with_resume
+        ]
 
     def post_recap(self, company: str, jobs: list[Job], *, color: int) -> DiscordMessage:
         payload = {
@@ -217,11 +229,17 @@ class DiscordClient:
         if not webhook_url:
             raise RuntimeError(missing_url_error)
 
-        response = self.session.post(
-            _webhook_execute_url(webhook_url, thread_id=thread_id),
-            json=payload,
-            timeout=self.timeout,
-        )
+        url = _webhook_execute_url(webhook_url, thread_id=thread_id)
+        response = None
+        for attempt in range(3):
+            response = self.session.post(url, json=payload, timeout=self.timeout)
+            if response.status_code == 429 and attempt < 2:
+                time.sleep(_retry_after_seconds(response))
+                continue
+            response.raise_for_status()
+            message = response.json()
+            return DiscordMessage(id=str(message["id"]), channel_id=message.get("channel_id"), payload=message)
+        assert response is not None
         response.raise_for_status()
         message = response.json()
         return DiscordMessage(id=str(message["id"]), channel_id=message.get("channel_id"), payload=message)
@@ -307,3 +325,13 @@ def _parse_webhook(webhook_url: str | None) -> tuple[str | None, str | None]:
     if len(parts) >= 2:
         return parts[-2], parts[-1]
     return None, None
+
+
+def _retry_after_seconds(response: requests.Response) -> float:
+    raw = response.headers.get("Retry-After") if getattr(response, "headers", None) else None
+    if raw is not None:
+        try:
+            return min(float(raw), 10.0)
+        except (TypeError, ValueError):
+            pass
+    return 5.0

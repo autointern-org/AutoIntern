@@ -13,15 +13,17 @@ FORUM_WEBHOOK = "https://discord.com/api/webhooks/2/forum-token"
 
 
 class FakeResponse:
-    def __init__(self, payload: dict[str, Any]) -> None:
+    def __init__(self, payload: dict[str, Any], status_code: int = 200) -> None:
         self._payload = payload
-        self.status_code = 200
+        self.status_code = status_code
+        self.headers: dict[str, str] = {}
 
     def json(self) -> dict[str, Any]:
         return self._payload
 
     def raise_for_status(self) -> None:
-        return None
+        if self.status_code >= 400:
+            raise requests.HTTPError(f"HTTP {self.status_code}")
 
 
 class RecordingSession:
@@ -207,3 +209,25 @@ def test_post_issue_timeout_does_not_raise(capsys) -> None:
     )
     assert client.post_issue("AtlassianAdapter fetch failed", "empty body") is None
     assert "failed to post to Discord" in capsys.readouterr().out
+
+
+def test_webhook_retries_on_429(monkeypatch: Any) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr("core.discord.time.sleep", lambda seconds: sleeps.append(seconds))
+
+    class FlakySession:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def post(self, url: str, json: dict[str, Any] | None = None, timeout: int = 30) -> FakeResponse:
+            self.calls += 1
+            if self.calls == 1:
+                return FakeResponse({}, status_code=429)
+            return FakeResponse({"id": "ok", "channel_id": "main-channel"})
+
+    session = FlakySession()
+    client = DiscordClient(MAIN_WEBHOOK, session=session)
+    message = client.post_job(make_job(), "resume", color=1)
+    assert message.id == "ok"
+    assert sleeps == [5]
+    assert session.calls == 2
