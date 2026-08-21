@@ -14,10 +14,6 @@ class MicrosoftAdapter:
                     company="microsoft",
                     host="apply.careers.microsoft.com",
                     domain="microsoft.com",
-                    extra_params={
-                        "location": "United States",
-                        "filter_employment_type": "internship",
-                    },
                 )
             ],
             timeout=timeout,
