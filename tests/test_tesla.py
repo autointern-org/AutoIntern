@@ -16,6 +16,7 @@ from adapters.tesla import (
     TeslaUnavailable,
     parse_tesla_response,
     tesla_cdp_url,
+    tesla_chrome_js_enabled,
     tesla_proxy_url,
 )
 
@@ -102,8 +103,9 @@ class RecordingSession:
 
 
 @pytest.fixture(autouse=True)
-def clear_tesla_cdp(monkeypatch: pytest.MonkeyPatch) -> None:
+def clear_tesla_browser_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TESLA_CDP_URL", raising=False)
+    monkeypatch.delenv("TESLA_CHROME_JS", raising=False)
 
 
 @pytest.fixture
@@ -111,6 +113,7 @@ def no_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in (
         "TESLA_PROXY",
         "TESLA_CDP_URL",
+        "TESLA_CHROME_JS",
         "HTTPS_PROXY",
         "https_proxy",
         "HTTP_PROXY",
@@ -533,3 +536,85 @@ def test_cdp_connects_and_does_not_close_browser(
     assert "browser" not in closed
     assert "page" in closed
     assert payload["listings"][0]["y"] == 3
+
+
+def test_location_id_mapped_from_lookup() -> None:
+    payload = {
+        "lookup": {"locations": {"401022": "Palo Alto, California"}},
+        "listings": [
+            {"id": 278578, "t": "Internship, Software Engineer", "l": "401022", "y": 3},
+        ],
+    }
+    jobs = TeslaAdapter(session=FakeSession(payload)).fetch()
+    assert jobs[0].location == "Palo Alto, California"
+
+
+def test_chrome_js_off_is_skipped() -> None:
+    assert tesla_chrome_js_enabled() is False
+    with pytest.raises(TeslaUnavailable, match="TESLA_CHROME_JS is off"):
+        TeslaAdapter()._fetch_chrome_js()
+
+
+def test_chrome_js_success_skips_other_methods(
+    monkeypatch: pytest.MonkeyPatch, no_proxy_env: None
+) -> None:
+    later: list[str] = []
+    monkeypatch.setenv("TESLA_CHROME_JS", "1")
+    monkeypatch.setattr(TeslaAdapter, "_fetch_chrome_js", lambda self: LISTINGS_PAYLOAD)
+
+    def mark(name: str):
+        def _inner(self: TeslaAdapter) -> Any:
+            later.append(name)
+            raise AssertionError(f"{name} should not run after chrome_js success")
+
+        return _inner
+
+    monkeypatch.setattr(TeslaAdapter, "_fetch_cdp", mark("cdp"))
+    monkeypatch.setattr(TeslaAdapter, "_fetch_direct_requests", mark("requests"))
+    monkeypatch.setattr(TeslaAdapter, "_fetch_curl_cffi", mark("curl_cffi"))
+    monkeypatch.setattr(TeslaAdapter, "_fetch_playwright", mark("playwright"))
+    jobs = TeslaAdapter().fetch()
+    assert later == []
+    assert jobs[0].id == "tesla:505789688"
+
+
+def test_chrome_js_parses_osascript_json(
+    monkeypatch: pytest.MonkeyPatch, no_proxy_env: None
+) -> None:
+    monkeypatch.setenv("TESLA_CHROME_JS", "1")
+    monkeypatch.setattr("adapters.tesla.sys.platform", "darwin")
+
+    class FakeCompleted:
+        returncode = 0
+        stdout = json.dumps({"status": 200, **LISTINGS_PAYLOAD})
+        stderr = ""
+
+    monkeypatch.setattr("adapters.tesla.subprocess.run", lambda *args, **kwargs: FakeCompleted())
+    payload = TeslaAdapter()._fetch_chrome_js()
+    jobs = TeslaAdapter(session=FakeSession(payload)).fetch()
+    assert jobs[0].title == "Internship, Software Engineer"
+
+
+def test_chrome_js_block_does_not_hammer_http(
+    monkeypatch: pytest.MonkeyPatch, no_proxy_env: None
+) -> None:
+    later: list[str] = []
+    monkeypatch.setenv("TESLA_CHROME_JS", "1")
+
+    def chrome_js(self: TeslaAdapter) -> Any:
+        raise TeslaBlockedError("chrome js 403")
+
+    def mark(name: str):
+        def _inner(self: TeslaAdapter) -> Any:
+            later.append(name)
+            raise AssertionError(f"{name} should not run when chrome_js is configured")
+
+        return _inner
+
+    monkeypatch.setattr(TeslaAdapter, "_fetch_chrome_js", chrome_js)
+    monkeypatch.setattr(TeslaAdapter, "_fetch_direct_requests", mark("requests"))
+    monkeypatch.setattr(TeslaAdapter, "_fetch_curl_cffi", mark("curl_cffi"))
+    monkeypatch.setattr(TeslaAdapter, "_fetch_playwright", mark("playwright"))
+    with pytest.raises(TeslaBlockedError, match="chrome js 403"):
+        TeslaAdapter().fetch()
+    assert later == []
