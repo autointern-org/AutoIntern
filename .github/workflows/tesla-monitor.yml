@@ -43,4 +43,5 @@ jobs:
           RESUME_LLM_MODEL: ${{ vars.RESUME_LLM_MODEL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SCAN_ONLY_COMPANIES: tesla
+          TESLA_PLAYWRIGHT_HEADED: "1"
         run: PYTHONPATH=. .venv/bin/python -m scripts.scan
