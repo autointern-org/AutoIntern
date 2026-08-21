@@ -121,6 +121,7 @@ class EightfoldAdapter:
                     f"eightfold {board.host} expected object, got {type(data).__name__}"
                 )
             return data
+        raise RuntimeError(f"eightfold {board.host} status 429: retries exhausted")
 
     def _normalize(self, board: EightfoldBoard, raw: dict[str, Any]) -> Job:
         job_id = raw.get("id")

@@ -28,7 +28,6 @@ def anomaly_lines(rows: list[CompanyHealth], previous_fetched: dict[str, int] | 
     alerts: list[str] = []
     for row in rows:
         if row.status == "error":
-            alerts.append(f"{row.company} fetch failed: {row.error}")
             continue
         if row.company.lower() == "google":
             continue

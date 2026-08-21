@@ -11,6 +11,7 @@ DEFAULT_SEEN_TTL_SECONDS = 60 * 60 * 24 * 30
 DEFAULT_DISMISSED_TTL_SECONDS = 60 * 60 * 24 * 90
 SEEN_LIST_TTL_SECONDS = 60 * 60 * 24 * 400
 HEALTH_TTL_SECONDS = 60 * 60 * 24 * 90
+PRUNE_AFTER_MISSES = 2
 
 
 class CloudflareKV:
@@ -208,12 +209,23 @@ class StateStore:
         company_key = company.lower()
         doc = self._load_seen(company_key)
         live = set(live_job_ids)
-        stale = [job_id for job_id in list(doc["jobs"]) if job_id not in live]
-        if not stale:
-            return
-        for job_id in stale:
-            del doc["jobs"][job_id]
-        self._seen_dirty.add(company_key)
+        changed = False
+        for job_id, entry in list(doc["jobs"].items()):
+            if not isinstance(entry, dict):
+                continue
+            if job_id in live:
+                if entry.get("misses"):
+                    entry["misses"] = 0
+                    changed = True
+                continue
+            misses = _as_int(entry.get("misses")) + 1
+            if misses >= PRUNE_AFTER_MISSES:
+                del doc["jobs"][job_id]
+            else:
+                entry["misses"] = misses
+            changed = True
+        if changed:
+            self._seen_dirty.add(company_key)
 
     def flush_seen(self, company: str) -> None:
         company_key = company.lower()

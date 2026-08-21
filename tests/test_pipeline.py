@@ -284,6 +284,19 @@ def test_scan_prunes_job_that_disappeared_on_healthy_fetch() -> None:
     )
 
     assert result.notified == 0
+    assert gone.id in kv.values["seen:anthropic"]["jobs"]
+    assert kv.values["seen:anthropic"]["jobs"][gone.id]["misses"] == 1
+    kv.clear_io()
+
+    result = scan(
+        adapters=[FakeAdapter([kept])],
+        configs=configs,
+        state=StateStore(kv),
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+
+    assert result.notified == 0
     assert gone.id not in kv.values["seen:anthropic"]["jobs"]
     assert kept.id in kv.values["seen:anthropic"]["jobs"]
     assert any(key == "seen:anthropic" for key, _ in kv.puts)
@@ -344,7 +357,7 @@ def test_scan_does_not_prune_on_failed_adapter_fetch() -> None:
     )
 
     assert result.notified == 0
-    assert result.issues >= 1
+    assert result.issues == 1
     assert job.id in kv.values["seen:anthropic"]["jobs"]
     assert not any(key.startswith("seen:") for key, _ in kv.puts)
 
@@ -400,6 +413,19 @@ def test_scan_prunes_all_interns_when_fetch_succeeded_with_zero_matches() -> Non
     assert result.fetched == 1
     assert result.matched == 0
     assert result.notified == 0
+    assert intern.id in kv.values["seen:anthropic"]["jobs"]
+    kv.clear_io()
+
+    result = scan(
+        adapters=[FakeAdapter([staff])],
+        configs=configs,
+        state=StateStore(kv),
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+
+    assert result.fetched == 1
+    assert result.matched == 0
     assert intern.id not in kv.values["seen:anthropic"]["jobs"]
     assert any(key == "seen:anthropic" for key, _ in kv.puts)
 
@@ -472,3 +498,33 @@ def test_select_companies_only_and_skip(monkeypatch: Any) -> None:
     monkeypatch.setenv("SCAN_ONLY_COMPANIES", "tesla")
     monkeypatch.delenv("SCAN_SKIP_COMPANIES", raising=False)
     assert [company.name for company in select_companies(companies)] == ["tesla"]
+
+
+def test_scan_reports_partial_board_errors_once() -> None:
+    nvidia = make_job(id="eightfold:nvidia:1", company="nvidia")
+
+    class PartialAdapter:
+        board_errors = [("microsoft", "eightfold apply.careers.microsoft.com status 429")]
+
+        def fetch(self) -> list[Job]:
+            return [nvidia]
+
+    discord = FakeDiscord()
+    result = scan(
+        adapters=[PartialAdapter()],
+        configs={
+            "microsoft": CompanyConfig(name="microsoft", adapter="eightfold"),
+            "nvidia": CompanyConfig(name="nvidia", adapter="eightfold"),
+        },
+        state=StateStore(),
+        discord=discord,
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+
+    assert result.issues == 1
+    assert discord.issues == [
+        ("microsoft fetch failed", "eightfold apply.careers.microsoft.com status 429")
+    ]
+    assert result.fetched == 1
+    assert result.matched == 1

@@ -129,6 +129,23 @@ def scan(
             _report_issue(discord, result, f"{label} fetch failed", str(exc), dry_run=dry_run)
             continue
         duration_ms = int((perf_counter() - started) * 1000)
+        for company_key, error in getattr(adapter, "board_errors", []) or []:
+            print(f"[scan] {company_key} fetch failed: {error}")
+            health_rows.append(
+                CompanyHealth(
+                    company=str(company_key).lower(),
+                    status="error",
+                    duration_ms=duration_ms,
+                    error=str(error),
+                )
+            )
+            _report_issue(
+                discord,
+                result,
+                f"{company_key} fetch failed",
+                str(error),
+                dry_run=dry_run,
+            )
         result.fetched += len(jobs)
         companies_in_batch: set[str] = set()
         for job in jobs:
@@ -341,16 +358,13 @@ def build_adapters(companies: list[CompanyConfig]) -> list[Adapter]:
 
     eightfold_boards: list[EightfoldBoard] = []
     for company in companies:
-        extra: dict[str, str] = {}
         if company.adapter == "microsoft":
-            extra = {"location": "United States", "filter_employment_type": "internship"}
             eightfold_boards.append(
                 EightfoldBoard(
                     company=company.name,
                     host=company.host or infer_host(company.name) or "apply.careers.microsoft.com",
                     domain=company.domain or "microsoft.com",
                     api=company.api or "pcsx",
-                    extra_params=extra,
                 )
             )
             continue
@@ -359,15 +373,12 @@ def build_adapters(companies: list[CompanyConfig]) -> list[Adapter]:
         host = company.host or infer_host(company.name)
         if not host:
             continue
-        if company.name.lower() == "microsoft":
-            extra = {"location": "United States", "filter_employment_type": "internship"}
         eightfold_boards.append(
             EightfoldBoard(
                 company=company.name,
                 host=host,
                 domain=company.domain,
                 api=company.api or "pcsx",
-                extra_params=extra,
             )
         )
     if eightfold_boards:
@@ -403,6 +414,9 @@ def build_adapters(companies: list[CompanyConfig]) -> list[Adapter]:
                         company=company.name,
                         host=str(company.host),
                         variant=company.variant or "widgets",
+                        search_keywords=(
+                            "intern" if company.search_keywords is None else company.search_keywords
+                        ),
                     )
                     for company in phenom
                 ]
