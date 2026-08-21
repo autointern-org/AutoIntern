@@ -595,6 +595,32 @@ def test_chrome_js_parses_osascript_json(
     assert jobs[0].title == "Internship, Software Engineer"
 
 
+def test_chrome_js_retries_429(monkeypatch: pytest.MonkeyPatch, no_proxy_env: None) -> None:
+    monkeypatch.setenv("TESLA_CHROME_JS", "1")
+    monkeypatch.setattr("adapters.tesla.sys.platform", "darwin")
+    sleeps: list[float] = []
+    monkeypatch.setattr("adapters.tesla.time.sleep", lambda seconds: sleeps.append(seconds))
+    calls = {"n": 0}
+
+    class FakeCompleted:
+        def __init__(self, payload: dict[str, Any]) -> None:
+            self.returncode = 0
+            self.stdout = json.dumps(payload)
+            self.stderr = ""
+
+    def run(*args: Any, **kwargs: Any) -> FakeCompleted:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return FakeCompleted({"status": 429, "text": "cpr_chlge"})
+        return FakeCompleted({"status": 200, **LISTINGS_PAYLOAD})
+
+    monkeypatch.setattr("adapters.tesla.subprocess.run", run)
+    payload = TeslaAdapter()._fetch_chrome_js()
+    assert payload["listings"][0]["y"] == 3
+    assert calls["n"] == 2
+    assert sleeps == [5]
+
+
 def test_chrome_js_block_does_not_hammer_http(
     monkeypatch: pytest.MonkeyPatch, no_proxy_env: None
 ) -> None:

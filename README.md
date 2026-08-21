@@ -2,7 +2,7 @@
 
 Internship monitor. While this Mac is awake, a LaunchAgent starts a GitHub Actions run every 15 minutes. GitHub also runs an hourly backup if the laptop is asleep. Tesla is scanned on the laptop through Chrome; every other company scans on GitHub-hosted Ubuntu.
 
-It generates a resume tailoring recommendation with a configurable LLM (default: Gemini 3.1 Flash Lite) and posts new intern roles to Discord. There is no persistent server.
+It posts new intern roles to Discord. There is no persistent server.
 
 ## How It Works
 
@@ -11,9 +11,8 @@ It generates a resume tailoring recommendation with a configurable LLM (default:
 3. Adapters in `adapters/` normalize postings into `Job`.
 4. `core.filters` applies the whitelist rules from `config/whitelist.yaml`.
 5. `core.kv` stores seen jobs, Discord message IDs, and dismissals in Cloudflare KV.
-6. `core.classifier` calls the configured LLM with `config/skill_context.md`.
-7. `core.discord` posts a Discord embed with `?wait=true` and stores the returned message ID.
-8. The next tick checks stored messages for a ✅ reaction and marks those jobs dismissed.
+6. `core.discord` posts a Discord embed with `?wait=true` and stores the returned message ID.
+7. The next tick checks stored messages for a ✅ reaction and marks those jobs dismissed.
 
 ## Setup
 
@@ -42,26 +41,7 @@ The script stores:
 - `job:{job_id}` for seen notifications and Discord message metadata
 - `dismissed:{job_id}` for dismissed postings
 
-### 3. Configure resume LLM
-
-Default provider is Gemini (`gemini-3.1-flash-lite`). Set `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/apikey).
-
-To use Anthropic instead, set GitHub secret `ANTHROPIC_API_KEY` and repository variable `RESUME_LLM_PROVIDER` to `anthropic`.
-
-Environment variables:
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `RESUME_LLM_PROVIDER` | `gemini` | `gemini` or `anthropic` |
-| `RESUME_LLM_MODEL` | provider default | Override model id |
-| `GEMINI_API_KEY` | — | Gemini API key (`GOOGLE_API_KEY` also works) |
-| `ANTHROPIC_API_KEY` | — | Only when provider is `anthropic` |
-
-If no API key is set for the active provider, the scanner still posts to Discord with a placeholder resume block.
-
-Paste your internship-hunting skill into `config/skill_context.md`. The checked-in file is a minimal placeholder with the expected output shape.
-
-### 4. Set GitHub Secrets (minimum viable)
+### 3. Set GitHub Secrets (minimum viable)
 
 **Required** (repo → Settings → Secrets and variables → Actions → Secrets):
 
@@ -73,20 +53,13 @@ Paste your internship-hunting skill into `config/skill_context.md`. The checked-
 | `CF_ACCOUNT_ID` | Cloudflare dashboard → account ID in URL/sidebar |
 | `CF_KV_NAMESPACE_ID` | Workers → KV → your namespace → ID |
 | `CF_API_TOKEN` | Cloudflare API token with Workers KV Storage read/write |
-| `GEMINI_API_KEY` | Google AI Studio API key |
 
 **Optional secrets:**
 
-- `ANTHROPIC_API_KEY` — only if `RESUME_LLM_PROVIDER=anthropic`
 - `DISCORD_BOT_TOKEN` — reaction fallback if webhook cannot read ✅
 - `DISCORD_CHANNEL_ID` — required with bot-token fallback
 
-**Optional variables** (Settings → Actions → Variables):
-
-- `RESUME_LLM_PROVIDER` — `gemini` (default) or `anthropic`
-- `RESUME_LLM_MODEL` — e.g. `gemini-3.1-flash-lite-preview`
-
-### 5. Customize the whitelist
+### 4. Customize the whitelist
 
 Edit `config/whitelist.yaml`.
 
@@ -120,7 +93,7 @@ Tiers control Discord embed color:
 - `A`: blue
 - `B`: gray
 
-### 6. Laptop runner (Tesla + 15-minute timer)
+### 5. Laptop runner (Tesla + 15-minute timer)
 
 Tesla cannot be fetched from GitHub-hosted Ubuntu (Akamai). The **tesla** job runs on a self-hosted runner on this Mac and reads listings from Chrome.
 
@@ -143,16 +116,10 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 ```
 
-Run one dry scan without posting to Discord or calling the LLM:
+Run one dry scan without posting to Discord:
 
 ```bash
 make scan-local
-```
-
-Run a dry scan that calls the LLM when `GEMINI_API_KEY` (or provider key) is set:
-
-```bash
-PYTHONPATH=. python -m scripts.scan --dry-run
 ```
 
 Run the real scanner locally:
@@ -167,7 +134,7 @@ PYTHONPATH=. python -m scripts.scan
 make test
 ```
 
-Adapter tests use saved JSON fixtures in `tests/fixtures/` and do not hit the network. The pipeline test mocks the LLM and Discord.
+Adapter tests use saved JSON fixtures in `tests/fixtures/` and do not hit the network. The pipeline test mocks Discord.
 
 ## Adapter Notes
 

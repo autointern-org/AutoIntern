@@ -138,18 +138,39 @@ class TeslaAdapter:
             raise TeslaUnavailable("TESLA_CHROME_JS is off")
         if sys.platform != "darwin":
             raise TeslaUnavailable("Chrome AppleScript fetch is macOS-only")
-        raw = _osascript_chrome_js(_CHROME_LISTINGS_JS, timeout=max(self.timeout, 60))
-        try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise TeslaBlockedError(
-                f"tesla chrome js returned non-JSON: {_safe_error_text(raw)}"
-            ) from exc
-        status = int(payload.get("status") or 0) if isinstance(payload, dict) else 0
-        text = str(payload.get("text") or "") if isinstance(payload, dict) else ""
-        if isinstance(payload, dict) and _is_listings_payload(payload) and status < 400:
-            return payload
-        return parse_tesla_response(_HttpPayload(status or 403, text or raw))
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                raw = _osascript_chrome_js(_CHROME_LISTINGS_JS, timeout=max(self.timeout, 90))
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError as exc:
+                    raise TeslaBlockedError(
+                        f"tesla chrome js returned non-JSON: {_safe_error_text(raw)}"
+                    ) from exc
+                status = int(payload.get("status") or 0) if isinstance(payload, dict) else 0
+                text = str(payload.get("text") or "") if isinstance(payload, dict) else ""
+                if isinstance(payload, dict) and _is_listings_payload(payload) and status < 400:
+                    return payload
+                parsed_error = TeslaBlockedError(
+                    f"tesla chrome js HTTP {status}: {_safe_error_text(text or raw)}"
+                )
+                try:
+                    return parse_tesla_response(_HttpPayload(status or 403, text or raw))
+                except TeslaBlockedError as exc:
+                    parsed_error = exc
+                last_error = parsed_error
+            except TeslaBlockedError as exc:
+                last_error = exc
+            except TeslaUnavailable:
+                raise
+            if attempt < 2 and _retryable_tesla_error(last_error):
+                print(f"[tesla] chrome_js retry {attempt + 1}/2 after {_safe_error_text(str(last_error))}")
+                time.sleep(5)
+                continue
+            break
+        assert last_error is not None
+        raise last_error
 
     def _fetch_direct_requests(self) -> Any:
         response = self.session.get(self.API, timeout=self.timeout)
@@ -394,6 +415,8 @@ on run argv
     repeat with w in windows
       repeat with t in tabs of w
         if (URL of t as string) contains "tesla.com/careers" then
+          execute t javascript "location.reload()"
+          delay 8
           return execute t javascript js
         end if
       end repeat
@@ -436,6 +459,11 @@ def _osascript_chrome_js(javascript: str, *, timeout: float) -> str:
     if not raw:
         raise TeslaBlockedError("tesla chrome js returned empty output")
     return raw
+
+
+def _retryable_tesla_error(exc: Exception | None) -> bool:
+    text = str(exc or "").lower()
+    return "429" in text or "cpr_chlge" in text or "bot challenge" in text
 
 
 def _location_lookup(payload: Any) -> dict[str, str]:

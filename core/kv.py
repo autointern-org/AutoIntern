@@ -119,8 +119,16 @@ class StateStore:
     def persistent(self) -> bool:
         return bool(self.kv and self.kv.enabled)
 
-    def is_seen(self, job_id: str, company: str | None = None) -> bool:
-        return self._seen_entry(job_id, company) is not None
+    def is_seen(self, job_id: str, company: str | None = None, url: str | None = None) -> bool:
+        if self._seen_entry(job_id, company) is not None:
+            return True
+        if not url or not company:
+            return False
+        existing_id = self._job_id_for_url(company, url)
+        if not existing_id or existing_id == job_id:
+            return False
+        self._copy_seen_id(company, existing_id, job_id)
+        return True
 
     def is_dismissed(self, job_id: str, company: str | None = None) -> bool:
         entry = self._seen_entry(job_id, company)
@@ -309,6 +317,24 @@ class StateStore:
         updated["dismissed_at"] = dismissed_at
         self._put(self._job_key(job_id), updated, ttl_seconds=DEFAULT_SEEN_TTL_SECONDS)
         self._legacy_cache[job_id] = updated
+
+    def _job_id_for_url(self, company: str, url: str) -> str | None:
+        wanted = _normalize_job_url(url)
+        if not wanted:
+            return None
+        doc = self._load_seen(company)
+        for job_id, entry in doc["jobs"].items():
+            if isinstance(entry, dict) and _normalize_job_url(str(entry.get("url") or "")) == wanted:
+                return str(job_id)
+        return None
+
+    def _copy_seen_id(self, company: str, existing_id: str, new_id: str) -> None:
+        doc = self._load_seen(company)
+        entry = doc["jobs"].get(existing_id)
+        if not isinstance(entry, dict) or new_id in doc["jobs"]:
+            return
+        doc["jobs"][new_id] = dict(entry)
+        self._seen_dirty.add(company.lower())
 
     def _seen_entry(self, job_id: str, company: str | None) -> dict[str, Any] | None:
         if company:
@@ -536,6 +562,10 @@ def _notification_fields(entry: dict[str, Any]) -> tuple[Any, ...]:
         entry.get("channel_id"),
         bool(entry.get("dismissed")),
     )
+
+
+def _normalize_job_url(url: str) -> str:
+    return (url or "").strip().rstrip("/").lower()
 
 
 def _as_int(value: Any) -> int:

@@ -129,6 +129,8 @@ def make_job(**overrides: Any) -> Job:
         "posted_at": "2026-05-19",
     }
     values.update(overrides)
+    if "url" not in overrides:
+        values["url"] = f"https://example.com/{values['id']}"
     return Job(**values)
 
 
@@ -187,8 +189,9 @@ def test_scan_posts_new_jobs_after_first_look() -> None:
 
     assert result.recaps == 0
     assert result.notified == 1
-    assert classifier.calls == [newer.id]
+    assert classifier.calls == []
     assert discord.posts[0][0].id == newer.id
+    assert "resume_angle: Emphasize the closest projects" in discord.posts[0][1]
     assert discord.posts[0][2] == 0xEF4444
 
 
@@ -668,7 +671,80 @@ def test_scan_resume_llm_failure_uses_placeholder() -> None:
         discord=discord,
         classifier=BoomClassifier(),
         skip_dismissals=True,
+        skip_claude=False,
     )
 
     assert result.notified == 1
     assert "resume_angle: Emphasize the closest projects" in discord.posts[0][1]
+
+
+def test_scan_same_url_new_id_does_not_reping() -> None:
+    job = make_job(
+        id="ibm:hash-old",
+        company="ibm",
+        url="https://careers.ibm.com/careers/JobDetail?jobId=128645",
+    )
+    kv = FakeKV()
+    state = StateStore(kv)
+    configs = {"ibm": CompanyConfig(name="ibm", adapter="ibm", tier="S")}
+    scan(
+        adapters=[FakeAdapter([job])],
+        configs=configs,
+        state=state,
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+    discord = FakeDiscord()
+    renamed = make_job(id="ibm:128645", company="ibm", url=job.url)
+
+    result = scan(
+        adapters=[FakeAdapter([renamed])],
+        configs=configs,
+        state=StateStore(kv),
+        discord=discord,
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+
+    assert result.notified == 0
+    assert result.skipped_seen == 1
+    assert discord.posts == []
+    assert discord.forum_posts == []
+
+
+def test_scan_marks_all_fresh_seen_when_only_summary_returns() -> None:
+    jobs = [make_job(id=f"job-{index}", url=f"https://example.com/{index}") for index in range(6)]
+    kv = FakeKV()
+    state = StateStore(kv)
+    configs = {"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse", tier="S")}
+    scan(
+        adapters=[FakeAdapter(jobs[:1])],
+        configs=configs,
+        state=state,
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+
+    class SummaryOnlyDiscord(FakeDiscord):
+        def post_jobs_for_company(
+            self, company: str, jobs_with_resume: list[tuple[Job, str, int]]
+        ) -> list[DiscordMessage]:
+            self.recaps.append((company, [job for job, _, _ in jobs_with_resume]))
+            return [DiscordMessage(id=f"summary-{company}", channel_id="channel-1", payload={})]
+
+    discord = SummaryOnlyDiscord()
+    result = scan(
+        adapters=[FakeAdapter(jobs)],
+        configs=configs,
+        state=StateStore(kv),
+        discord=discord,
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+
+    assert result.notified == 5
+    seen = kv.values["seen:anthropic"]["jobs"]
+    for job in jobs[1:]:
+        assert seen[job.id]["message_id"] == "summary-anthropic"

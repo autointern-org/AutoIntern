@@ -12,14 +12,13 @@ def main() -> None:
     parser.add_argument(
         "--skip-claude",
         action="store_true",
-        help="Use deterministic placeholder resume configs (skip RESUME_LLM_PROVIDER)",
+        help="Ignored; resume LLM is off",
     )
     args = parser.parse_args()
 
     result = run_scan(
         whitelist_path=args.config,
         dry_run=args.dry_run,
-        skip_claude=args.skip_claude,
     )
     print(
         "scan complete: "

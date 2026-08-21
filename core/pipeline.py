@@ -47,7 +47,7 @@ def run_scan(
     *,
     whitelist_path: str = "config/whitelist.yaml",
     dry_run: bool = False,
-    skip_claude: bool = False,
+    skip_claude: bool = True,
 ) -> ScanResult:
     whitelist = Whitelist.load(whitelist_path)
     companies = select_companies(whitelist.companies)
@@ -105,7 +105,7 @@ def scan(
     discord: DiscordClient,
     classifier: Classifier,
     dry_run: bool = False,
-    skip_claude: bool = False,
+    skip_claude: bool = True,
     skip_dismissals: bool = False,
 ) -> ScanResult:
     result = ScanResult()
@@ -189,11 +189,13 @@ def scan(
             unseen = [
                 job
                 for job in jobs
-                if not state.is_seen(job.id, company=company_key)
+                if not state.is_seen(job.id, company=company_key, url=job.url)
                 and not state.is_dismissed(job.id, company=company_key)
             ]
             for job in jobs:
-                if state.is_seen(job.id, company=company_key) or state.is_dismissed(job.id, company=company_key):
+                if state.is_seen(job.id, company=company_key, url=job.url) or state.is_dismissed(
+                    job.id, company=company_key
+                ):
                     result.skipped_seen += 1
             if unseen:
                 result.recaps += 1
@@ -222,7 +224,10 @@ def scan(
 
         fresh: list[tuple[Job, str, int]] = []
         for job in jobs:
-            if state.is_seen(job.id, company=company_key) or state.is_dismissed(job.id, company=company_key):
+            if (
+                state.is_seen(job.id, company=company_key, url=job.url)
+                or state.is_dismissed(job.id, company=company_key)
+            ):
                 result.skipped_seen += 1
                 continue
             resume_config = _resume_config(classifier, job, dry_run=dry_run, skip_claude=skip_claude)
@@ -256,9 +261,7 @@ def scan(
         except Exception as exc:
             print(f"[discord] warning: notify {config.name} failed: {exc}")
             messages = []
-        for (job, _, _), message in zip(fresh, _job_messages(messages, len(fresh))):
-            _remember(state, job, message, dry_run=dry_run)
-            result.notified += 1
+        result.notified += _remember_fresh(state, fresh, messages, dry_run=dry_run)
         if not dry_run:
             stored_thread = discord.thread_ids.get(config.name)
             if stored_thread:
@@ -282,6 +285,25 @@ def _job_messages(messages: list[DiscordMessage], job_count: int) -> list[Discor
     if len(messages) == job_count + 1:
         return messages[1:]
     return messages[-job_count:]
+
+
+def _remember_fresh(
+    state: StateStore,
+    fresh: list[tuple[Job, str, int]],
+    messages: list[DiscordMessage],
+    *,
+    dry_run: bool,
+) -> int:
+    if not fresh or not messages:
+        return 0
+    mapped = _job_messages(messages, len(fresh))
+    fallback = messages[0]
+    count = 0
+    for index, (job, _, _) in enumerate(fresh):
+        message = mapped[index] if index < len(mapped) else fallback
+        _remember(state, job, message, dry_run=dry_run)
+        count += 1
+    return count
 
 
 def _finalize_company_seen(

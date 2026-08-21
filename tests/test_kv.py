@@ -176,6 +176,28 @@ def test_prune_seen_only_when_ids_change() -> None:
     assert set(kv.values["seen:anthropic"]["jobs"]) == {"keep"}
 
 
+def test_is_seen_true_for_same_url_new_id() -> None:
+    kv = FakeKV()
+    state = StateStore(kv)
+    state.record_notification(
+        job_id="ibm:hash-old",
+        company="ibm",
+        title="Data Engineer Intern",
+        url="https://careers.ibm.com/careers/JobDetail?jobId=128645",
+        message_id="m1",
+        channel_id="c1",
+    )
+    state.flush_seen("ibm")
+
+    assert state.is_seen(
+        "ibm:128645",
+        company="ibm",
+        url="https://careers.ibm.com/careers/JobDetail?jobId=128645",
+    )
+    state.flush_seen("ibm")
+    assert "ibm:128645" in kv.values["seen:ibm"]["jobs"]
+
+
 def test_wipe_scan_state_deletes_prefixed_keys() -> None:
     kv = FakeKV()
     kv.values["job:old"] = {"job_id": "old"}
