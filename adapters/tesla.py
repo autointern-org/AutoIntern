@@ -93,13 +93,17 @@ class TeslaAdapter:
 
     def _live_fetch(self) -> Any:
         errors: list[str] = []
-        steps = (
-            ("cdp", self._fetch_cdp),
-            ("requests", self._fetch_direct_requests),
-            ("curl_cffi", self._fetch_curl_cffi),
-            ("proxy", self._fetch_proxy),
-            ("playwright", self._fetch_playwright),
-        )
+        if tesla_cdp_url():
+            # Do not fall through to requests/curl/playwright. Those extra
+            # hits make Akamai ban the laptop IP after a CDP success.
+            steps = (("cdp", self._fetch_cdp),)
+        else:
+            steps = (
+                ("requests", self._fetch_direct_requests),
+                ("curl_cffi", self._fetch_curl_cffi),
+                ("proxy", self._fetch_proxy),
+                ("playwright", self._fetch_playwright),
+            )
         for name, method in steps:
             try:
                 payload = method()
