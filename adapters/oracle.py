@@ -6,7 +6,7 @@ from typing import Any
 
 import requests
 
-from adapters.base import Job, compact_text, html_to_text
+from adapters.base import Job, compact_text, html_to_text, normalize_country_code
 from core.http import new_session
 
 
@@ -72,6 +72,7 @@ class OracleAdapter:
         if not url:
             url = f"https://careers.oracle.com/en/sites/jobsearch/job/{job_id}"
         description = raw.get("JobDescription") or raw.get("ShortDescription") or raw.get("Description") or ""
+        country_codes, location_names = structured_locations(raw)
         return Job(
             id=f"oracle:{board.company}:{job_id}",
             company=board.company,
@@ -80,7 +81,37 @@ class OracleAdapter:
             url=compact_text(str(url)),
             jd_text=html_to_text(str(description)),
             posted_at=raw.get("PostedDate") or raw.get("postedDate"),
+            country_codes=country_codes,
+            location_names=location_names,
         )
+
+
+def structured_locations(raw: dict[str, Any]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(country_codes, location_names) from an Oracle Recruiting requisition.
+
+    PrimaryLocationCountry is an ISO code ("US"); PrimaryLocation is text
+    ("Chicago, IL, United States"). secondaryLocations[] carry CountryCode
+    and Name ("Brazil") for additional offices.
+    """
+    codes: list[str] = []
+    names: list[str] = []
+    primary = normalize_country_code(raw.get("PrimaryLocationCountry"))
+    if primary:
+        codes.append(primary)
+    primary_text = compact_text(str(raw.get("PrimaryLocation") or ""))
+    if primary_text:
+        names.append(primary_text)
+    secondary = raw.get("secondaryLocations")
+    for entry in secondary if isinstance(secondary, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        code = normalize_country_code(entry.get("CountryCode"))
+        if code:
+            codes.append(code)
+        name = compact_text(str(entry.get("Name") or ""))
+        if name:
+            names.append(name)
+    return tuple(dict.fromkeys(codes)), tuple(dict.fromkeys(names))
 
 
 def _requisition_url(host: str, site_number: str, offset: int) -> str:

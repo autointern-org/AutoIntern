@@ -956,3 +956,68 @@ def test_eightfold_jobs_carry_country_codes() -> None:
     job = adapter.fetch()[0]
     assert job.country_codes == ("IN",)
     assert job.location_names == ("India, Karnataka, Bangalore",)
+
+
+def test_oracle_structured_locations() -> None:
+    from adapters.oracle import structured_locations
+
+    raw = {
+        "PrimaryLocationCountry": "GB",
+        "PrimaryLocation": "London, United Kingdom",
+        "secondaryLocations": [
+            {"CountryCode": "US", "Name": "United States"},
+            {"CountryCode": "BR", "Name": "Brazil"},
+            "garbage",
+        ],
+    }
+    assert structured_locations(raw) == (("GB", "US", "BR"), ("London, United Kingdom", "United States", "Brazil"))
+    assert structured_locations({"PrimaryLocationCountry": "usa", "PrimaryLocation": "Austin, TX, United States"}) == (
+        ("US",),
+        ("Austin, TX, United States",),
+    )
+    assert structured_locations({"PrimaryLocation": "Somewhere"}) == ((), ("Somewhere",))
+
+
+def test_oracle_jobs_carry_country_codes() -> None:
+    session = FakeSession(load_fixture("oracle.json"))
+    adapter = OracleAdapter([OracleBoard(company="uber", host="example.com", site_number="CX_1")], session=session)
+    job = adapter.fetch()[0]
+    assert job.location_names == ("Austin, TX, United States",)
+    assert job.country_codes == ()
+
+
+def test_phenom_locations() -> None:
+    from adapters.phenom import get_locations, widget_locations
+
+    assert widget_locations(
+        {
+            "country": "United States of America",
+            "cityStateCountry": "San Jose, California, United States of America",
+            "multi_location": ["San Jose, California, United States of America", {"location": "Austin, Texas, United States of America"}],
+        }
+    ) == (
+        ("United States of America",),
+        (
+            "San Jose, California, United States of America",
+            "Austin, Texas, United States of America",
+        ),
+    )
+    assert widget_locations({"country": "India", "cityStateCountry": "Bangalore, India"}) == (("India",), ("Bangalore, India",))
+    assert widget_locations({}) == ((), ())
+    assert get_locations({"country_code": "SG", "country": "Singapore", "full_location": "Singapore", "location_name": "SG,Singapore"}) == (
+        ("SG",),
+        ("Singapore",),
+        ("Singapore", "SG,Singapore"),
+    )
+    assert get_locations({"country": "Canada"}) == ((), ("Canada",), ())
+
+
+def test_phenom_jobs_carry_structured_locations() -> None:
+    session = FakeSession(load_fixture("phenom_widgets.json"))
+    adapter = PhenomAdapter([PhenomBoard(company="cisco", host="careers.cisco.com")], session=session)
+    job = adapter.fetch()[0]
+    assert job.location_names == ("San Jose, California, United States",)
+    session = FakeSession(load_fixture("phenom_get.json"))
+    adapter = PhenomAdapter([PhenomBoard(company="amd", host="careers.amd.com", variant="get")], session=session)
+    job = adapter.fetch()[0]
+    assert job.location_names == ("Austin, TX, United States",)

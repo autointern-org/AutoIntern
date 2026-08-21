@@ -6,7 +6,7 @@ from typing import Any
 
 import requests
 
-from adapters.base import Job, compact_text, html_to_text
+from adapters.base import Job, compact_text, html_to_text, normalize_country_code
 from core.http import new_session
 
 
@@ -84,6 +84,7 @@ class PhenomAdapter:
 
     def _normalize_widget(self, board: PhenomBoard, raw: dict[str, Any]) -> Job:
         job_id = raw.get("jobId") or raw.get("jobSeqNo") or raw.get("reqId")
+        country_names, location_names = widget_locations(raw)
         return Job(
             id=f"phenom:{board.company}:{job_id}",
             company=board.company,
@@ -92,6 +93,8 @@ class PhenomAdapter:
             url=compact_text(str(raw.get("applyUrl") or raw.get("jobUrl") or "")),
             jd_text=html_to_text(str(raw.get("descriptionTeaser") or raw.get("description") or "")),
             posted_at=raw.get("postedDate") or raw.get("posted_date"),
+            country_names=country_names,
+            location_names=location_names,
         )
 
     def _normalize_get(self, board: PhenomBoard, item: Any) -> Job:
@@ -101,6 +104,7 @@ class PhenomAdapter:
         meta = raw.get("meta_data") if isinstance(raw.get("meta_data"), dict) else {}
         job_id = raw.get("slug") or raw.get("id") or raw.get("jobId")
         url = raw.get("apply_url") or meta.get("canonical_url") or raw.get("url") or ""
+        country_codes, country_names, location_names = get_locations(raw)
         return Job(
             id=f"phenom:{board.company}:{job_id}",
             company=board.company,
@@ -109,7 +113,46 @@ class PhenomAdapter:
             url=compact_text(str(url)),
             jd_text=html_to_text(str(raw.get("description") or raw.get("teaser") or "")),
             posted_at=raw.get("posted_date") or raw.get("postedDate"),
+            country_codes=country_codes,
+            country_names=country_names,
+            location_names=location_names,
         )
+
+
+def widget_locations(raw: dict[str, Any]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(country_names, location_names) from a Phenom `widgets` job.
+
+    `country` is a spelled-out name ("United States of America", "India");
+    there is no ISO code. `multi_location` lists every office as text.
+    """
+    country = compact_text(str(raw.get("country") or ""))
+    names: list[str] = []
+    for key in ("cityStateCountry", "location"):
+        text = compact_text(str(raw.get(key) or ""))
+        if text:
+            names.append(text)
+    multi = raw.get("multi_location")
+    for entry in multi if isinstance(multi, list) else []:
+        text = compact_text(str(entry.get("location") if isinstance(entry, dict) else entry or ""))
+        if text:
+            names.append(text)
+    return ((country,) if country else ()), tuple(dict.fromkeys(names))
+
+
+def get_locations(raw: dict[str, Any]) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """(country_codes, country_names, location_names) from a Phenom `get` job.
+
+    `country_code` is ISO ("US"), `country` is the name ("United States"),
+    `full_location` / `location_name` are text ("Austin, TX, United States").
+    """
+    code = normalize_country_code(raw.get("country_code"))
+    country = compact_text(str(raw.get("country") or ""))
+    names: list[str] = []
+    for key in ("full_location", "location", "location_name", "short_location"):
+        text = compact_text(str(raw.get(key) or ""))
+        if text:
+            names.append(text)
+    return ((code,) if code else ()), ((country,) if country else ()), tuple(dict.fromkeys(names))
 
 
 def _widget_jobs(payload: Any) -> list[Any]:
