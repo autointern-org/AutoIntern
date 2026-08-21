@@ -28,8 +28,17 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('requirements.txt') }}
+
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
 
       - name: Reset KV state
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.reset_state == 'true' }}
@@ -53,4 +62,5 @@ jobs:
           RESUME_LLM_PROVIDER: ${{ vars.RESUME_LLM_PROVIDER }}
           RESUME_LLM_MODEL: ${{ vars.RESUME_LLM_MODEL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TESLA_PROXY: ${{ secrets.TESLA_PROXY }}
         run: PYTHONPATH=. python -m scripts.scan

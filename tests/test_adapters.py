@@ -485,7 +485,15 @@ def test_tiktok_normalizes_jobs() -> None:
     jobs = adapter.fetch()
 
     assert session.urls[0].startswith("https://api.lifeattiktok.com/api/v1/public/supplier/search/job/posts")
-    assert session.calls[0]["json"] == {"recruitment_id_list": ["202"]}
+    assert session.calls[0]["json"] == {
+        "keyword": "",
+        "limit": 100,
+        "offset": 0,
+        "recruitment_id_list": ["202"],
+    }
+    headers = session.calls[0]["headers"] or {}
+    assert headers.get("website-path") == "tiktok"
+    assert headers.get("origin") == "https://lifeattiktok.com"
     assert jobs[0].id == "tiktok:747123"
     assert jobs[0].location == "San Jose, United States"
 

@@ -37,14 +37,32 @@ TECH_KEEP_RE = re.compile(
     re.IGNORECASE,
 )
 PHD_RE = re.compile(r"\b(ph\.?d|doctoral|post-?doc)\b", re.IGNORECASE)
+MASTER_RE = re.compile(
+    r"\bmaster'?s\b|\bmsc\b|\bm\.s\.|\bms\b",
+    re.IGNORECASE,
+)
 UNDERGRAD_RE = re.compile(
-    r"\b(bs|b\.s|ba|bachelor'?s?|undergrad(uate)?|sophomore|junior|rising senior)\b",
+    r"\b(bs|b\.s|ba|bachelor'?s?|undergrad(uate)?|ug|sophomore|junior|rising senior)\b",
     re.IGNORECASE,
 )
 UNDERGRAD_OVERRIDE_RE = re.compile(
     r"exceptional undergraduate|outstanding undergraduate|open to undergraduates|"
     r"currently enrolled in a bachelor'?s?,?\s*master'?s?,?\s*or\s*ph\.?d|"
-    r"equivalent practical experience|rising senior|penultimate year",
+    r"equivalent practical experience|rising senior",
+    re.IGNORECASE,
+)
+GRAD_TITLE_RE = re.compile(
+    r"\b(?:master'?s|ms|ph\.?d\.?|doctoral)\s+intern(?:s|ship|ships)?\b",
+    re.IGNORECASE,
+)
+GRAD_ENROLLMENT_RE = re.compile(
+    r"\b(?:(?:currently\s+)?enrolled|pursuing|must\s+be|currently\s+in)\b"
+    r".{0,80}?"
+    r"\b(?:master'?s|msc|m\.s\.|ms|ph\.?d|doctoral)\b",
+    re.IGNORECASE,
+)
+GRAD_PREFERRED_RE = re.compile(
+    r"(?:ph\.?d|master'?s?|doctoral)\s+preferred",
     re.IGNORECASE,
 )
 MULTI_LOCATION_RE = re.compile(r"^\d+\s+locations?$", re.IGNORECASE)
@@ -245,7 +263,7 @@ def evaluate_job(job: Job, config: CompanyConfig) -> FilterDecision:
         return FilterDecision(keep=False, stage="keywords", location_unknown=location_unknown)
 
     degree_flag = classify_degree(title, job.jd_text)
-    if _phd_without_undergrad(title, job.jd_text):
+    if not config.include_phd and _grad_only_without_undergrad(title, job.jd_text):
         return FilterDecision(keep=False, stage="phd", location_unknown=location_unknown, degree_flag=degree_flag)
 
     term_flag = classify_term(f"{title}\n{job.jd_text}")
@@ -300,10 +318,9 @@ def filter_jobs(jobs: list[Job], configs: dict[str, CompanyConfig]) -> list[Job]
 
 def classify_degree(title: str, jd_text: str) -> str:
     blob = f"{title}\n{jd_text}"
-    undergrad = bool(UNDERGRAD_RE.search(blob) or UNDERGRAD_OVERRIDE_RE.search(blob))
-    if undergrad:
+    if UNDERGRAD_RE.search(blob) or UNDERGRAD_OVERRIDE_RE.search(blob):
         return "undergrad_ok"
-    if PHD_RE.search(blob):
+    if _grad_only_without_undergrad(title, jd_text):
         return "phd_likely"
     return "degree_unknown"
 
@@ -365,11 +382,28 @@ def _has_us_signal(lowered: str) -> bool:
     return False
 
 
-def _phd_without_undergrad(title: str, jd_text: str) -> bool:
-    blob = f"{title}\n{jd_text}"
-    if not PHD_RE.search(blob):
+def _has_undergrad_signal(blob: str) -> bool:
+    return bool(UNDERGRAD_RE.search(blob) or UNDERGRAD_OVERRIDE_RE.search(blob))
+
+
+def _only_preferred_grad(blob: str) -> bool:
+    if not GRAD_PREFERRED_RE.search(blob):
         return False
-    return not (UNDERGRAD_RE.search(blob) or UNDERGRAD_OVERRIDE_RE.search(blob))
+    stripped = GRAD_PREFERRED_RE.sub(" ", blob)
+    return not (PHD_RE.search(stripped) or MASTER_RE.search(stripped))
+
+
+def _grad_only_without_undergrad(title: str, jd_text: str) -> bool:
+    blob = f"{title}\n{jd_text}"
+    if _has_undergrad_signal(blob):
+        return False
+    if GRAD_TITLE_RE.search(title):
+        return True
+    if GRAD_ENROLLMENT_RE.search(blob):
+        return True
+    if PHD_RE.search(blob) or MASTER_RE.search(blob):
+        return not _only_preferred_grad(blob)
+    return False
 
 
 def _term_allows(title: str) -> bool:

@@ -93,6 +93,105 @@ def test_filter_drops_phd_unless_undergrad_language() -> None:
     assert plain.degree_flag == "degree_unknown"
 
 
+def test_filter_degree_grad_only_vs_undergrad() -> None:
+    config = CompanyConfig(name="google", adapter="google")
+
+    warsaw = evaluate_job(
+        make_job(
+            title="Data Science PhD Intern, 2027",
+            location="Unspecified",
+            jd_text=(
+                "This internship is for students in their penultimate or final year "
+                "of a PhD program. Role is based in EMEA / Poland."
+            ),
+        ),
+        config,
+    )
+    assert not warsaw.keep
+    assert warsaw.stage == "phd"
+
+    apple = evaluate_job(
+        make_job(
+            title="Machine Learning and Artificial Intelligence Masters Internships",
+            location="Cupertino, CA",
+            jd_text="Candidates must be pursuing a graduate (MS) degree in a related field.",
+        ),
+        config,
+    )
+    assert not apple.keep
+    assert apple.stage == "phd"
+
+    stripe = evaluate_job(
+        make_job(
+            title="Software Engineer Intern",
+            jd_text="Bachelor's, Master's, or PhD in computer science or a related field.",
+        ),
+        config,
+    )
+    assert stripe.keep
+    assert stripe.degree_flag == "undergrad_ok"
+
+    exceptional = evaluate_job(
+        make_job(
+            title="Research Intern, PhD",
+            jd_text="Open to exceptional undergraduate students with research experience.",
+        ),
+        config,
+    )
+    assert exceptional.keep
+    assert exceptional.degree_flag == "undergrad_ok"
+
+    no_degree = evaluate_job(make_job(title="Software Engineer Intern"), config)
+    assert no_degree.keep
+    assert no_degree.degree_flag == "degree_unknown"
+
+    graduate_intern = evaluate_job(
+        make_job(title="Software Development Graduate Intern", jd_text="Join our campus program."),
+        config,
+    )
+    assert graduate_intern.keep
+    assert graduate_intern.degree_flag == "degree_unknown"
+
+    graduate_ms_phd = evaluate_job(
+        make_job(
+            title="Software Development Graduate Intern",
+            jd_text="Candidates must be in a Master's or PhD program.",
+        ),
+        config,
+    )
+    assert not graduate_ms_phd.keep
+    assert graduate_ms_phd.stage == "phd"
+
+    penultimate_only = evaluate_job(
+        make_job(
+            title="Software Engineer Intern",
+            jd_text="This role is open to penultimate year students.",
+        ),
+        config,
+    )
+    assert penultimate_only.keep
+    assert penultimate_only.degree_flag == "degree_unknown"
+
+    phd_preferred = evaluate_job(
+        make_job(title="Software Engineer Intern", jd_text="PhD preferred."),
+        config,
+    )
+    assert phd_preferred.keep
+
+    phd_required = evaluate_job(
+        make_job(title="Research Intern - PhD", jd_text="PhD required."),
+        config,
+    )
+    assert not phd_required.keep
+    assert phd_required.stage == "phd"
+
+    full_time_intern = evaluate_job(
+        make_job(title="Full-Time Software Engineer Intern"),
+        config,
+    )
+    assert full_time_intern.keep
+
+
 def test_filter_term_keeps_summer_2027_and_part_time() -> None:
     config = CompanyConfig(name="google", adapter="google")
 
