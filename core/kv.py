@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any, Iterable
+from time import sleep
+from typing import Any, Callable, Iterable, TypeVar
 from urllib.parse import quote
 
 import requests
+
+T = TypeVar("T")
+_KV_RETRYABLE = (requests.Timeout, requests.ConnectionError)
 
 
 DEFAULT_SEEN_TTL_SECONDS = 60 * 60 * 24 * 30
@@ -44,28 +48,34 @@ class CloudflareKV:
         )
 
     def get_json(self, key: str) -> dict[str, Any] | None:
-        response = self.session.get(
-            f"{self.base_url}/values/{quote(key, safe='')}",
-            headers=self._headers(),
-            timeout=self.timeout,
-        )
-        if response.status_code == 404:
-            return None
-        response.raise_for_status()
-        if not response.text:
-            return None
-        return response.json()
+        def _get() -> dict[str, Any] | None:
+            response = self.session.get(
+                f"{self.base_url}/values/{quote(key, safe='')}",
+                headers=self._headers(),
+                timeout=self.timeout,
+            )
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            if not response.text:
+                return None
+            return response.json()
+
+        return _kv_retry(_get)
 
     def put_json(self, key: str, value: dict[str, Any], *, ttl_seconds: int | None = None) -> None:
-        params = {"expiration_ttl": str(ttl_seconds)} if ttl_seconds else None
-        response = self.session.put(
-            f"{self.base_url}/values/{quote(key, safe='')}",
-            headers={**self._headers(), "content-type": "application/json"},
-            params=params,
-            json=value,
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
+        def _put() -> None:
+            params = {"expiration_ttl": str(ttl_seconds)} if ttl_seconds else None
+            response = self.session.put(
+                f"{self.base_url}/values/{quote(key, safe='')}",
+                headers={**self._headers(), "content-type": "application/json"},
+                params=params,
+                json=value,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+
+        _kv_retry(_put)
 
     def list_keys(self, prefix: str) -> list[str]:
         keys: list[str] = []
@@ -74,14 +84,18 @@ class CloudflareKV:
             params = {"prefix": prefix, "limit": "1000"}
             if cursor:
                 params["cursor"] = cursor
-            response = self.session.get(
-                f"{self.base_url}/keys",
-                headers=self._headers(),
-                params=params,
-                timeout=self.timeout,
-            )
-            response.raise_for_status()
-            payload = response.json()
+
+            def _list() -> dict[str, Any]:
+                response = self.session.get(
+                    f"{self.base_url}/keys",
+                    headers=self._headers(),
+                    params=params,
+                    timeout=self.timeout,
+                )
+                response.raise_for_status()
+                return response.json()
+
+            payload = _kv_retry(_list)
             keys.extend(str(item["name"]) for item in payload.get("result") or [])
             cursor = ((payload.get("result_info") or {}).get("cursor")) or None
             if not cursor:
@@ -92,13 +106,17 @@ class CloudflareKV:
             chunk = keys[offset : offset + 10000]
             if not chunk:
                 continue
-            response = self.session.post(
-                f"{self.base_url}/bulk/delete",
-                headers={**self._headers(), "content-type": "application/json"},
-                json=chunk,
-                timeout=self.timeout,
-            )
-            response.raise_for_status()
+
+            def _delete() -> None:
+                response = self.session.post(
+                    f"{self.base_url}/bulk/delete",
+                    headers={**self._headers(), "content-type": "application/json"},
+                    json=chunk,
+                    timeout=self.timeout,
+                )
+                response.raise_for_status()
+
+            _kv_retry(_delete)
 
     def _headers(self) -> dict[str, str]:
         if not self.api_token:
@@ -573,3 +591,17 @@ def _as_int(value: Any) -> int:
         return int(value or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _kv_retry(op: Callable[[], T], *, attempts: int = 3) -> T:
+    last_error: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            return op()
+        except _KV_RETRYABLE as exc:
+            last_error = exc
+            if attempt + 1 >= attempts:
+                break
+            sleep(0.5 * (attempt + 1))
+    assert last_error is not None
+    raise last_error

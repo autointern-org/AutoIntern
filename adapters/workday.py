@@ -45,21 +45,24 @@ class WorkdayAdapter:
         jobs: list[Job] = []
         offset = 0
         limit = 20
+        warmed = False
         for _ in range(25):
             try:
-                response = self.session.post(
-                    url,
-                    json={"appliedFacets": {}, "limit": limit, "offset": offset, "searchText": "intern"},
-                    headers={"Accept": "application/json"},
-                    timeout=self.timeout,
-                )
-                response.raise_for_status()
-                payload = _response_json(response, host=host)
+                payload = self._post_jobs(url, host=host, site=site, offset=offset, limit=limit)
             except Exception as exc:
-                if jobs:
+                if not jobs and not warmed:
+                    warmed = True
+                    print(f"[workday] {host}/{tenant}/{site} empty/non-JSON, warming cookies and retrying")
+                    self._warmup(host, site)
+                    try:
+                        payload = self._post_jobs(url, host=host, site=site, offset=offset, limit=limit)
+                    except Exception as retry_exc:
+                        raise RuntimeError(f"workday {host}/{tenant}/{site}: {retry_exc}") from retry_exc
+                elif jobs:
                     print(f"[workday] {host}/{tenant}/{site} pagination stopped: {exc}")
                     break
-                raise RuntimeError(f"workday {host}/{tenant}/{site}: {exc}") from exc
+                else:
+                    raise RuntimeError(f"workday {host}/{tenant}/{site}: {exc}") from exc
             rows = _find_workday_jobs(payload)
             total = _as_int(payload.get("total")) if isinstance(payload, dict) else 0
             for raw in rows:
@@ -68,6 +71,34 @@ class WorkdayAdapter:
             if not rows or (total and offset >= total) or len(rows) < limit:
                 break
         return jobs
+
+    def _post_jobs(self, url: str, *, host: str, site: str, offset: int, limit: int) -> Any:
+        response = self.session.post(
+            url,
+            json={"appliedFacets": {}, "limit": limit, "offset": offset, "searchText": "intern"},
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Origin": f"https://{host}",
+                "Referer": f"https://{host}/{site}",
+            },
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        return _response_json(response, host=host)
+
+    def _warmup(self, host: str, site: str) -> None:
+        try:
+            self.session.get(
+                f"https://{host}/{site}",
+                headers={
+                    "Accept": "text/html,application/xhtml+xml",
+                    "Referer": f"https://{host}/",
+                },
+                timeout=self.timeout,
+            )
+        except Exception as exc:
+            print(f"[workday] warmup {host}/{site} failed: {exc}")
 
     def _normalize(self, board: WorkdayBoard, raw: dict[str, Any]) -> Job:
         host, tenant, site = board

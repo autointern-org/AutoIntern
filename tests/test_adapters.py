@@ -90,11 +90,21 @@ class FakeSession:
 
     def _payload_for(self, url: str) -> Any:
         if url in self.by_url:
-            return self.by_url[url]
+            return self._next_payload(self.by_url[url])
         matches = [key for key in self.by_url if key.startswith("http") and key in url]
         if matches:
-            return self.by_url[max(matches, key=len)]
+            return self._next_payload(self.by_url[max(matches, key=len)])
         return self.payload
+
+    @staticmethod
+    def _next_payload(payload: Any) -> Any:
+        if isinstance(payload, list):
+            if not payload:
+                return None
+            if len(payload) == 1:
+                return payload[0]
+            return payload.pop(0)
+        return payload
 
 
 def load_fixture(name: str) -> Any:
@@ -244,6 +254,28 @@ def test_workday_isolates_empty_json_board() -> None:
     assert [job.company for job in jobs] == ["nvidia"]
     assert adapter.board_errors[0][0] == "etsy"
     assert "empty body" in adapter.board_errors[0][1]
+    etsy_posts = [call for call in session.calls if call["url"].endswith("/Etsy_Careers/jobs")]
+    assert len(etsy_posts) == 2
+
+
+def test_workday_retries_empty_json_after_cookie_warmup() -> None:
+    good = load_fixture("workday.json")
+    nvidia = ("nvidia.wd5.myworkdayjobs.com", "nvidia", "NVIDIAExternalCareerSite")
+    jobs_url = "https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite/jobs"
+    session = FakeSession(
+        by_url={
+            jobs_url: ["", good],
+            "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite": "<html></html>",
+        }
+    )
+    adapter = WorkdayAdapter([nvidia], company_names={nvidia: "nvidia"}, session=session)
+
+    jobs = adapter.fetch()
+
+    assert jobs[0].id == "workday:nvidia:NVIDIAExternalCareerSite:JR1987654"
+    assert adapter.board_errors == []
+    assert [call["method"] for call in session.calls[:3]] == ["POST", "GET", "POST"]
+    assert session.calls[0]["headers"]["Referer"] == "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
 
 
 def test_google_parses_ds1_blob() -> None:

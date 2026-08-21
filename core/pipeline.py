@@ -172,11 +172,14 @@ def scan(
             )
 
     print(format_health(health_rows))
-    previous = {
-        row.company: int((state.get_health(row.company) or {}).get("fetched") or 0)
-        for row in health_rows
-        if row.status == "ok"
-    }
+    previous: dict[str, int] = {}
+    for row in health_rows:
+        if row.status != "ok":
+            continue
+        try:
+            previous[row.company] = int((state.get_health(row.company) or {}).get("fetched") or 0)
+        except Exception as exc:
+            print(f"[scan] health read failed for {row.company}: {exc}")
     for line in anomaly_lines(health_rows, previous):
         print(line)
         _report_issue(discord, result, "Company fetch looks off", line, dry_run=dry_run)
@@ -218,7 +221,7 @@ def scan(
                     result.notified += 1
             if not dry_run:
                 state.mark_bootstrapped(company_key)
-                state.record_health(company_key, fetched=fetched, matched=len(jobs))
+                _record_health(state, company_key, fetched=fetched, matched=len(jobs))
                 _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs)
             continue
 
@@ -250,7 +253,7 @@ def scan(
                     for index, job in enumerate(jobs):
                         if index < len(forum_messages):
                             _remember(state, job, forum_messages[index], dry_run=dry_run)
-                state.record_health(company_key, fetched=fetched, matched=len(jobs))
+                _record_health(state, company_key, fetched=fetched, matched=len(jobs))
                 _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs)
             continue
         thread_id = state.get_forum_thread(company_key)
@@ -266,17 +269,24 @@ def scan(
             stored_thread = discord.thread_ids.get(config.name)
             if stored_thread:
                 state.record_forum_thread(company_key, stored_thread)
-            state.record_health(company_key, fetched=fetched, matched=len(jobs))
+            _record_health(state, company_key, fetched=fetched, matched=len(jobs))
             _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs)
 
     if not dry_run:
         for company_key, fetched in fetched_by_company.items():
             if company_key in matched_jobs or fetched <= 0 or company_key not in configs:
                 continue
-            state.record_health(company_key, fetched=fetched, matched=0)
+            _record_health(state, company_key, fetched=fetched, matched=0)
             _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=[])
         state.flush_dirty_seen()
     return result
+
+
+def _record_health(state: StateStore, company_key: str, *, fetched: int, matched: int) -> None:
+    try:
+        state.record_health(company_key, fetched=fetched, matched=matched)
+    except Exception as exc:
+        print(f"[scan] health write failed for {company_key}: {exc}")
 
 
 def _job_messages(messages: list[DiscordMessage], job_count: int) -> list[DiscordMessage]:

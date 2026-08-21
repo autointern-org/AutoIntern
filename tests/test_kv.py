@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from typing import Any
+
 from tests.test_pipeline import FakeKV
 
-from core.kv import HEALTH_TTL_SECONDS, SEEN_LIST_TTL_SECONDS, StateStore, now_iso
+from core.kv import CloudflareKV, HEALTH_TTL_SECONDS, SEEN_LIST_TTL_SECONDS, StateStore, now_iso
+
+from core.kv import CloudflareKV, HEALTH_TTL_SECONDS, SEEN_LIST_TTL_SECONDS, StateStore, now_iso
 
 
 def test_record_notification_batches_into_one_seen_put() -> None:
@@ -213,3 +217,35 @@ def test_wipe_scan_state_deletes_prefixed_keys() -> None:
     assert "job:old" not in kv.values
     assert "seen:stripe" not in kv.values
     assert "bootstrapped:stripe" not in kv.values
+
+
+def test_cloudflare_kv_retries_read_timeout(monkeypatch: Any) -> None:
+    import requests
+
+    monkeypatch.setattr("core.kv.sleep", lambda *_args, **_kwargs: None)
+
+    class FlakySession:
+        def __init__(self) -> None:
+            self.gets = 0
+
+        def get(self, *_args: Any, **_kwargs: Any) -> Any:
+            self.gets += 1
+            if self.gets < 3:
+                raise requests.exceptions.ReadTimeout("timeout")
+
+            class Response:
+                status_code = 200
+                text = '{"fetched": 4}'
+
+                def json(self) -> dict[str, int]:
+                    return {"fetched": 4}
+
+                def raise_for_status(self) -> None:
+                    return None
+
+            return Response()
+
+    session = FlakySession()
+    kv = CloudflareKV(account_id="a", namespace_id="n", api_token="t", session=session)
+    assert kv.get_json("health:x") == {"fetched": 4}
+    assert session.gets == 3

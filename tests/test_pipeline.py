@@ -163,6 +163,28 @@ def test_scan_notifies_new_matching_jobs_and_records_state() -> None:
     assert job.id in kv.values["seen:anthropic"]["jobs"]
 
 
+def test_scan_continues_when_health_read_fails() -> None:
+    job = make_job()
+
+    class BoomHealthKV(FakeKV):
+        def get_json(self, key: str) -> dict[str, Any] | None:
+            if key.startswith("health:"):
+                raise RuntimeError("health timeout")
+            return super().get_json(key)
+
+    result = scan(
+        adapters=[FakeAdapter([job])],
+        configs={"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse", tier="S")},
+        state=StateStore(BoomHealthKV()),
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+
+    assert result.notified == 1
+    assert result.recaps == 1
+
+
 def test_scan_posts_new_jobs_after_first_look() -> None:
     first = make_job(id="job-old")
     state = StateStore()
