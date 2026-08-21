@@ -22,12 +22,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -U pip
+          .venv/bin/pip install -r requirements.txt
 
       - name: Scan Tesla
         env:
@@ -44,4 +43,4 @@ jobs:
           RESUME_LLM_MODEL: ${{ vars.RESUME_LLM_MODEL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SCAN_ONLY_COMPANIES: tesla
-        run: PYTHONPATH=. python -m scripts.scan
+        run: PYTHONPATH=. .venv/bin/python -m scripts.scan
