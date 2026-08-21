@@ -2,7 +2,9 @@ name: Internship monitor
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # Hourly backup when the laptop timer is asleep. Real 15-min ticks come from
+    # laptop `gh workflow run` (workflow_dispatch). GitHub's */15 schedule is delayed.
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       reset_state:
@@ -13,14 +15,13 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: internship-monitor
-  cancel-in-progress: false
-
 jobs:
   scan:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    concurrency:
+      group: internship-cloud
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
 
@@ -55,3 +56,37 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SCAN_SKIP_COMPANIES: tesla
         run: PYTHONPATH=. python -m scripts.scan
+
+  # Laptop-only companies (Akamai/Chrome). Add more names to SCAN_ONLY_COMPANIES later the same way.
+  tesla:
+    runs-on: self-hosted
+    timeout-minutes: 10
+    concurrency:
+      group: tesla-home
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -U pip
+          .venv/bin/pip install -r requirements.txt
+
+      - name: Scan Tesla
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_FORUM_WEBHOOK_URL: ${{ secrets.DISCORD_FORUM_WEBHOOK_URL }}
+          DISCORD_ISSUES_WEBHOOK_URL: ${{ secrets.DISCORD_ISSUES_WEBHOOK_URL }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          RESUME_LLM_PROVIDER: ${{ vars.RESUME_LLM_PROVIDER }}
+          RESUME_LLM_MODEL: ${{ vars.RESUME_LLM_MODEL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SCAN_ONLY_COMPANIES: tesla
+          TESLA_CHROME_JS: "1"
+        run: PYTHONPATH=. .venv/bin/python -m scripts.scan

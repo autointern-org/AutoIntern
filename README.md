@@ -1,16 +1,19 @@
 # AutoIntern
 
-Cron-only internship monitor that runs from GitHub Actions every 15 minutes, checks whitelisted career sites, generates a resume tailoring recommendation with a configurable LLM (default: Gemini 3.1 Flash Lite), and posts new intern roles to Discord through a webhook. It has no persistent server and scales to zero between ticks.
+Internship monitor. While this Mac is awake, a LaunchAgent starts a GitHub Actions run every 15 minutes. GitHub also runs an hourly backup if the laptop is asleep. Tesla is scanned on the laptop through Chrome; every other company scans on GitHub-hosted Ubuntu.
+
+It generates a resume tailoring recommendation with a configurable LLM (default: Gemini 3.1 Flash Lite) and posts new intern roles to Discord. There is no persistent server.
 
 ## How It Works
 
-1. GitHub Actions runs `python -m scripts.scan` on `*/15 * * * *`.
-2. Adapters in `adapters/` fetch company job boards and normalize postings into `Job`.
-3. `core.filters` applies the whitelist rules from `config/whitelist.yaml`.
-4. `core.kv` stores seen jobs, Discord message IDs, and dismissals in Cloudflare KV.
-5. `core.classifier` calls the configured LLM with `config/skill_context.md`.
-6. `core.discord` posts a Discord embed with `?wait=true` and stores the returned message ID.
-7. The next tick checks stored messages for a ✅ reaction and marks those jobs dismissed.
+1. The laptop timer runs `gh workflow run internship-monitor.yml` every 15 minutes. GitHub's own `schedule` is an hourly backup (`17 * * * *`).
+2. The **scan** job (Ubuntu) fetches every whitelisted company except Tesla. The **tesla** job (this Mac's self-hosted runner) fetches Tesla from the open Chrome tab.
+3. Adapters in `adapters/` normalize postings into `Job`.
+4. `core.filters` applies the whitelist rules from `config/whitelist.yaml`.
+5. `core.kv` stores seen jobs, Discord message IDs, and dismissals in Cloudflare KV.
+6. `core.classifier` calls the configured LLM with `config/skill_context.md`.
+7. `core.discord` posts a Discord embed with `?wait=true` and stores the returned message ID.
+8. The next tick checks stored messages for a ✅ reaction and marks those jobs dismissed.
 
 ## Setup
 
@@ -116,6 +119,20 @@ Tiers control Discord embed color:
 - `S`: red
 - `A`: blue
 - `B`: gray
+
+### 6. Laptop runner (Tesla + 15-minute timer)
+
+Tesla cannot be fetched from GitHub-hosted Ubuntu (Akamai). The **tesla** job runs on a self-hosted runner on this Mac and reads listings from Chrome.
+
+1. Keep `~/Desktop/actions-runner/run.sh` running.
+2. Keep Chrome open with a Tesla Careers tab. Enable **View → Developer → Allow JavaScript from Apple Events**.
+3. Install the 15-minute dispatcher once:
+
+```bash
+./scripts/install_scan_timer.sh
+```
+
+That LaunchAgent calls `gh workflow run internship-monitor.yml` every 15 minutes while the Mac is awake. The Ubuntu scan still runs from GitHub's hourly schedule if the laptop is asleep. Tesla ticks while commuting are dropped.
 
 ## Local Debugging
 
