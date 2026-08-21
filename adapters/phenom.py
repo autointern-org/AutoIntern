@@ -18,6 +18,7 @@ class PhenomBoard:
     company: str
     host: str
     variant: str = "widgets"
+    search_keywords: str | None = "intern"
 
 
 class PhenomAdapter:
@@ -42,17 +43,19 @@ class PhenomAdapter:
         return jobs
 
     def _fetch_widgets(self, board: PhenomBoard) -> list[Job]:
+        body: dict[str, Any] = {
+            "ddoKey": "refineSearch",
+            "pageName": "search-results",
+            "siteType": "external",
+            "from": 0,
+            "size": 50,
+            "jobs": True,
+        }
+        if board.search_keywords:
+            body["keywords"] = board.search_keywords
         response = self.session.post(
             f"https://{board.host}/widgets",
-            json={
-                "ddoKey": "refineSearch",
-                "pageName": "search-results",
-                "keywords": "intern",
-                "siteType": "external",
-                "from": 0,
-                "size": 50,
-                "jobs": True,
-            },
+            json=body,
             timeout=self.timeout,
         )
         response.raise_for_status()
@@ -63,7 +66,10 @@ class PhenomAdapter:
     def _fetch_get(self, board: PhenomBoard) -> list[Job]:
         jobs: list[Job] = []
         for page in range(1, MAX_PAGES + 1):
-            url = f"https://{board.host}/api/jobs?keywords=intern&limit=100&page={page}"
+            if board.search_keywords:
+                url = f"https://{board.host}/api/jobs?keywords={board.search_keywords}&limit=100&page={page}"
+            else:
+                url = f"https://{board.host}/api/jobs?limit=100&page={page}"
             response = self.session.get(url, timeout=self.timeout)
             response.raise_for_status()
             payload = response.json()
