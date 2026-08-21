@@ -10,7 +10,7 @@
 # DoorDash uses greenhouse doordashusa (not the HTML marketing site).
 # Uber uses Oracle Recruiting Cloud (not the dead search API).
 # Etsy uses Workday (sitemap fallback exists but is not used here).
-# HRT greenhouse hrtcampus and Belvedere lever are included even at 0 jobs.
+# HRT jobs live on greenhouse wehrtyou (hrtcampus is an empty campus board).
 
 companies:
   # --- Tier 1 ---
@@ -249,6 +249,7 @@ companies:
     adapter: phenom
     host: www.github.careers
     variant: get
+    search_keywords: ""
     tier: "1"
 
   - name: xai
@@ -307,7 +308,7 @@ companies:
 
   - name: hudson-river-trading
     adapter: greenhouse
-    slug: hrtcampus
+    slug: wehrtyou
     tier: "1"
 
   - name: jump-trading

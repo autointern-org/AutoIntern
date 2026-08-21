@@ -29,7 +29,13 @@ class SnapAdapter:
     def _normalize(self, raw: dict[str, Any]) -> Job:
         job_id = raw.get("id") or raw.get("jobId") or raw.get("reqId") or raw.get("slug")
         title = raw.get("title") or raw.get("name") or raw.get("text")
-        location = raw.get("location") or raw.get("locations") or raw.get("city")
+        location = (
+            raw.get("location")
+            or raw.get("locations")
+            or raw.get("city")
+            or raw.get("primary_location")
+            or raw.get("offices")
+        )
         url = raw.get("url") or raw.get("absolute_url") or raw.get("applyUrl") or raw.get("hostedUrl")
         if not url and job_id:
             url = f"https://careers.snap.com/job?id={job_id}"
@@ -47,18 +53,28 @@ class SnapAdapter:
 
 def _job_dicts(payload: Any) -> list[dict[str, Any]]:
     if isinstance(payload, list):
-        return [item for item in payload if isinstance(item, dict)]
+        return [_unwrap_job(item) for item in payload if isinstance(item, dict)]
     if not isinstance(payload, dict):
         return []
-    for key in ("jobs", "data", "results", "jobPostings", "values"):
+    for key in ("jobs", "body", "data", "results", "jobPostings", "values"):
         value = payload.get(key)
         if isinstance(value, list):
-            return [item for item in value if isinstance(item, dict)]
+            return [_unwrap_job(item) for item in value if isinstance(item, dict)]
         if isinstance(value, dict):
             nested = _job_dicts(value)
             if nested:
                 return nested
     return []
+
+
+def _unwrap_job(item: dict[str, Any]) -> dict[str, Any]:
+    source = item.get("_source")
+    if not isinstance(source, dict):
+        return item
+    merged = dict(source)
+    if not merged.get("id"):
+        merged["id"] = item.get("_id") or merged.get("id")
+    return merged
 
 
 def _location_text(value: Any) -> str:

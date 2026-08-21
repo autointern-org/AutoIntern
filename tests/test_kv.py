@@ -167,6 +167,12 @@ def test_prune_seen_only_when_ids_change() -> None:
     state.prune_seen("anthropic", {"keep"})
     state.flush_seen("anthropic")
     assert kv.puts == [("seen:anthropic", SEEN_LIST_TTL_SECONDS)]
+    assert set(kv.values["seen:anthropic"]["jobs"]) == {"keep", "drop"}
+    assert kv.values["seen:anthropic"]["jobs"]["drop"]["misses"] == 1
+    kv.clear_io()
+    state.prune_seen("anthropic", {"keep"})
+    state.flush_seen("anthropic")
+    assert kv.puts == [("seen:anthropic", SEEN_LIST_TTL_SECONDS)]
     assert set(kv.values["seen:anthropic"]["jobs"]) == {"keep"}
 
 

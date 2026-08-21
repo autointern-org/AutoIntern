@@ -29,6 +29,7 @@ class CompanyConfig:
     domain: str | None = None
     api: str | None = None
     variant: str | None = None
+    search_keywords: str | None = None
     site_number: str | None = None
     include_keywords: list[str] = field(default_factory=list)
     exclude_keywords: list[str] = field(default_factory=list)
@@ -49,6 +50,7 @@ class CompanyConfig:
             domain=raw.get("domain"),
             api=raw.get("api"),
             variant=raw.get("variant"),
+            search_keywords=_search_keywords(raw),
             site_number=raw.get("site_number"),
             include_keywords=list(raw.get("include_keywords") or []),
             exclude_keywords=list(raw.get("exclude_keywords") or []),
@@ -77,3 +79,10 @@ class Whitelist:
 
     def by_company(self) -> dict[str, CompanyConfig]:
         return {company.name.lower(): company for company in self.companies}
+
+
+def _search_keywords(raw: dict[str, Any]) -> str | None:
+    if "search_keywords" not in raw:
+        return None
+    value = raw.get("search_keywords")
+    return "" if value is None else str(value)

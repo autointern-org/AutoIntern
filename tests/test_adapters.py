@@ -160,11 +160,11 @@ def test_eightfold_pcsx_normalizes_jobs() -> None:
 
     jobs = adapter.fetch()
 
-    assert len(session.urls) == 2
-    assert all("/api/pcsx/search" in url for url in session.urls)
-    queries = [parse_qs(urlparse(url).query) for url in session.urls]
-    assert any("filter_employment_type" not in query for query in queries)
-    assert any(query.get("filter_employment_type") == ["internship"] for query in queries)
+    assert len(session.urls) == 1
+    assert "/api/pcsx/search" in session.urls[0]
+    query = parse_qs(urlparse(session.urls[0]).query)
+    assert query.get("query") == ["intern"]
+    assert query.get("filter_employment_type") == ["internship"]
     assert [job.id for job in jobs] == ["eightfold:microsoft:1827364", "eightfold:microsoft:1827365"]
     assert jobs[0].title == "Software Engineering Intern"
     assert jobs[0].location == "Redmond, Washington, United States"
@@ -563,3 +563,190 @@ def test_build_adapters_maps_microsoft_and_new_platforms() -> None:
     assert "TeslaAdapter" in names
     assert "OptiverAdapter" in names
     assert "SnapAdapter" in names
+
+
+def test_snap_normalizes_elasticsearch_body() -> None:
+    session = FakeSession(
+        {
+            "body": [
+                {
+                    "_id": "R0046464",
+                    "_source": {
+                        "id": "R0046464",
+                        "title": "Research Intern, User Modeling and Personalization",
+                        "employment_type": "Intern",
+                        "absolute_url": "https://careers.snap.com/job?id=R0046464",
+                        "primary_location": "Bellevue",
+                        "offices": [{"location": "Bellevue, Washington", "name": "Bellevue"}],
+                    },
+                }
+            ]
+        }
+    )
+    jobs = SnapAdapter(session=session).fetch()
+    assert len(jobs) == 1
+    assert jobs[0].id == "snap:R0046464"
+    assert jobs[0].title == "Research Intern, User Modeling and Personalization"
+    assert "Bellevue" in jobs[0].location
+    assert jobs[0].url == "https://careers.snap.com/job?id=R0046464"
+
+
+def test_phenom_get_without_search_keywords_omits_intern() -> None:
+    session = FakeSession(load_fixture("phenom_get.json"))
+    adapter = PhenomAdapter(
+        [
+            PhenomBoard(
+                company="github",
+                host="www.github.careers",
+                variant="get",
+                search_keywords="",
+            )
+        ],
+        session=session,
+    )
+    jobs = adapter.fetch()
+    assert "keywords=" not in session.urls[0]
+    assert "limit=100" in session.urls[0]
+    assert jobs[0].id == "phenom:github:amd-intern-1"
+
+
+def test_build_adapters_github_empty_search_keywords() -> None:
+    adapters = build_adapters(
+        [
+            CompanyConfig(
+                name="github",
+                adapter="phenom",
+                host="www.github.careers",
+                variant="get",
+                search_keywords="",
+            )
+        ]
+    )
+    phenom = next(adapter for adapter in adapters if isinstance(adapter, PhenomAdapter))
+    assert phenom.boards[0].search_keywords == ""
+
+
+def test_eightfold_intern_query_only_without_extra_params() -> None:
+    session = FakeSession(load_fixture("eightfold_pcsx.json"))
+    adapter = EightfoldAdapter(
+        [
+            EightfoldBoard(
+                company="microsoft",
+                host="apply.careers.microsoft.com",
+                domain="microsoft.com",
+            )
+        ],
+        session=session,
+    )
+    jobs = adapter.fetch()
+    assert len(session.urls) == 1
+    query = parse_qs(urlparse(session.urls[0]).query)
+    assert query.get("query") == ["intern"]
+    assert "filter_employment_type" not in query
+    assert "location" not in query
+    assert len(jobs) == 2
+
+
+def test_eightfold_retries_429_then_succeeds(monkeypatch: Any) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr("adapters.eightfold.time.sleep", lambda seconds: sleeps.append(seconds))
+    payload = load_fixture("eightfold_pcsx.json")
+
+    class FlakySession(FakeSession):
+        def __init__(self) -> None:
+            super().__init__()
+            self.remaining_failures = 1
+
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            self.calls.append({"method": "GET", "url": url})
+            if self.remaining_failures:
+                self.remaining_failures -= 1
+                return FakeResponse("Please try again later", status_code=429)
+            return FakeResponse(payload)
+
+    adapter = EightfoldAdapter(
+        [
+            EightfoldBoard(
+                company="microsoft",
+                host="apply.careers.microsoft.com",
+                domain="microsoft.com",
+            )
+        ],
+        session=FlakySession(),
+    )
+    jobs = adapter.fetch()
+    assert len(jobs) == 2
+    assert adapter.board_errors == []
+    assert sleeps == [5]
+
+
+def test_eightfold_isolates_board_429(monkeypatch: Any) -> None:
+    monkeypatch.setattr("adapters.eightfold.time.sleep", lambda seconds: None)
+    payload = load_fixture("eightfold_pcsx.json")
+
+    class MixedSession(FakeSession):
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if "apply.careers.microsoft.com" in url:
+                return FakeResponse("Please try again later", status_code=429)
+            return FakeResponse(payload)
+
+    adapter = EightfoldAdapter(
+        [
+            EightfoldBoard(
+                company="microsoft",
+                host="apply.careers.microsoft.com",
+                domain="microsoft.com",
+            ),
+            EightfoldBoard(
+                company="nvidia",
+                host="jobs.nvidia.com",
+                domain="nvidia.com",
+            ),
+        ],
+        session=MixedSession(),
+    )
+    jobs = adapter.fetch()
+    assert all(job.company == "nvidia" for job in jobs)
+    assert len(jobs) == 2
+    assert adapter.board_errors
+    assert adapter.board_errors[0][0] == "microsoft"
+    assert "429" in adapter.board_errors[0][1]
+
+
+def test_ibm_uses_jobid_from_url() -> None:
+    session = FakeSession(
+        {
+            "hits": {
+                "total": {"value": 2, "relation": "eq"},
+                "hits": [
+                    {
+                        "_id": "hash-1",
+                        "_source": {
+                            "title": "Data Engineer Intern 2027",
+                            "url": "https://careers.ibm.com/careers/JobDetail?jobId=128645",
+                            "field_keyword_05": ["United States"],
+                            "field_keyword_08": ["Internship"],
+                            "field_keyword_18": ["United States"],
+                        },
+                    },
+                    {
+                        "_id": "hash-2",
+                        "_source": {
+                            "title": "Data Engineer Intern 2027",
+                            "url": "https://careers.ibm.com/careers/JobDetail?jobId=128526",
+                            "field_keyword_05": ["United States"],
+                            "field_keyword_08": ["Internship"],
+                            "field_keyword_18": ["United States"],
+                        },
+                    },
+                ],
+            }
+        }
+    )
+    jobs = IBMAdapter(session=session).fetch()
+    assert [job.id for job in jobs] == ["ibm:128645", "ibm:128526"]
+    assert jobs[0].url.endswith("jobId=128645")
+    assert session.calls[0]["json"]["size"] == 100
+    assert session.calls[0]["json"]["from"] == 0
