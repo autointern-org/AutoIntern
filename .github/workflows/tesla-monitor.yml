@@ -1,26 +1,24 @@
-name: Internship monitor
+name: Tesla monitor
+
+# Runs on your laptop runner. Missed ticks while commuting are dropped
+# (concurrency cancels queued runs). Other companies stay on GitHub-hosted cron.
 
 on:
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
-    inputs:
-      reset_state:
-        description: Wipe KV seen/bootstrap keys for a clean first-look recap
-        type: boolean
-        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: internship-monitor
-  cancel-in-progress: false
+  group: tesla-home
+  cancel-in-progress: true
 
 jobs:
-  scan:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+  tesla:
+    runs-on: self-hosted
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -31,15 +29,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Reset KV state
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.reset_state == 'true' }}
-        env:
-          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
-          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-        run: PYTHONPATH=. python -m scripts.reset_kv
-
-      - name: Scan career sites
+      - name: Scan Tesla
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           DISCORD_FORUM_WEBHOOK_URL: ${{ secrets.DISCORD_FORUM_WEBHOOK_URL }}
@@ -53,5 +43,5 @@ jobs:
           RESUME_LLM_PROVIDER: ${{ vars.RESUME_LLM_PROVIDER }}
           RESUME_LLM_MODEL: ${{ vars.RESUME_LLM_MODEL }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          SCAN_SKIP_COMPANIES: tesla
+          SCAN_ONLY_COMPANIES: tesla
         run: PYTHONPATH=. python -m scripts.scan

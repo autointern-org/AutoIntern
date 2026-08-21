@@ -6,7 +6,7 @@ from adapters.base import Job
 from core.config import CompanyConfig
 from core.discord import DiscordMessage
 from core.kv import DEFAULT_SEEN_TTL_SECONDS, SEEN_LIST_TTL_SECONDS, StateStore, now_iso
-from core.pipeline import scan
+from core.pipeline import scan, select_companies
 
 
 class FakeKV:
@@ -429,3 +429,21 @@ def test_is_seen_true_for_legacy_job_key_without_seen_doc() -> None:
     assert state.is_seen(job_id, company="stripe")
     assert state.is_seen(job_id)
     assert kv.gets.count(f"job:{job_id}") == 1
+
+
+def test_select_companies_only_and_skip(monkeypatch: Any) -> None:
+    companies = [
+        CompanyConfig(name="google", adapter="google"),
+        CompanyConfig(name="tesla", adapter="tesla"),
+        CompanyConfig(name="tiktok", adapter="tiktok"),
+    ]
+    monkeypatch.delenv("SCAN_ONLY_COMPANIES", raising=False)
+    monkeypatch.delenv("SCAN_SKIP_COMPANIES", raising=False)
+    assert [company.name for company in select_companies(companies)] == ["google", "tesla", "tiktok"]
+
+    monkeypatch.setenv("SCAN_SKIP_COMPANIES", "tesla")
+    assert [company.name for company in select_companies(companies)] == ["google", "tiktok"]
+
+    monkeypatch.setenv("SCAN_ONLY_COMPANIES", "tesla")
+    monkeypatch.delenv("SCAN_SKIP_COMPANIES", raising=False)
+    assert [company.name for company in select_companies(companies)] == ["tesla"]
