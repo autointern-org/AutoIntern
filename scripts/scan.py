@@ -23,7 +23,7 @@ def main() -> None:
     print(
         "scan complete: "
         f"fetched={result.fetched} matched={result.matched} notified={result.notified} "
-        f"dismissed={result.dismissed} skipped_seen={result.skipped_seen}"
+        f"dismissed={result.dismissed} skipped_seen={result.skipped_seen} deferred={result.deferred}"
     )
 
 

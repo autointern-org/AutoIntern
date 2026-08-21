@@ -44,6 +44,7 @@ class ScanResult:
     skipped_seen: int = 0
     recaps: int = 0
     issues: int = 0
+    deferred: int = 0
 
 
 def run_scan(
@@ -56,12 +57,16 @@ def run_scan(
     companies = select_companies(whitelist.companies)
     configs = {company.name.lower(): company for company in companies}
     adapters = build_adapters(companies)
+    only = os.getenv("SCAN_ONLY_COMPANIES", "").strip()
     state = StateStore(
         CloudflareKV(
             account_id=os.getenv("CF_ACCOUNT_ID"),
             namespace_id=os.getenv("CF_KV_NAMESPACE_ID"),
             api_token=os.getenv("CF_API_TOKEN"),
-        )
+        ),
+        # The laptop-only run (Tesla) and the cloud run execute at the same
+        # time; separate health docs keep them from overwriting each other.
+        health_scope=("only-" + "-".join(sorted(_company_names(only)))) if only else "all",
     )
     discord = DiscordClient(
         os.getenv("DISCORD_WEBHOOK_URL"),
@@ -80,7 +85,6 @@ def run_scan(
                 discord.post_issue("Whitelist adapter not implemented", message)
             except Exception as exc:
                 print(f"[issues] warning: not posted: {exc}")
-    only = os.getenv("SCAN_ONLY_COMPANIES", "").strip()
     return scan(
         adapters=adapters,
         configs=configs,
@@ -195,10 +199,15 @@ def scan(
         print(line)
         _report_issue(discord, result, "Company fetch looks off", line, dry_run=dry_run)
 
+    prune = (not dry_run) and state.should_prune()
     for company_key, jobs in matched_jobs.items():
         config = configs[company_key]
         jobs = sort_alert_jobs(jobs)
         fetched = fetched_by_company[company_key]
+        if state.write_blocked:
+            # A ping that cannot be recorded would ping again next run.
+            result.deferred += len(jobs)
+            continue
         if not state.is_bootstrapped(company_key):
             unseen = [
                 job
@@ -233,7 +242,7 @@ def scan(
             if not dry_run:
                 state.mark_bootstrapped(company_key)
                 _record_health(state, company_key, fetched=fetched, matched=len(jobs))
-                _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs)
+                _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs, prune=prune)
             continue
 
         fresh: list[tuple[Job, str, int]] = []
@@ -265,7 +274,7 @@ def scan(
                         if index < len(forum_messages):
                             _remember(state, job, forum_messages[index], dry_run=dry_run)
                 _record_health(state, company_key, fetched=fetched, matched=len(jobs))
-                _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs)
+                _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs, prune=prune)
             continue
         thread_id = state.get_forum_thread(company_key)
         if thread_id:
@@ -281,15 +290,29 @@ def scan(
             if stored_thread:
                 state.record_forum_thread(company_key, stored_thread)
             _record_health(state, company_key, fetched=fetched, matched=len(jobs))
-            _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs)
+            _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs, prune=prune)
 
     if not dry_run:
         for company_key, fetched in fetched_by_company.items():
             if company_key in matched_jobs or fetched <= 0 or company_key not in configs:
                 continue
             _record_health(state, company_key, fetched=fetched, matched=0)
-            _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=[])
+            _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=[], prune=prune)
+        if prune:
+            state.mark_pruned()
         state.flush_dirty_seen()
+        state.flush_health()
+        if state.write_blocked:
+            _report_issue(
+                discord,
+                result,
+                "Cloudflare KV writes blocked",
+                f"{state.write_blocked}\n{result.deferred} matched jobs were not posted so they can ping once KV accepts writes again.",
+                dry_run=dry_run,
+            )
+    kv_ops = getattr(state.kv, "ops", None)
+    if kv_ops:
+        print(f"[kv] " + " ".join(f"{name}={count}" for name, count in kv_ops.items()))
     return result
 
 
@@ -333,8 +356,9 @@ def _finalize_company_seen(
     *,
     fetched: int,
     live_jobs: list[Job],
+    prune: bool = True,
 ) -> None:
-    if fetched > 0:
+    if prune and fetched > 0:
         state.prune_seen(company_key, {job.id for job in live_jobs})
     state.flush_seen(company_key)
 

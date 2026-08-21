@@ -42,12 +42,15 @@ def test_record_health_skips_unchanged_counts() -> None:
     kv = FakeKV()
     state = StateStore(kv)
     state.record_health("anthropic", fetched=3, matched=1)
-    assert kv.puts == [("health:anthropic", HEALTH_TTL_SECONDS)]
+    state.flush_health()
+    assert kv.puts == [("health:all", HEALTH_TTL_SECONDS)]
     kv.clear_io()
     state.record_health("anthropic", fetched=3, matched=1)
     assert kv.puts == []
     state.record_health("anthropic", fetched=4, matched=1)
-    assert kv.puts == [("health:anthropic", HEALTH_TTL_SECONDS)]
+    state.flush_health()
+    assert kv.puts == [("health:all", HEALTH_TTL_SECONDS)]
+    assert kv.values["health:all"]["companies"]["anthropic"]["fetched"] == 4
 
 
 def test_is_seen_reads_legacy_job_key_once_and_migrates_in_memory() -> None:

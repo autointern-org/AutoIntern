@@ -11,10 +11,18 @@ T = TypeVar("T")
 _KV_RETRYABLE = (requests.Timeout, requests.ConnectionError)
 
 
+class KVWriteBlocked(RuntimeError):
+    """Cloudflare refused a write (HTTP 429): the daily put quota is exhausted."""
+
+
 DEFAULT_SEEN_TTL_SECONDS = 60 * 60 * 24 * 30
 DEFAULT_DISMISSED_TTL_SECONDS = 60 * 60 * 24 * 90
 SEEN_LIST_TTL_SECONDS = 60 * 60 * 24 * 400
 HEALTH_TTL_SECONDS = 60 * 60 * 24 * 90
+# Free-tier KV allows 1000 puts/day. Health rows live in ONE doc per scan scope
+# and the seen-list prune pass runs at most once per PRUNE_INTERVAL_SECONDS,
+# so a 15-minute cadence stays far under the quota.
+PRUNE_INTERVAL_SECONDS = 60 * 60 * 24
 # A job must be absent from a *successful* fetch for this long before it is
 # forgotten. Search-backed boards (IBM, Eightfold) drop listings in and out
 # between ticks, so a miss-count at a 15-minute cadence re-pinged live roles.
@@ -36,6 +44,7 @@ class CloudflareKV:
         self.api_token = api_token
         self.timeout = timeout
         self.session = session or requests.Session()
+        self.ops: dict[str, int] = {"get": 0, "put": 0, "list": 0, "delete": 0}
 
     @property
     def enabled(self) -> bool:
@@ -52,6 +61,7 @@ class CloudflareKV:
 
     def get_json(self, key: str) -> dict[str, Any] | None:
         def _get() -> dict[str, Any] | None:
+            self.ops["get"] += 1
             response = self.session.get(
                 f"{self.base_url}/values/{quote(key, safe='')}",
                 headers=self._headers(),
@@ -68,6 +78,7 @@ class CloudflareKV:
 
     def put_json(self, key: str, value: dict[str, Any], *, ttl_seconds: int | None = None) -> None:
         def _put() -> None:
+            self.ops["put"] += 1
             params = {"expiration_ttl": str(ttl_seconds)} if ttl_seconds else None
             response = self.session.put(
                 f"{self.base_url}/values/{quote(key, safe='')}",
@@ -76,6 +87,8 @@ class CloudflareKV:
                 json=value,
                 timeout=self.timeout,
             )
+            if response.status_code == 429:
+                raise KVWriteBlocked(f"KV put {key} rejected with 429: {(response.text or '')[:200]}")
             response.raise_for_status()
 
         _kv_retry(_put)
@@ -89,6 +102,7 @@ class CloudflareKV:
                 params["cursor"] = cursor
 
             def _list() -> dict[str, Any]:
+                self.ops["list"] += 1
                 response = self.session.get(
                     f"{self.base_url}/keys",
                     headers=self._headers(),
@@ -111,6 +125,7 @@ class CloudflareKV:
                 continue
 
             def _delete() -> None:
+                self.ops["delete"] += 1
                 response = self.session.post(
                     f"{self.base_url}/bulk/delete",
                     headers={**self._headers(), "content-type": "application/json"},
@@ -128,13 +143,18 @@ class CloudflareKV:
 
 
 class StateStore:
-    def __init__(self, kv: CloudflareKV | None = None) -> None:
+    def __init__(self, kv: CloudflareKV | None = None, *, health_scope: str = "all") -> None:
         self.kv = kv
+        self.health_scope = health_scope
         self.memory: dict[str, dict[str, Any]] = {}
+        self.write_blocked: str | None = None
         self._seen_cache: dict[str, dict[str, Any]] = {}
         self._seen_dirty: set[str] = set()
         self._legacy_cache: dict[str, dict[str, Any] | None] = {}
         self._dismissed_cache: dict[str, dict[str, Any] | None] = {}
+        self._health_doc: dict[str, Any] | None = None
+        self._health_dirty = False
+        self._health_read_failed = False
 
     @property
     def persistent(self) -> bool:
@@ -196,17 +216,57 @@ class StateStore:
         return str(thread_id) if thread_id else None
 
     def get_health(self, company: str) -> dict[str, Any] | None:
-        return self._get(self._health_key(company))
+        doc = self._load_health()
+        value = doc["companies"].get(company.lower())
+        return dict(value) if isinstance(value, dict) else None
 
     def record_health(self, company: str, *, fetched: int, matched: int) -> None:
-        existing = self.get_health(company)
-        if existing and _as_int(existing.get("fetched")) == fetched and _as_int(existing.get("matched")) == matched:
+        doc = self._load_health()
+        existing = doc["companies"].get(company.lower())
+        if (
+            isinstance(existing, dict)
+            and _as_int(existing.get("fetched")) == fetched
+            and _as_int(existing.get("matched")) == matched
+        ):
             return
-        self._put(
-            self._health_key(company),
-            {"company": company, "fetched": fetched, "matched": matched, "at": now_iso()},
-            ttl_seconds=HEALTH_TTL_SECONDS,
-        )
+        doc["companies"][company.lower()] = {"fetched": fetched, "matched": matched, "at": now_iso()}
+        self._health_dirty = True
+
+    def flush_health(self) -> None:
+        if not self._health_dirty or self._health_doc is None or self._health_read_failed:
+            return
+        self._put(self._health_key(), self._health_doc, ttl_seconds=HEALTH_TTL_SECONDS)
+        self._health_dirty = False
+
+    def should_prune(self, now: datetime | None = None) -> bool:
+        """True when the last seen-list prune pass is older than PRUNE_INTERVAL_SECONDS."""
+        doc = self._load_health()
+        last = parse_datetime(doc.get("pruned_at"))
+        if last is None:
+            return True
+        current = now or datetime.now(UTC)
+        return (current - last).total_seconds() >= PRUNE_INTERVAL_SECONDS
+
+    def mark_pruned(self, now: datetime | None = None) -> None:
+        doc = self._load_health()
+        doc["pruned_at"] = (now or datetime.now(UTC)).isoformat()
+        self._health_dirty = True
+
+    def _load_health(self) -> dict[str, Any]:
+        if self._health_doc is None:
+            try:
+                raw = self._get(self._health_key()) or {}
+            except Exception as exc:
+                print(f"[scan] health read failed: {exc}")
+                raw = {}
+                self._health_read_failed = True
+            companies = raw.get("companies") if isinstance(raw.get("companies"), dict) else {}
+            self._health_doc = {
+                "scope": self.health_scope,
+                "pruned_at": raw.get("pruned_at"),
+                "companies": {str(k): dict(v) for k, v in companies.items() if isinstance(v, dict)},
+            }
+        return self._health_doc
 
     def record_notification(
         self,
@@ -504,7 +564,13 @@ class StateStore:
 
     def _put(self, key: str, value: dict[str, Any], *, ttl_seconds: int | None = None) -> None:
         if self.persistent and self.kv:
-            self.kv.put_json(key, value, ttl_seconds=ttl_seconds)
+            if self.write_blocked:
+                return
+            try:
+                self.kv.put_json(key, value, ttl_seconds=ttl_seconds)
+            except KVWriteBlocked as exc:
+                self.write_blocked = str(exc)
+                print(f"[kv] writes blocked; state will not be saved for the rest of this run: {exc}")
         else:
             self.memory[key] = value
 
@@ -533,9 +599,8 @@ class StateStore:
     def _thread_key(company: str) -> str:
         return f"thread:{company.lower()}"
 
-    @staticmethod
-    def _health_key(company: str) -> str:
-        return f"health:{company.lower()}"
+    def _health_key(self) -> str:
+        return f"health:{self.health_scope}"
 
 
 SCAN_STATE_PREFIXES = (

@@ -333,20 +333,46 @@ def test_scan_does_not_reping_job_that_blinks_out_of_a_fetch() -> None:
         )
         assert result.notified == 0
         assert gone.id in kv.values["seen:anthropic"]["jobs"]
-        assert kv.values["seen:anthropic"]["jobs"][gone.id].get("missing_since")
 
-    # The job comes back: no new Discord ping, stamp cleared.
+    # The job comes back: no new Discord ping.
     kv.clear_io()
-    discord = FakeDiscord()
     result = scan(
         adapters=[FakeAdapter([kept, gone])],
         configs=configs,
         state=StateStore(kv),
-        discord=discord,
+        discord=FakeDiscord(),
         classifier=FakeClassifier(),
     )
     assert result.notified == 0
+    assert gone.id in kv.values["seen:anthropic"]["jobs"]
+
+
+def test_scan_prunes_at_most_once_a_day() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    kept = make_job(id="job-keep")
+    gone = make_job(id="job-gone")
+    kv = FakeKV()
+    configs = {"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse")}
+    scan(adapters=[FakeAdapter([kept, gone])], configs=configs, state=StateStore(kv), discord=FakeDiscord(), classifier=FakeClassifier())
+    # The first-look run performed a prune pass and recorded when.
+    first = kv.values["health:all"]["pruned_at"]
+    assert first
+
+    # 15 minutes later: the job is missing but no prune pass runs -> no stamp, no seen write.
+    kv.clear_io()
+    scan(adapters=[FakeAdapter([kept])], configs=configs, state=StateStore(kv), discord=FakeDiscord(), classifier=FakeClassifier())
     assert "missing_since" not in kv.values["seen:anthropic"]["jobs"][gone.id]
+    assert not any(key.startswith("seen:") for key, _ in kv.puts)
+    assert kv.values["health:all"]["pruned_at"] == first
+
+    # Pretend a day passed: the pass runs, stamps the missing job, and records the new time.
+    kv.values["health:all"]["pruned_at"] = (datetime.now(UTC) - timedelta(days=1, minutes=1)).isoformat()
+    kv.clear_io()
+    scan(adapters=[FakeAdapter([kept])], configs=configs, state=StateStore(kv), discord=FakeDiscord(), classifier=FakeClassifier())
+    assert kv.values["seen:anthropic"]["jobs"][gone.id]["missing_since"]
+    assert kv.values["health:all"]["pruned_at"] != first
+    assert kept.id in kv.values["seen:anthropic"]["jobs"]
 
 
 def test_scan_does_not_prune_when_fetch_returns_no_jobs() -> None:
@@ -473,10 +499,10 @@ def test_scan_stamps_interns_missing_when_fetch_succeeded_with_zero_matches() ->
 
     assert result.fetched == 1
     assert result.matched == 0
-    # Still remembered (so it cannot re-ping), but stamped as missing so a
-    # week of absence will eventually forget it.
-    assert kv.values["seen:anthropic"]["jobs"][intern.id]["missing_since"]
-    assert kv.puts == []
+    # Still remembered, so it cannot re-ping; the daily prune pass will stamp
+    # it as missing and forget it after a week of absence.
+    assert intern.id in kv.values["seen:anthropic"]["jobs"]
+    assert not any(key.startswith("seen:") for key, _ in kv.puts)
 
 
 def test_scan_new_job_after_first_look_writes_seen_once() -> None:
@@ -811,3 +837,57 @@ def test_whitelist_uses_only_implemented_adapters() -> None:
 
     companies = Whitelist.load("config/whitelist.yaml").companies
     assert [(company.name, company.adapter) for company in unknown_adapter_companies(companies)] == []
+
+
+def test_health_is_one_doc_written_once_per_run() -> None:
+    kv = FakeKV()
+    configs = {
+        "anthropic": CompanyConfig(name="anthropic", adapter="greenhouse"),
+        "stripe": CompanyConfig(name="stripe", adapter="greenhouse"),
+    }
+    jobs = [make_job(id="a1"), make_job(id="s1", company="stripe")]
+    scan(adapters=[FakeAdapter(jobs)], configs=configs, state=StateStore(kv), discord=FakeDiscord(), classifier=FakeClassifier())
+    health_puts = [key for key, _ in kv.puts if key.startswith("health:")]
+    assert health_puts == ["health:all"]
+    assert set(kv.values["health:all"]["companies"]) == {"anthropic", "stripe"}
+    kv.clear_io()
+    # Same counts next run: nothing to write.
+    scan(adapters=[FakeAdapter(jobs)], configs=configs, state=StateStore(kv), discord=FakeDiscord(), classifier=FakeClassifier())
+    assert not any(key.startswith("health:") for key, _ in kv.puts)
+
+
+def test_scan_stops_posting_once_kv_refuses_writes() -> None:
+    from core.kv import KVWriteBlocked
+
+    class QuotaKV(FakeKV):
+        def __init__(self, allowed: int) -> None:
+            super().__init__()
+            self.allowed = allowed
+
+        def put_json(self, key: str, value: dict[str, Any], *, ttl_seconds: int | None = None) -> None:
+            if self.allowed <= 0:
+                raise KVWriteBlocked(f"KV put {key} rejected with 429")
+            self.allowed -= 1
+            super().put_json(key, value, ttl_seconds=ttl_seconds)
+
+    kv = QuotaKV(allowed=0)
+    discord = FakeDiscord()
+    configs = {
+        "anthropic": CompanyConfig(name="anthropic", adapter="greenhouse"),
+        "stripe": CompanyConfig(name="stripe", adapter="greenhouse"),
+    }
+    jobs = [make_job(id="a1"), make_job(id="s1", company="stripe")]
+    # Bootstrap run: the first company posts, its seen write is refused, the second company is deferred.
+    result = scan(adapters=[FakeAdapter(jobs)], configs=configs, state=StateStore(kv), discord=discord, classifier=FakeClassifier(), skip_dismissals=True)
+    assert result.recaps == 1
+    assert result.deferred == 1
+    assert result.issues == 1
+    assert kv.values == {}
+
+    # Writes work again: both companies post, and from now on nothing repeats.
+    kv = QuotaKV(allowed=100)
+    discord = FakeDiscord()
+    result = scan(adapters=[FakeAdapter(jobs)], configs=configs, state=StateStore(kv), discord=discord, classifier=FakeClassifier(), skip_dismissals=True)
+    assert result.recaps == 2 and result.deferred == 0
+    result = scan(adapters=[FakeAdapter(jobs)], configs=configs, state=StateStore(kv), discord=FakeDiscord(), classifier=FakeClassifier(), skip_dismissals=True)
+    assert result.notified == 0 and result.recaps == 0
