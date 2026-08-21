@@ -271,7 +271,10 @@ def _report_issue(
     if dry_run:
         print(f"[dry-run] issue {title}: {body}")
         return
-    discord.post_issue(title, body)
+    try:
+        discord.post_issue(title, body)
+    except Exception as exc:
+        print(f"[issues] warning: {title} not posted: {exc}")
 
 
 def mark_reaction_dismissals(state: StateStore, discord: DiscordClient) -> int:

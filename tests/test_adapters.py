@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+import pytest
+
 from adapters.amazon import AmazonAdapter
 from adapters.apple import AppleAdapter
 from adapters.ashby import AshbyAdapter
@@ -532,6 +534,12 @@ def test_atlassian_normalizes_jobs() -> None:
     assert session.urls == ["https://www.atlassian.com/endpoint/careers/listings"]
     assert jobs[0].id == "atlassian:atl-1"
     assert jobs[0].title == "Software Engineer Intern"
+
+
+def test_atlassian_empty_body_is_clear_fetch_error() -> None:
+    session = FakeSession("")
+    with pytest.raises(RuntimeError, match="not JSON"):
+        AtlassianAdapter(session=session).fetch()
 
 
 def test_build_adapters_maps_microsoft_and_new_platforms() -> None:

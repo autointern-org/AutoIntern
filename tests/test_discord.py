@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import requests
+
 from adapters.base import Job
 from core.discord import DiscordClient, PREVIEW_MAX, build_job_embed, has_checkmark_reaction
 
@@ -191,3 +193,17 @@ def test_fetch_message_skips_rate_limit(capsys) -> None:
     client = DiscordClient(MAIN_WEBHOOK, session=RateLimitedSession())
     assert client.fetch_message("1539815221068046357") is None
     assert "rate limited" in capsys.readouterr().out
+
+
+def test_post_issue_timeout_does_not_raise(capsys) -> None:
+    class TimeoutSession:
+        def post(self, url: str, **kwargs: Any) -> Any:
+            raise requests.exceptions.ReadTimeout("read timed out")
+
+    client = DiscordClient(
+        MAIN_WEBHOOK,
+        issues_webhook_url="https://discord.com/api/webhooks/3/issues-token",
+        session=TimeoutSession(),
+    )
+    assert client.post_issue("AtlassianAdapter fetch failed", "empty body") is None
+    assert "failed to post to Discord" in capsys.readouterr().out

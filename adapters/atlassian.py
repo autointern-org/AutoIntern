@@ -21,7 +21,7 @@ class AtlassianAdapter:
     def fetch(self) -> list[Job]:
         response = self.session.get(self.API, timeout=self.timeout)
         response.raise_for_status()
-        return [self._normalize(raw) for raw in _job_dicts(response.json())]
+        return [self._normalize(raw) for raw in _job_dicts(_listings_json(response))]
 
     def _normalize(self, raw: dict[str, Any]) -> Job:
         job_id = raw.get("id") or raw.get("jobId") or raw.get("slug") or raw.get("postingId")
@@ -42,6 +42,17 @@ class AtlassianAdapter:
             jd_text=html_to_text(str(description)),
             posted_at=raw.get("posted_at") or raw.get("postedDate") or raw.get("createdAt"),
         )
+
+
+def _listings_json(response: Any) -> Any:
+    try:
+        return response.json()
+    except ValueError as exc:
+        status = getattr(response, "status_code", "?")
+        text = str(getattr(response, "text", "") or "").strip()[:120]
+        raise RuntimeError(
+            f"Atlassian listings were not JSON (HTTP {status}): {text or 'empty body'}"
+        ) from exc
 
 
 def _job_dicts(payload: Any) -> list[dict[str, Any]]:

@@ -349,6 +349,31 @@ def test_scan_does_not_prune_on_failed_adapter_fetch() -> None:
     assert not any(key.startswith("seen:") for key, _ in kv.puts)
 
 
+def test_scan_survives_issue_webhook_timeout() -> None:
+    job = make_job()
+
+    class BoomDiscord(FakeDiscord):
+        def post_issue(self, title: str, body: str) -> DiscordMessage:
+            raise RuntimeError("HTTPSConnectionPool read timed out")
+
+    class BoomAdapter:
+        def fetch(self) -> list[Job]:
+            raise RuntimeError("board down")
+
+    result = scan(
+        adapters=[BoomAdapter(), FakeAdapter([job])],
+        configs={"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse", tier="S")},
+        state=StateStore(),
+        discord=BoomDiscord(),
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+
+    assert result.issues >= 1
+    assert result.fetched == 1
+    assert result.recaps == 1
+
+
 def test_scan_prunes_all_interns_when_fetch_succeeded_with_zero_matches() -> None:
     intern = make_job()
     kv = FakeKV()
