@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
@@ -48,17 +49,22 @@ class EightfoldAdapter:
         self.boards = list(boards)
         self.timeout = timeout
         self.session = session or new_session()
+        self.board_errors: list[tuple[str, str]] = []
 
     def fetch(self) -> list[Job]:
+        self.board_errors = []
         jobs: list[Job] = []
         seen: set[str] = set()
         for board in self.boards:
-            for extra in _param_sets(board):
-                for job in self._paginate(board, extra):
-                    if job.id in seen:
-                        continue
-                    seen.add(job.id)
-                    jobs.append(job)
+            try:
+                for extra in _param_sets(board):
+                    for job in self._paginate(board, extra):
+                        if job.id in seen:
+                            continue
+                        seen.add(job.id)
+                        jobs.append(job)
+            except Exception as exc:
+                self.board_errors.append((board.company, str(exc)))
         return jobs
 
     def _paginate(self, board: EightfoldBoard, extra: dict[str, str]) -> list[Job]:
@@ -96,19 +102,25 @@ class EightfoldAdapter:
         params.extend((key, value) for key, value in extra.items())
         path = "/api/apply/v2/jobs" if board.api == "apply" else "/api/pcsx/search"
         url = f"https://{board.host}{path}?{urlencode(params)}"
-        response = self.session.get(url, timeout=self.timeout)
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"eightfold {board.host} status {response.status_code}: {(getattr(response, 'text', '') or '')[:200]}"
-            )
-        try:
-            data = response.json()
-        except Exception as exc:
-            text = (getattr(response, "text", "") or "")[:200]
-            raise RuntimeError(f"eightfold {board.host} non-JSON: {text}") from exc
-        if not isinstance(data, dict):
-            raise RuntimeError(f"eightfold {board.host} expected object, got {type(data).__name__}")
-        return data
+        for attempt in range(3):
+            response = self.session.get(url, timeout=self.timeout)
+            if response.status_code == 429 and attempt < 2:
+                time.sleep(_retry_after_seconds(response))
+                continue
+            if response.status_code != 200:
+                raise RuntimeError(
+                    f"eightfold {board.host} status {response.status_code}: {(getattr(response, 'text', '') or '')[:200]}"
+                )
+            try:
+                data = response.json()
+            except Exception as exc:
+                text = (getattr(response, "text", "") or "")[:200]
+                raise RuntimeError(f"eightfold {board.host} non-JSON: {text}") from exc
+            if not isinstance(data, dict):
+                raise RuntimeError(
+                    f"eightfold {board.host} expected object, got {type(data).__name__}"
+                )
+            return data
 
     def _normalize(self, board: EightfoldBoard, raw: dict[str, Any]) -> Job:
         job_id = raw.get("id")
@@ -134,10 +146,19 @@ class EightfoldAdapter:
 
 
 def _param_sets(board: EightfoldBoard) -> list[dict[str, str]]:
-    free_text: dict[str, str] = {}
-    if not board.extra_params:
-        return [free_text]
-    return [free_text, dict(board.extra_params)]
+    if board.extra_params:
+        return [dict(board.extra_params)]
+    return [{}]
+
+
+def _retry_after_seconds(response: requests.Response) -> float:
+    raw = response.headers.get("Retry-After")
+    if raw is not None:
+        try:
+            return min(float(raw), 10.0)
+        except (TypeError, ValueError):
+            pass
+    return 5.0
 
 
 def _positions(api: str, payload: dict[str, Any]) -> list[Any]:
