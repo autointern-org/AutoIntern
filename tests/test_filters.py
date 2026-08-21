@@ -267,3 +267,118 @@ def test_filter_applies_keywords() -> None:
 
     assert passes_filter(make_job(jd_text="Machine learning infrastructure."), config)
     assert not passes_filter(make_job(jd_text="Machine learning hardware only role."), config)
+
+
+def _loc_job(std: list[str], names: list[str] | None = None, *, title: str = "Software Engineer Intern") -> Job:
+    from adapters.eightfold import structured_locations
+
+    raw: dict[str, Any] = {"standardizedLocations": std}
+    if names is not None:
+        raw["locations"] = names
+    codes, location_names = structured_locations(raw)
+    return Job(
+        id="eightfold:x:1",
+        company="x",
+        title=title,
+        location="; ".join(std) if std else "Unspecified",
+        url="https://example.com/1",
+        jd_text="",
+        country_codes=codes,
+        location_names=location_names,
+    )
+
+
+def test_classify_job_location_two_representation_guard() -> None:
+    from core.filters import classify_job_location
+
+    table = [
+        (["Redmond, WA, US"], ["United States, Washington, Redmond"], "us"),
+        (["Boise, ID, US"], ["Boise, Idaho, United States of America"], "us"),
+        (["Bengaluru, KA, IN"], ["India, Karnataka, Bangalore"], "non_us"),
+        (["Herzliya, Tel Aviv District, IL"], ["Israel, Tel Aviv, Herzliya"], "non_us"),
+        (["SG"], ["Singapore, Singapore"], "non_us"),
+        (["BG, RS"], ["Serbia, Belgrade, Belgrade"], "non_us"),
+        (["Taipei City,TW"], ["Taiwan, Taipei"], "non_us"),
+        (["Bengaluru, KA, IN", "Redmond, WA, US"], ["India, Karnataka, Bangalore", "United States, Washington, Redmond"], "us"),
+        (["Redmond, WA, US; Bengaluru, KA, IN"], ["United States, Washington, Redmond; India, Karnataka, Bangalore"], "us"),
+        (["Bengaluru, KA, IN"], ["India, Karnataka, Bangalore", "United States, Remote"], "us"),
+        (["Bengaluru, KA, IN"], ["India, Karnataka, Bangalore", "Remote"], "non_us"),
+        (["Remote"], ["Remote"], "unknown"),
+        (["kr-yongin-03 (3259)"], ["Korea, Yongin"], "unknown"),
+        (["kr-yongin-03 (3259)"], ["Japan, Tokyo"], "non_us"),
+        ([], ["Los Gatos,California,United States of America"], "us"),
+        ([], ["Singapore,Singapore"], "non_us"),
+        (["Toronto, ON, CA"], ["Canada, Ontario, Toronto"], "non_us"),
+        (["Toronto, ON, CA", "Austin, TX, US"], ["Canada, Ontario, Toronto", "United States, Texas, Austin"], "us"),
+        (["Mexico City, CMX, MX"], ["Mexico, Mexico City"], "non_us"),
+        (["Bengaluru, KA, IN"], ["India, Karnataka, Bangalore – supports US team"], "us"),
+        # The user's worry: a US site code with no 2-letter code, but America in the names.
+        (["us-austin-01 (1234)"], ["United States, Texas, Austin"], "us"),
+        (["us-austin-01 (1234)"], ["America, Austin"], "us"),
+        (["Bengaluru, KA, IN"], ["Latin America, Bangalore"], "non_us"),
+        (["Mexico City, CMX, MX"], ["North America, Mexico City"], "us"),
+        (["Bengaluru, KA, IN"], ["Washington, D.C. office; Bangalore"], "us"),
+        (["Bengaluru, KA, IN"], ["U.S.A. and Bangalore"], "us"),
+    ]
+    for std, names, expected in table:
+        assert classify_job_location(_loc_job(std, names)) == expected, (std, names)
+
+
+def test_evaluate_job_drops_non_us_coded_posting_and_keeps_us_text() -> None:
+    config = CompanyConfig(name="x", adapter="eightfold")
+    assert evaluate_job(_loc_job(["Bengaluru, KA, IN"], ["India, Karnataka, Bangalore"]), config).stage == "us"
+    decision = evaluate_job(_loc_job(["Bengaluru, KA, IN"], ["India, Karnataka, Bangalore"]), CompanyConfig(name="x", adapter="eightfold", include_intl=True))
+    assert decision.keep
+    kept = evaluate_job(_loc_job(["us-austin-01 (1234)"], ["United States, Texas, Austin"]), config)
+    assert kept.keep and not kept.location_unknown
+    unknown = evaluate_job(_loc_job(["Remote"], ["Remote"]), config)
+    assert unknown.keep and unknown.location_unknown
+
+
+def test_has_us_text_wordings() -> None:
+    from core.filters import has_us_text
+
+    positives = [
+        "United States", "United States of America", "UNITED STATES", "UnitedStates",
+        "USA", "U.S.A.", "U.S.A", "U S A", "U.S.", "U.S", "US", "US of A",
+        "Remote - US", "Remote (US)", "US Remote", "US-based", "US only", "Remote, USA", "Anywhere in the US",
+        "Estados Unidos", "États-Unis", "Etats Unis", "EE.UU.",
+        "Washington, D.C.", "Washington DC", "District of Columbia",
+        "Puerto Rico", "Guam", "US Virgin Islands",
+        "America", "North America", "Austin, Texas", "New York", "California",
+        "Boise, Idaho, United States of America", "US, CA, Santa Clara",
+    ]
+    negatives = [
+        "", "India", "Latin America", "South America", "Central America",
+        "Bengaluru, KA, IN", "Herzliya, Tel Aviv District, IL", "London, United Kingdom",
+        "Australia", "Austria", "Singapore, Singapore", "Russia", "Busan",
+    ]
+    for text in positives:
+        assert has_us_text(text), text
+    for text in negatives:
+        assert not has_us_text(text), text
+
+
+def test_classify_job_location_country_names_step() -> None:
+    from core.filters import classify_job_location
+
+    def job(**kw: Any) -> Job:
+        base = dict(id="p:1", company="x", title="Software Engineer Intern", location="Unspecified", url="u", jd_text="")
+        base.update(kw)
+        return Job(**base)
+
+    # Phenom widgets: name only, no code.
+    assert classify_job_location(job(country_names=("United States of America",), location_names=("San Jose, California, United States of America",))) == "us"
+    assert classify_job_location(job(country_names=("India",), location_names=("Bangalore, India",))) == "non_us"
+    assert classify_job_location(job(country_names=("Poland",), location_names=("Krakow, Poland",))) == "non_us"
+    # Name non-US but a location string mentions a US office -> keep.
+    assert classify_job_location(job(country_names=("India",), location_names=("Bangalore, India", "Remote - US"))) == "us"
+    # Phenom get / Oracle: code + name.
+    assert classify_job_location(job(country_codes=("SG",), country_names=("Singapore",), location_names=("Singapore",))) == "non_us"
+    assert classify_job_location(job(country_codes=("US",), country_names=("United States",), location_names=("Austin, TX, United States",))) == "us"
+    # Oracle: primary abroad, secondary US -> keep.
+    assert classify_job_location(job(country_codes=("GB", "US"), location_names=("London, United Kingdom", "United States"))) == "us"
+    assert classify_job_location(job(country_codes=("GB", "BR"), location_names=("London, United Kingdom", "Brazil"))) == "non_us"
+    # Nothing structured -> text rule.
+    assert classify_job_location(job(location="London, United Kingdom")) == "non_us"
+    assert classify_job_location(job(location="Remote")) == "unknown"

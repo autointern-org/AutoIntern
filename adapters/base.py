@@ -25,11 +25,30 @@ class Job:
     location_unknown: bool = False
     degree_flag: str | None = None
     term_flag: str | None = None
+    # Structured location data from the ATS, when it provides any.
+    # country_codes: ISO 3166-1 alpha-2 codes, uppercase ("US", "IN").
+    # location_names: human-readable location strings ("India, Karnataka, Bangalore").
+    # country_names: dedicated country-name fields ("United States of America", "India").
+    country_codes: tuple[str, ...] = ()
+    country_names: tuple[str, ...] = ()
+    location_names: tuple[str, ...] = ()
 
 
 class Adapter(Protocol):
     def fetch(self) -> list[Job]:
         """Return normalized jobs from one or more company career boards."""
+
+
+COUNTRY_CODE_ALIASES = {"USA": "US", "UNITED STATES": "US", "UNITED STATES OF AMERICA": "US"}
+
+
+def normalize_country_code(value: object) -> str | None:
+    """Return an uppercase ISO 3166-1 alpha-2 code, or None if value is not one."""
+    text = compact_text(str(value or "")).upper()
+    text = COUNTRY_CODE_ALIASES.get(text, text)
+    if len(text) == 2 and text.isalpha():
+        return text
+    return None
 
 
 def compact_text(value: str | None) -> str:

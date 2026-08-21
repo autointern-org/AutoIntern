@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -146,6 +147,7 @@ class EightfoldAdapter:
             or ""
         )
         posted = raw.get("postedTs") if board.api != "apply" else raw.get("t_create")
+        country_codes, location_names = structured_locations(raw)
         return Job(
             id=f"eightfold:{board.company}:{job_id}",
             company=board.company,
@@ -154,7 +156,61 @@ class EightfoldAdapter:
             url=compact_text(url),
             jd_text=html_to_text(str(description)),
             posted_at=posted_at_value(posted),
+            country_codes=country_codes,
+            location_names=location_names,
         )
+
+
+COUNTRY_CODE_RE = re.compile(r"^[A-Z]{2}$")
+
+
+def structured_locations(raw: dict[str, Any]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return (country_codes, location_names) from an Eightfold position.
+
+    standardizedLocations entries look like "Bengaluru, KA, IN", "BG, RS",
+    "Taipei City,TW", "SG", or "Remote"; a dict form {"city", "state",
+    "country"} also exists. For each ';'-separated segment, the last
+    ','-piece is taken as the country code when it is exactly two uppercase
+    letters (earlier pieces are city/region codes such as WA or KA). The human-readable
+    `locations` entries (and dict-form standardized entries) are returned as
+    text for the filter; code-style strings are not, to avoid IL/IN collisions.
+    """
+    codes: list[str] = []
+    names: list[str] = []
+
+    def add_text(value: Any) -> None:
+        text = _location_item(value) if isinstance(value, dict) else compact_text(str(value or ""))
+        if text:
+            names.append(text)
+
+    def add_codes_from_text(text: str) -> None:
+        # One string may hold several locations separated by ';'. Within each,
+        # only the LAST comma piece is the country; earlier pieces are city and
+        # region codes (WA, KA, ON) that also look like two uppercase letters.
+        for segment in text.split(";"):
+            last = segment.split(",")[-1].strip()
+            if COUNTRY_CODE_RE.fullmatch(last):
+                codes.append(last)
+
+    std = raw.get("standardizedLocations")
+    for entry in std if isinstance(std, list) else ([std] if std else []):
+        if isinstance(entry, str):
+            # Code-style strings ("Bengaluru, KA, IN") are NOT added as names:
+            # a trailing "IL"/"IN" would otherwise read as Illinois/Indiana.
+            add_codes_from_text(entry)
+        elif isinstance(entry, dict):
+            country = compact_text(str(entry.get("countryCode") or entry.get("country") or ""))
+            if COUNTRY_CODE_RE.fullmatch(country):
+                codes.append(country)
+            add_text(entry)
+
+    locs = raw.get("locations")
+    for entry in locs if isinstance(locs, list) else ([locs] if locs else []):
+        add_text(entry)
+    if isinstance(raw.get("location"), (str, dict)):
+        add_text(raw.get("location"))
+
+    return tuple(dict.fromkeys(codes)), tuple(dict.fromkeys(names))
 
 
 def _param_sets(board: EightfoldBoard) -> list[dict[str, str]]:

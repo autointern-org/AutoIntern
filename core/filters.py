@@ -240,8 +240,6 @@ class FilterDecision:
 def evaluate_job(job: Job, config: CompanyConfig) -> FilterDecision:
     title = job.title
     haystack = f"{job.title}\n{job.location}\n{job.jd_text}"
-    location_blob = f"{job.title}\n{job.location}"
-
     if not INTERN_TITLE_RE.search(title):
         return FilterDecision(keep=False, stage="intern")
     if HARD_DROP_TITLE_RE.search(title):
@@ -251,7 +249,7 @@ def evaluate_job(job: Job, config: CompanyConfig) -> FilterDecision:
     if FULL_TIME_RE.search(title) and not INTERN_FOR_FULLTIME_RE.search(title):
         return FilterDecision(keep=False, stage="intern")
 
-    location_kind = classify_location(location_blob)
+    location_kind = classify_job_location(job)
     if not config.include_intl and location_kind == "non_us":
         return FilterDecision(keep=False, stage="us")
     location_unknown = location_kind == "unknown"
@@ -301,6 +299,9 @@ def apply_decision(job: Job, decision: FilterDecision) -> Job:
         location_unknown=decision.location_unknown,
         degree_flag=decision.degree_flag,
         term_flag=decision.term_flag,
+        country_codes=job.country_codes,
+        country_names=job.country_names,
+        location_names=job.location_names,
     )
 
 
@@ -345,6 +346,67 @@ def sort_alert_jobs(jobs: list[Job]) -> list[Job]:
             job.title.lower(),
         ),
     )
+
+
+# Exhaustive spellings of the United States found in ATS location fields.
+US_TEXT_EXTRA_RE = re.compile(
+    r"\bunited\s+states(?:\s+of\s+america)?\b|"
+    r"\bunitedstates\b|"
+    r"\bu\.?\s?s\.?\s?a\.?\b|"           # USA, U.S.A., U.S.A, U S A
+    r"\bu\.\s?s\.?(?!\w)|"                 # U.S., U.S
+    r"\bus\s+of\s+a\b|"
+    r"\bestados\s+unidos\b|"
+    r"\bétats[-\s]unis\b|\betats[-\s]unis\b|"
+    r"\bee\.?\s?uu\.?\b|"
+    r"\bwashington,?\s*d\.?\s?c\.?\b|"
+    r"\bdistrict\s+of\s+columbia\b|"
+    r"\bpuerto\s+rico\b|\bguam\b|\bus\s+virgin\s+islands\b|"
+    r"\bamerican\s+samoa\b|\bnorthern\s+mariana\b|"
+    r"\bus[-\s]?(?:remote|based|only|wide|national)\b|"
+    r"\b(?:remote|anywhere|nationwide)[\s,(-]*(?:in\s+the\s+)?(?:us|usa|u\.s\.?a?\.?)\b|"
+    r"(?<!latin )(?<!south )(?<!central )\bamerica\b|"
+    r"\bnorth\s+america\b",
+    re.IGNORECASE,
+)
+
+
+def has_us_text(text: str) -> bool:
+    """US signal for human-readable location names (country spelled out).
+
+    Deliberately does not use the "City, ST" state-code regex: two-letter
+    country codes such as IL/IN would collide with Illinois/Indiana.
+    """
+    lowered = (text or "").lower()
+    if not lowered:
+        return False
+    if US_LOCATION_PHRASE_RE.search(lowered) or US_TEXT_EXTRA_RE.search(lowered):
+        return True
+    if re.search(r"\b(usa|us)\b", lowered):
+        return True
+    return bool(US_STATE_NAME_RE.search(lowered))
+
+
+def classify_job_location(job: Job) -> str:
+    """Structured-first location verdict: "us", "non_us", or "unknown".
+
+    1. Any country code == "US"                            -> us
+    2. Country names or location names contain US text     -> us
+    3. Country codes present, none US                      -> non_us
+    4. Dedicated country-name field present, none US       -> non_us
+    5. Otherwise, today's text rule over title + location + names.
+    """
+    codes = set(job.country_codes)
+    names_text = "\n".join((*job.country_names, *job.location_names))
+    if "US" in codes:
+        return "us"
+    if has_us_text(names_text):
+        return "us"
+    if codes:
+        return "non_us"
+    if any(name.strip() for name in job.country_names):
+        return "non_us"
+    blob = "\n".join(part for part in (job.title, job.location, *job.location_names) if part)
+    return classify_location(blob)
 
 
 def classify_location(location: str) -> str:

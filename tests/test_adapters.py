@@ -910,3 +910,49 @@ def test_eightfold_stops_when_server_repeats_a_page() -> None:
     jobs = adapter.fetch()
     assert len(jobs) == 1
     assert len(session.urls) == 2
+
+
+def test_eightfold_structured_locations_shapes() -> None:
+    from adapters.eightfold import structured_locations
+
+    cases = [
+        ({"standardizedLocations": ["Bengaluru, KA, IN"], "locations": ["India, Karnataka, Bangalore"]}, ("IN",)),
+        ({"standardizedLocations": ["Redmond, WA, US", "Mountain View, CA, US"]}, ("US",)),
+        ({"standardizedLocations": ["Redmond, WA, US; Bengaluru, KA, IN"]}, ("US", "IN")),
+        ({"standardizedLocations": ["BG, RS"]}, ("RS",)),
+        ({"standardizedLocations": ["Taipei City,TW"]}, ("TW",)),
+        ({"standardizedLocations": ["SG"]}, ("SG",)),
+        ({"standardizedLocations": ["Remote"]}, ()),
+        ({"standardizedLocations": ["kr-yongin-03 (3259)"]}, ()),
+        ({"standardizedLocations": [{"city": "Redmond", "state": "Washington", "country": "United States"}]}, ()),
+        ({"standardizedLocations": [{"city": "Redmond", "countryCode": "US"}]}, ("US",)),
+        ({"location": "Los Gatos,California,United States of America"}, ()),
+        ({}, ()),
+    ]
+    for raw, expected_codes in cases:
+        codes, names = structured_locations(raw)
+        assert codes == expected_codes, raw
+    codes, names = structured_locations(
+        {"standardizedLocations": ["kr-yongin-03 (3259)"], "locations": ["Korea, Yongin"]}
+    )
+    assert names == ("Korea, Yongin",)
+    codes, names = structured_locations(
+        {"standardizedLocations": [{"city": "Redmond", "state": "Washington", "country": "United States"}]}
+    )
+    assert names == ("Redmond, Washington, United States",)
+
+
+def test_eightfold_jobs_carry_country_codes() -> None:
+    session = FakeSession(
+        {"data": {"count": 1, "positions": [
+            {"id": "7", "name": "Research Intern", "standardizedLocations": ["Bengaluru, KA, IN"],
+             "locations": ["India, Karnataka, Bangalore"]}
+        ]}}
+    )
+    adapter = EightfoldAdapter(
+        [EightfoldBoard(company="microsoft", host="apply.careers.microsoft.com", domain="microsoft.com")],
+        session=session,
+    )
+    job = adapter.fetch()[0]
+    assert job.country_codes == ("IN",)
+    assert job.location_names == ("India, Karnataka, Bangalore",)
