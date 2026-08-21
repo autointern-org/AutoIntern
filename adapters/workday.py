@@ -25,11 +25,18 @@ class WorkdayAdapter:
         self.company_names = company_names or {}
         self.timeout = timeout
         self.session = session or new_session()
+        self.board_errors: list[tuple[str, str]] = []
 
     def fetch(self) -> list[Job]:
+        self.board_errors = []
         jobs: list[Job] = []
         for board in self.boards:
-            jobs.extend(self._fetch_board(board))
+            name = self.company_names.get(board, board[1])
+            try:
+                jobs.extend(self._fetch_board(board))
+            except Exception as exc:
+                print(f"[workday] {name} fetch failed: {exc}")
+                self.board_errors.append((name, str(exc)))
         return jobs
 
     def _fetch_board(self, board: WorkdayBoard) -> list[Job]:
@@ -43,13 +50,16 @@ class WorkdayAdapter:
                 response = self.session.post(
                     url,
                     json={"appliedFacets": {}, "limit": limit, "offset": offset, "searchText": "intern"},
+                    headers={"Accept": "application/json"},
                     timeout=self.timeout,
                 )
                 response.raise_for_status()
-            except requests.RequestException as exc:
-                print(f"[workday] failed to fetch {host}/{tenant}/{site}: {exc}")
-                break
-            payload = response.json()
+                payload = _response_json(response, host=host)
+            except Exception as exc:
+                if jobs:
+                    print(f"[workday] {host}/{tenant}/{site} pagination stopped: {exc}")
+                    break
+                raise RuntimeError(f"workday {host}/{tenant}/{site}: {exc}") from exc
             rows = _find_workday_jobs(payload)
             total = _as_int(payload.get("total")) if isinstance(payload, dict) else 0
             for raw in rows:
@@ -88,6 +98,20 @@ class WorkdayAdapter:
             jd_text=html_to_text(jd_text),
             posted_at=raw.get("postedOn") or raw.get("startDate") or raw.get("postedDate"),
         )
+
+
+def _response_json(response: Any, *, host: str) -> Any:
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        status = getattr(response, "status_code", "?")
+        text = str(getattr(response, "text", "") or "").strip()[:120]
+        raise RuntimeError(
+            f"workday {host} not JSON (HTTP {status}): {text or 'empty body'}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"workday {host} expected object, got {type(payload).__name__}")
+    return payload
 
 
 def _find_workday_jobs(data: Any) -> list[dict[str, Any]]:

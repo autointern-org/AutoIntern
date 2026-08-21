@@ -223,6 +223,29 @@ def test_workday_normalizes_jobs() -> None:
     assert session.calls[0]["json"]["offset"] == 0
 
 
+def test_workday_isolates_empty_json_board() -> None:
+    good = load_fixture("workday.json")
+    nvidia = ("nvidia.wd5.myworkdayjobs.com", "nvidia", "NVIDIAExternalCareerSite")
+    etsy = ("etsy.wd5.myworkdayjobs.com", "etsy", "Etsy_Careers")
+    session = FakeSession(
+        by_url={
+            "https://nvidia.wd5.myworkdayjobs.com/wday/cxs/nvidia/NVIDIAExternalCareerSite/jobs": good,
+            "https://etsy.wd5.myworkdayjobs.com/wday/cxs/etsy/Etsy_Careers/jobs": "",
+        }
+    )
+    adapter = WorkdayAdapter(
+        [etsy, nvidia],
+        company_names={etsy: "etsy", nvidia: "nvidia"},
+        session=session,
+    )
+
+    jobs = adapter.fetch()
+
+    assert [job.company for job in jobs] == ["nvidia"]
+    assert adapter.board_errors[0][0] == "etsy"
+    assert "empty body" in adapter.board_errors[0][1]
+
+
 def test_google_parses_ds1_blob() -> None:
     record = [
         "123456789",
