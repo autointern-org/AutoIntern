@@ -13,10 +13,16 @@ SITEMAP_URL = "https://www.metacareers.com/jobsearch/sitemap.xml"
 DETAIL_URL = "https://www.metacareers.com/profile/job_details/{id}/"
 LOC_RE = re.compile(r"<loc>https://www\.metacareers\.com/profile/job_details/(\d+)/</loc>")
 JSONLD_RE = re.compile(r'<script[^>]*type="application/ld\+json"[^>]*>([\s\S]*?)</script>', re.I)
-MAX_DETAILS_PER_RUN = 40
+MAX_DETAILS_PER_RUN = 100
 
 
 class MetaAdapter:
+    """Meta has no public job-search API. The sitemap lists every job ID
+    (~900) but not titles, so each ID needs one detail-page fetch to learn
+    whether it is an internship. The pipeline persists `checked_ids` and
+    `intern_ids` between runs so only new IDs (and known interns, to keep
+    them live) are fetched each run."""
+
     def __init__(
         self,
         *,
@@ -24,11 +30,17 @@ class MetaAdapter:
         session: requests.Session | None = None,
         max_details: int = MAX_DETAILS_PER_RUN,
         known_ids: set[str] | None = None,
+        intern_ids: set[str] | None = None,
     ) -> None:
         self.timeout = timeout
+        # Meta answers 400 to browser-like user agents on the sitemap; the
+        # default python-requests agent is the one that works.
         self.session = session or requests.Session()
         self.max_details = max_details
-        self.known_ids = known_ids or set()
+        self.known_ids = set(known_ids or set())
+        self.intern_ids = set(intern_ids or set())
+        self.checked_ids: set[str] = set()
+        self.backlog = 0
 
     def fetch(self) -> list[Job]:
         response = self.session.get(SITEMAP_URL, timeout=self.timeout)
@@ -36,20 +48,26 @@ class MetaAdapter:
         ids = LOC_RE.findall(response.text or "")
         if not ids:
             raise RuntimeError("Meta sitemap returned no job IDs")
+        live = set(ids)
+        known_live = self.known_ids & live
+        interns_live = [job_id for job_id in ids if job_id in self.intern_ids]
+        new_ids = [job_id for job_id in ids if job_id not in self.known_ids]
+        self.backlog = max(0, len(new_ids) - self.max_details)
+        if self.backlog:
+            print(f"[meta] {len(new_ids)} unchecked ids; checking {self.max_details} this run")
+        to_fetch = interns_live + new_ids[: self.max_details]
         jobs: list[Job] = []
-        fetched = 0
-        for job_id in ids:
-            if job_id in self.known_ids:
-                continue
-            if fetched >= self.max_details:
-                break
+        checked = set(known_live)
+        for job_id in to_fetch:
             detail = self.session.get(DETAIL_URL.format(id=job_id), timeout=self.timeout)
-            fetched += 1
             if detail.status_code != 200:
                 continue
+            checked.add(job_id)
             job = _job_from_detail(job_id, detail.text or "")
             if job:
                 jobs.append(job)
+        self.checked_ids = checked
+        self.intern_ids = {job.id.split(":", 1)[1] for job in jobs}
         return jobs
 
 

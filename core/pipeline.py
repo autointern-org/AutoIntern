@@ -68,6 +68,7 @@ def run_scan(
         # time; separate health docs keep them from overwriting each other.
         health_scope=("only-" + "-".join(sorted(_company_names(only)))) if only else "all",
     )
+    adapters = build_adapters(companies, state=state)
     discord = DiscordClient(
         os.getenv("DISCORD_WEBHOOK_URL"),
         forum_webhook_url=os.getenv("DISCORD_FORUM_WEBHOOK_URL"),
@@ -144,6 +145,13 @@ def scan(
             _report_issue(discord, result, f"{label} fetch failed", str(exc), dry_run=dry_run)
             continue
         duration_ms = int((perf_counter() - started) * 1000)
+        if not dry_run and getattr(adapter, "checked_ids", None) is not None:
+            try:
+                state.record_checked_ids(
+                    _adapter_company(adapter), set(adapter.checked_ids), set(getattr(adapter, "intern_ids", set()))
+                )
+            except Exception as exc:
+                print(f"[scan] checked-id write failed for {adapter.__class__.__name__}: {exc}")
         for company_key, error in getattr(adapter, "board_errors", []) or []:
             print(f"[scan] {company_key} fetch failed: {error}")
             health_rows.append(
@@ -450,7 +458,11 @@ def unknown_adapter_companies(companies: list[CompanyConfig]) -> list[CompanyCon
     return [company for company in companies if company.adapter not in KNOWN_ADAPTERS]
 
 
-def build_adapters(companies: list[CompanyConfig]) -> list[Adapter]:
+def _adapter_company(adapter: Adapter) -> str:
+    return adapter.__class__.__name__.removesuffix("Adapter").lower()
+
+
+def build_adapters(companies: list[CompanyConfig], *, state: StateStore | None = None) -> list[Adapter]:
     adapters: list[Adapter] = []
     greenhouse = [company for company in companies if company.adapter == "greenhouse" and company.slug]
     if greenhouse:
@@ -606,8 +618,13 @@ def build_adapters(companies: list[CompanyConfig]) -> list[Adapter]:
         )
 
     for adapter_name, adapter_cls in SIMPLE_ADAPTERS.items():
-        if any(company.adapter == adapter_name for company in companies):
-            adapters.append(adapter_cls())
+        if not any(company.adapter == adapter_name for company in companies):
+            continue
+        if adapter_cls is MetaAdapter and state is not None:
+            checked, interns = state.get_checked_ids("meta")
+            adapters.append(MetaAdapter(known_ids=checked, intern_ids=interns))
+            continue
+        adapters.append(adapter_cls())
 
     return adapters
 

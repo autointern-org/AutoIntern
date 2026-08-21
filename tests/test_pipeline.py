@@ -891,3 +891,35 @@ def test_scan_stops_posting_once_kv_refuses_writes() -> None:
     assert result.recaps == 2 and result.deferred == 0
     result = scan(adapters=[FakeAdapter(jobs)], configs=configs, state=StateStore(kv), discord=FakeDiscord(), classifier=FakeClassifier(), skip_dismissals=True)
     assert result.notified == 0 and result.recaps == 0
+
+
+def test_scan_persists_checked_ids_for_meta() -> None:
+    class CheckingAdapter(FakeAdapter):
+        checked_ids = {"1", "2"}
+        intern_ids = {"2"}
+
+    kv = FakeKV()
+    state = StateStore(kv)
+    scan(
+        adapters=[CheckingAdapter([])],
+        configs={"checking": CompanyConfig(name="checking", adapter="meta")},
+        state=state,
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+    assert kv.values["checked:checking"]["checked"] == ["1", "2"]
+    assert kv.values["checked:checking"]["interns"] == ["2"]
+    assert state.get_checked_ids("checking") == ({"1", "2"}, {"2"})
+
+
+def test_build_adapters_seeds_meta_from_state() -> None:
+    from adapters.meta import MetaAdapter
+    from core.pipeline import build_adapters
+
+    kv = FakeKV()
+    state = StateStore(kv)
+    state.record_checked_ids("meta", {"10", "11"}, {"11"})
+    adapters = build_adapters([CompanyConfig(name="meta", adapter="meta")], state=state)
+    assert isinstance(adapters[0], MetaAdapter)
+    assert adapters[0].known_ids == {"10", "11"}
+    assert adapters[0].intern_ids == {"11"}

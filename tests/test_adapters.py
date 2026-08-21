@@ -16,6 +16,7 @@ from adapters.google import GoogleAdapter
 from adapters.greenhouse import GreenhouseAdapter
 from adapters.ibm import IBMAdapter
 from adapters.lever import LeverAdapter
+from adapters.meta import MetaAdapter
 from adapters.optiver import OptiverAdapter
 from adapters.oracle import OracleAdapter, OracleBoard
 from adapters.phenom import PhenomAdapter, PhenomBoard
@@ -1153,3 +1154,64 @@ def test_rippling_paginates_until_total_pages() -> None:
     assert [job.id for job in jobs] == ["rippling:rippling:x1", "rippling:rippling:x2"]
     assert session.urls[:2] == [f"{base}?page=0&pageSize=100", f"{base}?page=1&pageSize=100"]
     assert jobs[0].location == "Unspecified"
+
+
+def _meta_detail(title: str, employment: str) -> str:
+    payload = {
+        "@type": "JobPosting",
+        "title": title,
+        "employmentType": employment,
+        "datePosted": "2026-08-20",
+        "description": "<p>Build things.</p>",
+        "jobLocation": [{"address": {"addressLocality": "Menlo Park", "addressRegion": "CA", "addressCountry": "US"}}],
+    }
+    return f'<html><script type="application/ld+json">{json.dumps(payload)}</script></html>'
+
+
+def test_meta_fetches_only_new_ids_plus_known_interns() -> None:
+    sitemap = "".join(f"<url><loc>https://www.metacareers.com/profile/job_details/{i}/</loc></url>" for i in ("1", "2", "3", "4"))
+    by_url = {
+        "https://www.metacareers.com/jobsearch/sitemap.xml": FakeResponse(sitemap, status_code=200),
+        "https://www.metacareers.com/profile/job_details/1/": FakeResponse(_meta_detail("Software Engineer", "Full-time"), status_code=200),
+        "https://www.metacareers.com/profile/job_details/2/": FakeResponse(_meta_detail("Software Engineer Intern", "Internship"), status_code=200),
+        "https://www.metacareers.com/profile/job_details/3/": FakeResponse(_meta_detail("Research Intern", "Internship"), status_code=200),
+        "https://www.metacareers.com/profile/job_details/4/": FakeResponse("", status_code=500),
+    }
+    session = FakeSession(by_url=by_url)
+    # Run 1: nothing known, cap of 2 -> checks ids 1 and 2 only.
+    adapter = MetaAdapter(session=session, max_details=2)
+    jobs = adapter.fetch()
+    assert [job.id for job in jobs] == ["meta:2"]
+    assert jobs[0].title == "Software Engineer Intern"
+    assert jobs[0].location == "Menlo Park, CA, US"
+    assert adapter.checked_ids == {"1", "2"}
+    assert adapter.intern_ids == {"2"}
+    assert adapter.backlog == 2
+
+    # Run 2: known ids skipped, known intern re-fetched to stay live, next new ids checked.
+    session = FakeSession(by_url=by_url)
+    adapter = MetaAdapter(session=session, max_details=2, known_ids={"1", "2"}, intern_ids={"2"})
+    jobs = adapter.fetch()
+    assert [job.id for job in jobs] == ["meta:2", "meta:3"]
+    detail_urls = [u for u in session.urls if "job_details" in u]
+    assert detail_urls == [
+        "https://www.metacareers.com/profile/job_details/2/",
+        "https://www.metacareers.com/profile/job_details/3/",
+        "https://www.metacareers.com/profile/job_details/4/",
+    ]
+    assert adapter.checked_ids == {"1", "2", "3"}  # 4 failed, so it will be retried
+    assert adapter.intern_ids == {"2", "3"}
+    assert adapter.backlog == 0
+
+    # Ids that left the sitemap are forgotten.
+    adapter = MetaAdapter(session=FakeSession(by_url=by_url), max_details=0, known_ids={"1", "gone"}, intern_ids=set())
+    adapter.fetch()
+    assert adapter.checked_ids == {"1"}
+
+
+def test_meta_raises_when_sitemap_is_empty() -> None:
+    session = FakeSession(by_url={"https://www.metacareers.com/jobsearch/sitemap.xml": FakeResponse("<html>Error</html>", status_code=200)})
+    import pytest
+
+    with pytest.raises(RuntimeError):
+        MetaAdapter(session=session).fetch()

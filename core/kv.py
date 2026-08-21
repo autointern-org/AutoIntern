@@ -268,6 +268,23 @@ class StateStore:
             }
         return self._health_doc
 
+    def get_checked_ids(self, company: str) -> tuple[set[str], set[str]]:
+        """(checked_ids, intern_ids) remembered for adapters that must fetch one page per job."""
+        value = self._get(self._checked_key(company)) or {}
+        checked = {str(x) for x in value.get("checked") or []}
+        interns = {str(x) for x in value.get("interns") or []}
+        return checked, interns
+
+    def record_checked_ids(self, company: str, checked: set[str], interns: set[str]) -> None:
+        existing_checked, existing_interns = self.get_checked_ids(company)
+        if existing_checked == checked and existing_interns == interns:
+            return
+        self._put(
+            self._checked_key(company),
+            {"company": company.lower(), "checked": sorted(checked), "interns": sorted(interns), "at": now_iso()},
+            ttl_seconds=HEALTH_TTL_SECONDS,
+        )
+
     def record_notification(
         self,
         *,
@@ -602,6 +619,10 @@ class StateStore:
     def _health_key(self) -> str:
         return f"health:{self.health_scope}"
 
+    @staticmethod
+    def _checked_key(company: str) -> str:
+        return f"checked:{company.lower()}"
+
 
 SCAN_STATE_PREFIXES = (
     "job:",
@@ -610,6 +631,7 @@ SCAN_STATE_PREFIXES = (
     "health:",
     "thread:",
     "dismissed:",
+    "checked:",
 )
 
 
