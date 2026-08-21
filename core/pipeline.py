@@ -50,8 +50,9 @@ def run_scan(
     skip_claude: bool = False,
 ) -> ScanResult:
     whitelist = Whitelist.load(whitelist_path)
-    configs = whitelist.by_company()
-    adapters = build_adapters(whitelist.companies)
+    companies = select_companies(whitelist.companies)
+    configs = {company.name.lower(): company for company in companies}
+    adapters = build_adapters(companies)
     state = StateStore(
         CloudflareKV(
             account_id=os.getenv("CF_ACCOUNT_ID"),
@@ -68,6 +69,7 @@ def run_scan(
         dry_run=dry_run,
     )
     classifier = build_classifier_from_env()
+    only = os.getenv("SCAN_ONLY_COMPANIES", "").strip()
     return scan(
         adapters=adapters,
         configs=configs,
@@ -76,7 +78,23 @@ def run_scan(
         classifier=classifier,
         dry_run=dry_run,
         skip_claude=skip_claude,
+        skip_dismissals=bool(only),
     )
+
+
+def select_companies(companies: list[CompanyConfig]) -> list[CompanyConfig]:
+    only = _company_names(os.getenv("SCAN_ONLY_COMPANIES"))
+    skip = _company_names(os.getenv("SCAN_SKIP_COMPANIES"))
+    selected = companies
+    if only:
+        selected = [company for company in selected if company.name.lower() in only]
+    if skip:
+        selected = [company for company in selected if company.name.lower() not in skip]
+    return selected
+
+
+def _company_names(raw: str | None) -> set[str]:
+    return {part.strip().lower() for part in (raw or "").split(",") if part.strip()}
 
 
 def scan(
@@ -88,9 +106,11 @@ def scan(
     classifier: Classifier,
     dry_run: bool = False,
     skip_claude: bool = False,
+    skip_dismissals: bool = False,
 ) -> ScanResult:
     result = ScanResult()
-    result.dismissed = mark_reaction_dismissals(state, discord)
+    if not skip_dismissals:
+        result.dismissed = mark_reaction_dismissals(state, discord)
     fetched_by_company: dict[str, int] = defaultdict(int)
     matched_jobs: dict[str, list[Job]] = defaultdict(list)
     health_rows: list[CompanyHealth] = []
