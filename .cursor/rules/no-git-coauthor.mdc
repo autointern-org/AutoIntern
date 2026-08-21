@@ -1,0 +1,8 @@
+---
+description: Git commits are authored only by the repo owner
+alwaysApply: true
+---
+
+Never add a `Co-authored-by` trailer. Commits are authored only by the repo owner.
+
+If a wrapper injects a trailer, strip it with git plumbing (`git commit-tree` + `git update-ref`). Do not use `git commit --amend` to strip it; that path can put the trailer back.
