@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 import time
 from typing import Any
 
@@ -53,6 +55,10 @@ def tesla_cdp_url() -> str | None:
     return value or None
 
 
+def tesla_chrome_js_enabled() -> bool:
+    return os.environ.get("TESLA_CHROME_JS", "").strip().lower() in {"1", "true", "yes"}
+
+
 def parse_tesla_response(response: Any) -> Any:
     status = int(getattr(response, "status_code", 0) or 0)
     text = _response_text(response)
@@ -93,17 +99,7 @@ class TeslaAdapter:
 
     def _live_fetch(self) -> Any:
         errors: list[str] = []
-        if tesla_cdp_url():
-            # Do not fall through to requests/curl/playwright. Those extra
-            # hits make Akamai ban the laptop IP after a CDP success.
-            steps = (("cdp", self._fetch_cdp),)
-        else:
-            steps = (
-                ("requests", self._fetch_direct_requests),
-                ("curl_cffi", self._fetch_curl_cffi),
-                ("proxy", self._fetch_proxy),
-                ("playwright", self._fetch_playwright),
-            )
+        steps = self._fetch_steps()
         for name, method in steps:
             try:
                 payload = method()
@@ -119,6 +115,41 @@ class TeslaAdapter:
                 print(f"[tesla] {name}: {type(exc).__name__}: {_safe_error_text(str(exc))}")
                 errors.append(f"{name}: {type(exc).__name__}: {_safe_error_text(str(exc))}")
         raise TeslaBlockedError("tesla fetch failed: " + " | ".join(errors))
+
+    def _fetch_steps(self) -> tuple[tuple[str, Any], ...]:
+        laptop: list[tuple[str, Any]] = []
+        if tesla_chrome_js_enabled():
+            laptop.append(("chrome_js", self._fetch_chrome_js))
+        if tesla_cdp_url():
+            laptop.append(("cdp", self._fetch_cdp))
+        if laptop:
+            # Do not fall through to requests/curl/playwright. Those extra
+            # hits make Akamai ban the laptop IP after a browser success.
+            return tuple(laptop)
+        return (
+            ("requests", self._fetch_direct_requests),
+            ("curl_cffi", self._fetch_curl_cffi),
+            ("proxy", self._fetch_proxy),
+            ("playwright", self._fetch_playwright),
+        )
+
+    def _fetch_chrome_js(self) -> Any:
+        if not tesla_chrome_js_enabled():
+            raise TeslaUnavailable("TESLA_CHROME_JS is off")
+        if sys.platform != "darwin":
+            raise TeslaUnavailable("Chrome AppleScript fetch is macOS-only")
+        raw = _osascript_chrome_js(_CHROME_LISTINGS_JS, timeout=max(self.timeout, 60))
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise TeslaBlockedError(
+                f"tesla chrome js returned non-JSON: {_safe_error_text(raw)}"
+            ) from exc
+        status = int(payload.get("status") or 0) if isinstance(payload, dict) else 0
+        text = str(payload.get("text") or "") if isinstance(payload, dict) else ""
+        if isinstance(payload, dict) and _is_listings_payload(payload) and status < 400:
+            return payload
+        return parse_tesla_response(_HttpPayload(status or 403, text or raw))
 
     def _fetch_direct_requests(self) -> Any:
         response = self.session.get(self.API, timeout=self.timeout)
@@ -299,6 +330,7 @@ class TeslaAdapter:
 
     def _jobs_from_payload(self, payload: Any) -> list[Job]:
         listings = payload.get("listings") if isinstance(payload, dict) else payload
+        locations = _location_lookup(payload)
         jobs: list[Job] = []
         if not isinstance(listings, list):
             return jobs
@@ -311,13 +343,16 @@ class TeslaAdapter:
                 listing_type = None
             if listing_type != INTERN_TYPE:
                 continue
-            jobs.append(self._normalize(raw))
+            jobs.append(self._normalize(raw, locations))
         return jobs
 
-    def _normalize(self, raw: dict[str, Any]) -> Job:
+    def _normalize(self, raw: dict[str, Any], locations: dict[str, str] | None = None) -> Job:
         job_id = raw.get("id") or raw.get("jobId")
         title = raw.get("t") or raw.get("title") or raw.get("name")
         location = raw.get("l") or raw.get("location") or "Unspecified"
+        loc_key = str(location)
+        if locations and loc_key in locations:
+            location = locations[loc_key]
         description = raw.get("d") if isinstance(raw.get("d"), str) else raw.get("description") or ""
         url = raw.get("url") or raw.get("applyUrl")
         if not url and job_id:
@@ -331,6 +366,95 @@ class TeslaAdapter:
             jd_text=html_to_text(str(description or "")),
             posted_at=raw.get("posted") or raw.get("posted_at"),
         )
+
+
+_CHROME_LISTINGS_JS = """(function(){
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'https://www.tesla.com/cua-api/apps/careers/state?region=5', false);
+  xhr.setRequestHeader('Accept', 'application/json, text/plain, */*');
+  xhr.send(null);
+  var text = xhr.responseText || '';
+  if (xhr.status !== 200) {
+    return JSON.stringify({status: xhr.status, text: text.slice(0, 800)});
+  }
+  var data = JSON.parse(text);
+  var listings = (data.listings || []).filter(function(x){ return x && x.y === 3; });
+  var lookup = data.lookup || {};
+  return JSON.stringify({
+    status: 200,
+    listings: listings,
+    lookup: {locations: lookup.locations || {}}
+  });
+})()"""
+
+_CHROME_JS_RUNNER = """
+on run argv
+  set js to item 1 of argv
+  tell application "Google Chrome"
+    repeat with w in windows
+      repeat with t in tabs of w
+        if (URL of t as string) contains "tesla.com/careers" then
+          return execute t javascript js
+        end if
+      end repeat
+    end repeat
+    if (count of windows) is 0 then
+      make new window
+      delay 1
+    end if
+    set newTab to make new tab at end of tabs of front window with properties {URL:"https://www.tesla.com/careers/search/?site=US"}
+    delay 8
+    return execute newTab javascript js
+  end tell
+end run
+"""
+
+
+def _osascript_chrome_js(javascript: str, *, timeout: float) -> str:
+    try:
+        proc = subprocess.run(
+            ["osascript", "-", javascript],
+            input=_CHROME_JS_RUNNER,
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+        )
+    except FileNotFoundError as exc:
+        raise TeslaUnavailable("osascript is not installed") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise TeslaBlockedError("tesla chrome js timed out") from exc
+    combined = f"{proc.stderr or ''} {proc.stdout or ''}"
+    if "turned off" in combined.lower():
+        raise TeslaUnavailable(
+            "Chrome AppleScript JavaScript is off; enable View > Developer > Allow JavaScript from Apple Events"
+        )
+    if proc.returncode != 0:
+        raise TeslaBlockedError(
+            f"tesla chrome js failed: {_safe_error_text(proc.stderr or proc.stdout or 'osascript error')}"
+        )
+    raw = (proc.stdout or "").strip()
+    if not raw:
+        raise TeslaBlockedError("tesla chrome js returned empty output")
+    return raw
+
+
+def _location_lookup(payload: Any) -> dict[str, str]:
+    if not isinstance(payload, dict):
+        return {}
+    lookup = payload.get("lookup")
+    if not isinstance(lookup, dict):
+        return {}
+    locations = lookup.get("locations")
+    if not isinstance(locations, dict):
+        return {}
+    mapped: dict[str, str] = {}
+    for key, value in locations.items():
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            mapped[str(key)] = text
+    return mapped
 
 
 def _timeout_remaining_ms(timeout: float, *, label: str):
