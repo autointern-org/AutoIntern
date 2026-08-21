@@ -68,7 +68,7 @@ class FakeDiscord:
         self.thread_ids: dict[str, str] = {}
         self.reaction_checks: list[str] = []
         self.forum_webhook_url = "https://discord.com/api/webhooks/2/forum"
-        self.forum_posts: list[tuple[str, list[Job]]] = []
+        self.forum_posts: list[tuple[str, list[Job], str | None]] = []
 
     def post_job(self, job: Job, resume_config: str, *, color: int) -> DiscordMessage:
         self.posts.append((job, resume_config, color))
@@ -78,9 +78,15 @@ class FakeDiscord:
         self, company: str, jobs_with_resume: list[tuple[Job, str, int]]
     ) -> list[DiscordMessage]:
         if len(jobs_with_resume) <= 5:
-            return [self.post_job(job, resume, color=color) for job, resume, color in jobs_with_resume]
+            messages = [self.post_job(job, resume, color=color) for job, resume, color in jobs_with_resume]
+            if self.forum_webhook_url:
+                self.post_forum_jobs(company, jobs_with_resume, ping_kind="single")
+            return messages
         self.recaps.append((company, [job for job, _, _ in jobs_with_resume]))
         messages = [DiscordMessage(id=f"summary-{company}", channel_id="channel-1", payload={})]
+        if self.forum_webhook_url:
+            messages.extend(self.post_forum_jobs(company, jobs_with_resume, ping_kind="batch"))
+            return messages
         for job, resume, color in jobs_with_resume:
             messages.append(self.post_job(job, resume, color=color))
         return messages
@@ -90,9 +96,13 @@ class FakeDiscord:
         return DiscordMessage(id=f"recap-{company}", channel_id="channel-1", payload={})
 
     def post_forum_jobs(
-        self, company: str, jobs_with_resume: list[tuple[Job, str, int]]
+        self,
+        company: str,
+        jobs_with_resume: list[tuple[Job, str, int]],
+        *,
+        ping_kind: str | None = None,
     ) -> list[DiscordMessage]:
-        self.forum_posts.append((company, [job for job, _, _ in jobs_with_resume]))
+        self.forum_posts.append((company, [job for job, _, _ in jobs_with_resume], ping_kind))
         self.thread_ids.setdefault(company, f"thread-{company}")
         return [
             DiscordMessage(id=f"forum-{job.id}", channel_id=self.thread_ids[company], payload={})
@@ -559,6 +569,7 @@ def test_scan_first_look_overflow_posts_forum_listing() -> None:
     assert result.notified == 6
     assert len(discord.forum_posts) == 1
     assert len(discord.forum_posts[0][1]) == 6
+    assert discord.forum_posts[0][2] == "first_look"
     assert kv.values["thread:anthropic"]["thread_id"] == "thread-anthropic"
     assert kv.values["seen:anthropic"]["jobs"]["job-0"]["message_id"] == "forum-job-0"
 
@@ -593,4 +604,71 @@ def test_scan_backfills_forum_when_bootstrapped_without_thread() -> None:
     assert result.notified == 0
     assert len(discord.forum_posts) == 1
     assert len(discord.forum_posts[0][1]) == 6
+    assert discord.forum_posts[0][2] == "listing"
     assert kv.values["thread:anthropic"]["thread_id"] == "thread-anthropic"
+
+
+def test_scan_copies_single_ping_to_forum() -> None:
+    first = make_job(id="job-old")
+    kv = FakeKV()
+    state = StateStore(kv)
+    configs = {"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse", tier="S")}
+    scan(
+        adapters=[FakeAdapter([first])],
+        configs=configs,
+        state=state,
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+    discord = FakeDiscord()
+    newer = make_job(id="job-new")
+
+    result = scan(
+        adapters=[FakeAdapter([first, newer])],
+        configs=configs,
+        state=StateStore(kv),
+        discord=discord,
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+
+    assert result.notified == 1
+    assert discord.posts[0][0].id == newer.id
+    assert len(discord.forum_posts) == 1
+    assert discord.forum_posts[0][1][0].id == newer.id
+    assert discord.forum_posts[0][2] == "single"
+    assert kv.values["seen:anthropic"]["jobs"][newer.id]["message_id"] == "message-job-new"
+    assert kv.values["seen:anthropic"]["jobs"][newer.id]["channel_id"] == "channel-1"
+
+
+def test_scan_resume_llm_failure_uses_placeholder() -> None:
+    first = make_job(id="job-old")
+    state = StateStore()
+    configs = {"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse", tier="S")}
+    scan(
+        adapters=[FakeAdapter([first])],
+        configs=configs,
+        state=state,
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+
+    class BoomClassifier(FakeClassifier):
+        def generate_resume_config(self, job: Job) -> str:
+            raise RuntimeError("HTTP 429")
+
+    discord = FakeDiscord()
+    newer = make_job(id="job-new")
+    result = scan(
+        adapters=[FakeAdapter([first, newer])],
+        configs=configs,
+        state=state,
+        discord=discord,
+        classifier=BoomClassifier(),
+        skip_dismissals=True,
+    )
+
+    assert result.notified == 1
+    assert "resume_angle: Emphasize the closest projects" in discord.posts[0][1]

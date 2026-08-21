@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import time
 from typing import Any, Protocol
 
 import requests
@@ -47,16 +48,22 @@ class GeminiProvider:
     def generate(self, *, system: str, user: str) -> str:
         if not self.api_key:
             raise RuntimeError("GEMINI_API_KEY (or GOOGLE_API_KEY) is required for Gemini resume config generation")
-        response = self.session.post(
-            GEMINI_GENERATE_URL.format(model=self.model),
-            headers={"x-goog-api-key": self.api_key, "content-type": "application/json"},
-            json={
-                "systemInstruction": {"parts": [{"text": system}]},
-                "contents": [{"role": "user", "parts": [{"text": user}]}],
-                "generationConfig": {"maxOutputTokens": 1800},
-            },
-            timeout=self.timeout,
-        )
+        url = GEMINI_GENERATE_URL.format(model=self.model)
+        headers = {"x-goog-api-key": self.api_key, "content-type": "application/json"}
+        payload = {
+            "systemInstruction": {"parts": [{"text": system}]},
+            "contents": [{"role": "user", "parts": [{"text": user}]}],
+            "generationConfig": {"maxOutputTokens": 1800},
+        }
+        response = None
+        for attempt in range(3):
+            response = self.session.post(url, headers=headers, json=payload, timeout=self.timeout)
+            if getattr(response, "status_code", None) == 429 and attempt < 2:
+                time.sleep(_retry_after_seconds(response))
+                continue
+            response.raise_for_status()
+            return _extract_gemini_text(response.json()).strip()
+        assert response is not None
         response.raise_for_status()
         return _extract_gemini_text(response.json()).strip()
 
@@ -80,21 +87,31 @@ class AnthropicProvider:
     def generate(self, *, system: str, user: str) -> str:
         if not self.api_key:
             raise RuntimeError("ANTHROPIC_API_KEY is required for Anthropic resume config generation")
-        response = self.session.post(
-            ANTHROPIC_MESSAGES_URL,
-            headers={
-                "x-api-key": self.api_key,
-                "anthropic-version": ANTHROPIC_VERSION,
-                "content-type": "application/json",
-            },
-            json={
-                "model": self.model,
-                "max_tokens": 1800,
-                "system": system,
-                "messages": [{"role": "user", "content": user}],
-            },
-            timeout=self.timeout,
-        )
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": ANTHROPIC_VERSION,
+            "content-type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "max_tokens": 1800,
+            "system": system,
+            "messages": [{"role": "user", "content": user}],
+        }
+        response = None
+        for attempt in range(3):
+            response = self.session.post(
+                ANTHROPIC_MESSAGES_URL,
+                headers=headers,
+                json=payload,
+                timeout=self.timeout,
+            )
+            if getattr(response, "status_code", None) == 429 and attempt < 2:
+                time.sleep(_retry_after_seconds(response))
+                continue
+            response.raise_for_status()
+            return _extract_anthropic_text(response.json()).strip()
+        assert response is not None
         response.raise_for_status()
         return _extract_anthropic_text(response.json()).strip()
 
@@ -168,6 +185,16 @@ def _extract_anthropic_text(payload: dict[str, Any]) -> str:
         if isinstance(block, dict) and block.get("type") == "text":
             text_parts.append(str(block.get("text", "")))
     return "\n".join(part for part in text_parts if part)
+
+
+def _retry_after_seconds(response: requests.Response) -> float:
+    raw = response.headers.get("Retry-After") if getattr(response, "headers", None) else None
+    if raw is not None:
+        try:
+            return min(float(raw), 10.0)
+        except (TypeError, ValueError):
+            pass
+    return 5.0
 
 
 def _extract_gemini_text(payload: dict[str, Any]) -> str:

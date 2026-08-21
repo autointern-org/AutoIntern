@@ -206,6 +206,7 @@ def scan(
                         config,
                         unseen,
                         dry_run=dry_run,
+                        ping_kind="first_look",
                     )
                 except Exception as exc:
                     print(f"[discord] warning: forum listing {config.name} failed: {exc}")
@@ -236,6 +237,7 @@ def scan(
                             config,
                             jobs,
                             dry_run=dry_run,
+                            ping_kind="listing",
                         )
                     except Exception as exc:
                         print(f"[discord] warning: forum listing {config.name} failed: {exc}")
@@ -249,7 +251,11 @@ def scan(
         thread_id = state.get_forum_thread(company_key)
         if thread_id:
             discord.thread_ids[config.name] = thread_id
-        messages = discord.post_jobs_for_company(config.name, fresh)
+        try:
+            messages = discord.post_jobs_for_company(config.name, fresh)
+        except Exception as exc:
+            print(f"[discord] warning: notify {config.name} failed: {exc}")
+            messages = []
         for (job, _, _), message in zip(fresh, _job_messages(messages, len(fresh))):
             _remember(state, job, message, dry_run=dry_run)
             result.notified += 1
@@ -492,6 +498,7 @@ def _post_forum_listing(
     jobs: list[Job],
     *,
     dry_run: bool,
+    ping_kind: str,
 ) -> list[DiscordMessage]:
     if len(jobs) <= PREVIEW_MAX or not discord.forum_webhook_url:
         return []
@@ -500,7 +507,7 @@ def _post_forum_listing(
         discord.thread_ids[config.name] = thread_id
     listing = [(job, _listing_resume(job), config.color) for job in jobs]
     print(f"[discord] forum listing {config.name}: {len(jobs)} jobs")
-    messages = discord.post_forum_jobs(config.name, listing)
+    messages = discord.post_forum_jobs(config.name, listing, ping_kind=ping_kind)
     if not dry_run:
         stored_thread = discord.thread_ids.get(config.name)
         if stored_thread:
@@ -521,4 +528,8 @@ def _listing_resume(job: Job) -> str:
 def _resume_config(classifier: Classifier, job: Job, *, dry_run: bool, skip_claude: bool) -> str:
     if skip_claude or not classifier.api_key:
         return _listing_resume(job)
-    return classifier.generate_resume_config(job)
+    try:
+        return classifier.generate_resume_config(job)
+    except Exception as exc:
+        print(f"[scan] resume LLM failed for {job.company} {job.id}: {exc}; using listing placeholder")
+        return _listing_resume(job)

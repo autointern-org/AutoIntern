@@ -5,7 +5,7 @@ from typing import Any
 import requests
 
 from adapters.base import Job
-from core.discord import DiscordClient, PREVIEW_MAX, build_job_embed, has_checkmark_reaction
+from core.discord import DiscordClient, PREVIEW_MAX, build_job_embed, has_checkmark_reaction, ping_line
 
 
 MAIN_WEBHOOK = "https://discord.com/api/webhooks/1/main-token"
@@ -81,6 +81,7 @@ def test_discord_embed_contains_resume_config_and_footer() -> None:
 
     assert embed["title"] == "🚨 anthropic - Software Engineer Intern"
     assert embed["url"] == "https://example.com/job"
+    assert "**Ping:** single" in embed["description"]
     assert "```text\nresume_config: test\n```" in embed["description"]
     assert embed["footer"]["text"] == "React ✅ to dismiss"
 
@@ -93,6 +94,29 @@ def test_build_job_embed_omits_posted_when_none() -> None:
     assert "**Posted:**" not in embed["description"]
     assert "Unknown" not in embed["description"]
     assert "**Location:** San Francisco, CA" in embed["description"]
+
+
+def test_ping_line_labels_single_batch_and_listings() -> None:
+    assert ping_line("single", 1, 1) == "**Ping:** single"
+    assert ping_line("single", 2, 3) == "**Ping:** single (2/3)"
+    assert ping_line("batch", 2, 12) == "**Ping:** batch 2/12"
+    assert ping_line("first_look", 12, 138) == "**Ping:** first look 12/138"
+    assert ping_line("listing", 9, 9) == "**Ping:** listing 9/9"
+
+
+def test_build_job_embed_includes_batch_ping() -> None:
+    job = make_job()
+
+    embed = build_job_embed(
+        job,
+        "resume_config: test",
+        color=0xEF4444,
+        ping_kind="batch",
+        ping_index=2,
+        ping_total=12,
+    )
+
+    assert "**Ping:** batch 2/12" in embed["description"]
 
 
 def test_build_job_embed_includes_flags() -> None:
@@ -108,18 +132,45 @@ def test_has_checkmark_reaction() -> None:
     assert not has_checkmark_reaction({"reactions": [{"count": 1, "emoji": {"name": "❌"}}]})
 
 
-def test_post_jobs_for_company_sends_inline_at_preview_max() -> None:
+def test_post_jobs_for_company_sends_inline_and_forum_copy_at_preview_max() -> None:
     session = RecordingSession()
     client = DiscordClient(MAIN_WEBHOOK, forum_webhook_url=FORUM_WEBHOOK, session=session)
 
     messages = client.post_jobs_for_company("TikTok", make_company_jobs(PREVIEW_MAX))
 
     assert len(messages) == PREVIEW_MAX
-    assert len(session.calls) == PREVIEW_MAX
-    assert all(MAIN_WEBHOOK in call["url"] for call in session.calls)
-    assert all(FORUM_WEBHOOK not in call["url"] for call in session.calls)
-    assert all("thread_name" not in (call["json"] or {}) for call in session.calls)
-    assert all("new intern postings" not in call["json"]["embeds"][0]["title"] for call in session.calls)
+    assert [message.id for message in messages] == [str(index) for index in range(1, PREVIEW_MAX + 1)]
+    main_calls = [call for call in session.calls if MAIN_WEBHOOK in call["url"]]
+    forum_calls = [call for call in session.calls if FORUM_WEBHOOK in call["url"]]
+    assert len(main_calls) == PREVIEW_MAX
+    assert len(forum_calls) == PREVIEW_MAX
+    assert "**Ping:** single (1/5)" in main_calls[0]["json"]["embeds"][0]["description"]
+    assert "**Ping:** single (5/5)" in main_calls[-1]["json"]["embeds"][0]["description"]
+    assert forum_calls[0]["json"]["thread_name"] == "TikTok"
+    for call in forum_calls[1:]:
+        assert "thread_name" not in call["json"]
+        assert "thread_id=thread-TikTok" in call["url"]
+    assert all("new intern postings" not in call["json"]["embeds"][0]["title"] for call in main_calls)
+    assert client.thread_ids["TikTok"] == "thread-TikTok"
+
+
+def test_post_jobs_for_company_copies_single_ping_to_forum() -> None:
+    session = RecordingSession()
+    client = DiscordClient(MAIN_WEBHOOK, forum_webhook_url=FORUM_WEBHOOK, session=session)
+    client.thread_ids["TikTok"] = "thread-TikTok"
+
+    messages = client.post_jobs_for_company("TikTok", make_company_jobs(1))
+
+    assert len(messages) == 1
+    assert messages[0].id == "1"
+    main_calls = [call for call in session.calls if MAIN_WEBHOOK in call["url"]]
+    forum_calls = [call for call in session.calls if FORUM_WEBHOOK in call["url"]]
+    assert len(main_calls) == 1
+    assert len(forum_calls) == 1
+    assert "**Ping:** single" in main_calls[0]["json"]["embeds"][0]["description"]
+    assert "**Ping:** single" in forum_calls[0]["json"]["embeds"][0]["description"]
+    assert "thread_name" not in forum_calls[0]["json"]
+    assert "thread_id=thread-TikTok" in forum_calls[0]["url"]
 
 
 def test_post_jobs_for_company_overflow_posts_summary_and_forum_thread() -> None:
@@ -136,12 +187,15 @@ def test_post_jobs_for_company_overflow_posts_summary_and_forum_thread() -> None
     embed = summary["json"]["embeds"][0]
     assert embed["title"] == "TikTok — 6 new intern postings"
     assert embed["footer"]["text"] == "Details in forum thread"
+    assert "**Ping:** batch of 6" in embed["description"]
     assert "[Intern 0](https://example.com/0)" in embed["description"]
     assert embed["color"] == 0xEF4444
 
     forum_calls = [call for call in session.calls if FORUM_WEBHOOK in call["url"]]
     assert len(forum_calls) == PREVIEW_MAX + 1
     assert forum_calls[0]["json"]["thread_name"] == "TikTok"
+    assert "**Ping:** batch 1/6" in forum_calls[0]["json"]["embeds"][0]["description"]
+    assert "**Ping:** batch 6/6" in forum_calls[-1]["json"]["embeds"][0]["description"]
     assert "wait=true" in forum_calls[0]["url"]
     assert "thread_id=" not in forum_calls[0]["url"]
     for call in forum_calls[1:]:
@@ -231,3 +285,14 @@ def test_webhook_retries_on_429(monkeypatch: Any) -> None:
     assert message.id == "ok"
     assert sleeps == [5]
     assert session.calls == 2
+
+
+def test_forum_post_failure_does_not_raise(capsys) -> None:
+    class BoomSession:
+        def post(self, url: str, json: dict[str, Any] | None = None, timeout: int = 30) -> FakeResponse:
+            raise requests.exceptions.ReadTimeout("read timed out")
+
+    client = DiscordClient(MAIN_WEBHOOK, forum_webhook_url=FORUM_WEBHOOK, session=BoomSession())
+    messages = client.post_forum_jobs("TikTok", make_company_jobs(2), ping_kind="single")
+    assert messages == []
+    assert "forum post TikTok job-0 failed" in capsys.readouterr().out

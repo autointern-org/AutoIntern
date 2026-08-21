@@ -48,8 +48,28 @@ class DiscordClient:
         self.webhook_id, self.webhook_token = _parse_webhook(webhook_url) if webhook_url else (None, None)
         self.thread_ids: dict[str, str] = {}
 
-    def post_job(self, job: Job, resume_config: str, *, color: int) -> DiscordMessage:
-        payload = {"embeds": [build_job_embed(job, resume_config, color=color)]}
+    def post_job(
+        self,
+        job: Job,
+        resume_config: str,
+        *,
+        color: int,
+        ping_kind: str = "single",
+        ping_index: int = 1,
+        ping_total: int = 1,
+    ) -> DiscordMessage:
+        payload = {
+            "embeds": [
+                build_job_embed(
+                    job,
+                    resume_config,
+                    color=color,
+                    ping_kind=ping_kind,
+                    ping_index=ping_index,
+                    ping_total=ping_total,
+                )
+            ]
+        }
         return self._post_webhook(
             self.webhook_url,
             payload,
@@ -65,44 +85,85 @@ class DiscordClient:
         if not jobs_with_resume:
             return []
 
-        if len(jobs_with_resume) <= PREVIEW_MAX:
-            return [
-                self.post_job(job, resume_config, color=color)
-                for job, resume_config, color in jobs_with_resume
+        ping_kind = "single" if len(jobs_with_resume) <= PREVIEW_MAX else "batch"
+        total = len(jobs_with_resume)
+
+        if total <= PREVIEW_MAX:
+            messages = [
+                self.post_job(
+                    job,
+                    resume_config,
+                    color=color,
+                    ping_kind=ping_kind,
+                    ping_index=index,
+                    ping_total=total,
+                )
+                for index, (job, resume_config, color) in enumerate(jobs_with_resume, start=1)
             ]
+            self.post_forum_jobs(company, jobs_with_resume, ping_kind=ping_kind)
+            return messages
 
         messages = [
             self._post_webhook(
                 self.webhook_url,
-                {"embeds": [build_summary_embed(company, jobs_with_resume)]},
+                {"embeds": [build_summary_embed(company, jobs_with_resume, ping_kind="batch")]},
                 dry_run_id=f"dry-run-summary-{company}",
                 missing_url_error="DISCORD_WEBHOOK_URL is required unless dry_run is enabled",
             )
         ]
 
         if self.forum_webhook_url:
-            messages.extend(self.post_forum_jobs(company, jobs_with_resume))
-            return messages
-
-        print(
-            "[discord] warning: DISCORD_FORUM_WEBHOOK_URL is not set; "
-            "posting overflow jobs to the main channel"
-        )
-        for job, resume_config, color in jobs_with_resume:
-            messages.append(self.post_job(job, resume_config, color=color))
+            forum_messages = self.post_forum_jobs(company, jobs_with_resume, ping_kind="batch")
+            if forum_messages:
+                messages.extend(forum_messages)
+                return messages
+            print("[discord] warning: forum overflow posts failed; posting jobs to the main channel")
+        else:
+            print(
+                "[discord] warning: DISCORD_FORUM_WEBHOOK_URL is not set; "
+                "posting overflow jobs to the main channel"
+            )
+        for index, (job, resume_config, color) in enumerate(jobs_with_resume, start=1):
+            messages.append(
+                self.post_job(
+                    job,
+                    resume_config,
+                    color=color,
+                    ping_kind="batch",
+                    ping_index=index,
+                    ping_total=total,
+                )
+            )
         return messages
 
     def post_forum_jobs(
         self,
         company: str,
         jobs_with_resume: list[tuple[Job, str, int]],
+        *,
+        ping_kind: str | None = None,
     ) -> list[DiscordMessage]:
         if not jobs_with_resume or not self.forum_webhook_url:
             return []
-        return [
-            self._post_forum_job(company, job, resume_config, color=color)
-            for job, resume_config, color in jobs_with_resume
-        ]
+        total = len(jobs_with_resume)
+        kind = ping_kind or ("batch" if total > PREVIEW_MAX else "single")
+        messages: list[DiscordMessage] = []
+        for index, (job, resume_config, color) in enumerate(jobs_with_resume, start=1):
+            try:
+                messages.append(
+                    self._post_forum_job(
+                        company,
+                        job,
+                        resume_config,
+                        color=color,
+                        ping_kind=kind,
+                        ping_index=index,
+                        ping_total=total,
+                    )
+                )
+            except Exception as exc:
+                print(f"[discord] warning: forum post {company} {job.id} failed: {exc}")
+        return messages
 
     def post_recap(self, company: str, jobs: list[Job], *, color: int) -> DiscordMessage:
         payload = {
@@ -195,8 +256,29 @@ class DiscordClient:
             return False
         return has_checkmark_reaction(message)
 
-    def _post_forum_job(self, company: str, job: Job, resume_config: str, *, color: int) -> DiscordMessage:
-        payload: dict[str, Any] = {"embeds": [build_job_embed(job, resume_config, color=color)]}
+    def _post_forum_job(
+        self,
+        company: str,
+        job: Job,
+        resume_config: str,
+        *,
+        color: int,
+        ping_kind: str = "single",
+        ping_index: int = 1,
+        ping_total: int = 1,
+    ) -> DiscordMessage:
+        payload: dict[str, Any] = {
+            "embeds": [
+                build_job_embed(
+                    job,
+                    resume_config,
+                    color=color,
+                    ping_kind=ping_kind,
+                    ping_index=ping_index,
+                    ping_total=ping_total,
+                )
+            ]
+        }
         thread_id = self.thread_ids.get(company)
         if not thread_id:
             payload["thread_name"] = company[:THREAD_NAME_MAX]
@@ -245,9 +327,17 @@ class DiscordClient:
         return DiscordMessage(id=str(message["id"]), channel_id=message.get("channel_id"), payload=message)
 
 
-def build_job_embed(job: Job, resume_config: str, *, color: int) -> dict[str, Any]:
+def build_job_embed(
+    job: Job,
+    resume_config: str,
+    *,
+    color: int,
+    ping_kind: str = "single",
+    ping_index: int = 1,
+    ping_total: int = 1,
+) -> dict[str, Any]:
     resume_block = _truncate_for_code_block(resume_config)
-    lines = [f"**Location:** {job.location}"]
+    lines = [ping_line(ping_kind, ping_index, ping_total), f"**Location:** {job.location}"]
     if job.posted_at:
         lines.append(f"**Posted:** {job.posted_at}")
     flags = _job_flags(job)
@@ -268,16 +358,32 @@ def build_summary_embed(
     *,
     title: str | None = None,
     footer: str = "Details in forum thread",
+    ping_kind: str | None = None,
 ) -> dict[str, Any]:
     count = len(jobs_with_resume)
     links = [f"- [{job.title}]({job.url})" for job, _, _ in jobs_with_resume[:SUMMARY_TITLE_LIMIT]]
     extra = f"\n- …and {count - SUMMARY_TITLE_LIMIT} more" if count > SUMMARY_TITLE_LIMIT else ""
+    description = "\n".join(links) + extra
+    if ping_kind == "batch":
+        description = f"**Ping:** batch of {count}\n\n{description}"
     return {
         "title": (title or f"{company} — {count} new intern postings")[:256],
-        "description": "\n".join(links) + extra,
+        "description": description,
         "color": jobs_with_resume[0][2] if jobs_with_resume else 0x6B7280,
         "footer": {"text": footer},
     }
+
+
+def ping_line(kind: str, index: int, total: int) -> str:
+    if kind == "first_look":
+        return f"**Ping:** first look {index}/{total}"
+    if kind == "listing":
+        return f"**Ping:** listing {index}/{total}"
+    if kind == "batch":
+        return f"**Ping:** batch {index}/{total}"
+    if total <= 1:
+        return "**Ping:** single"
+    return f"**Ping:** single ({index}/{total})"
 
 
 def has_checkmark_reaction(message: dict[str, Any]) -> bool:

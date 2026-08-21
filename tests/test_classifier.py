@@ -51,6 +51,31 @@ def test_anthropic_provider_parses_response() -> None:
     assert session.post.call_args.kwargs["headers"]["x-api-key"] == "anthropic-key"
 
 
+def test_gemini_provider_retries_429(monkeypatch: pytest.MonkeyPatch) -> None:
+    sleeps: list[float] = []
+    monkeypatch.setattr("core.classifier.time.sleep", lambda seconds: sleeps.append(seconds))
+
+    ok = MagicMock()
+    ok.status_code = 200
+    ok.json.return_value = {
+        "candidates": [{"content": {"parts": [{"text": "target_role: intern"}]}}]
+    }
+    limited = MagicMock()
+    limited.status_code = 429
+    limited.headers = {"Retry-After": "2"}
+    limited.raise_for_status.side_effect = Exception("should retry")
+
+    session = MagicMock()
+    session.post.side_effect = [limited, ok]
+
+    provider = GeminiProvider("gemini-key", session=session)
+    text = provider.generate(system="system", user="user")
+
+    assert text == "target_role: intern"
+    assert sleeps == [2]
+    assert session.post.call_count == 2
+
+
 def test_build_classifier_from_env_defaults_to_gemini(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("RESUME_LLM_PROVIDER", raising=False)
     monkeypatch.delenv("RESUME_LLM_MODEL", raising=False)
