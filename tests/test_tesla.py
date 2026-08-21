@@ -15,6 +15,7 @@ from adapters.tesla import (
     TeslaBlockedError,
     TeslaUnavailable,
     parse_tesla_response,
+    tesla_cdp_url,
     tesla_proxy_url,
 )
 
@@ -100,10 +101,16 @@ class RecordingSession:
         return self.handler(url, kwargs)
 
 
+@pytest.fixture(autouse=True)
+def clear_tesla_cdp(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TESLA_CDP_URL", raising=False)
+
+
 @pytest.fixture
 def no_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in (
         "TESLA_PROXY",
+        "TESLA_CDP_URL",
         "HTTPS_PROXY",
         "https_proxy",
         "HTTP_PROXY",
@@ -163,6 +170,7 @@ def test_injected_session_skips_fallbacks(monkeypatch: pytest.MonkeyPatch) -> No
 
         return _inner
 
+    monkeypatch.setattr(TeslaAdapter, "_fetch_cdp", mark("cdp"))
     monkeypatch.setattr(TeslaAdapter, "_fetch_direct_requests", mark("requests"))
     monkeypatch.setattr(TeslaAdapter, "_fetch_curl_cffi", mark("curl_cffi"))
     monkeypatch.setattr(TeslaAdapter, "_fetch_proxy", mark("proxy"))
@@ -178,6 +186,7 @@ def test_live_403_is_not_treated_as_listings(
 ) -> None:
     session = FakeSession(FakeResponse(ACCESS_DENIED_HTML, status_code=403))
     monkeypatch.setattr("adapters.tesla.new_session", lambda: session)
+    monkeypatch.setattr(TeslaAdapter, "_fetch_cdp", _unavailable("skip cdp"))
     monkeypatch.setattr(TeslaAdapter, "_fetch_curl_cffi", _unavailable("skip curl"))
     monkeypatch.setattr(TeslaAdapter, "_fetch_playwright", _unavailable("skip playwright"))
     with pytest.raises(TeslaBlockedError, match="access denied"):
@@ -197,6 +206,7 @@ def test_requests_success_does_not_start_playwright(
 
         return _inner
 
+    monkeypatch.setattr(TeslaAdapter, "_fetch_cdp", _unavailable("skip cdp"))
     monkeypatch.setattr(TeslaAdapter, "_fetch_curl_cffi", mark("curl_cffi"))
     monkeypatch.setattr(TeslaAdapter, "_fetch_proxy", mark("proxy"))
     monkeypatch.setattr(TeslaAdapter, "_fetch_playwright", mark("playwright"))
@@ -218,6 +228,7 @@ def test_proxy_env_is_passed_to_requests(
 
     session = RecordingSession(handler)
     monkeypatch.setattr("adapters.tesla.new_session", lambda: session)
+    monkeypatch.setattr(TeslaAdapter, "_fetch_cdp", _unavailable("skip cdp"))
     monkeypatch.setattr(TeslaAdapter, "_fetch_curl_cffi", _unavailable("skip curl"))
     monkeypatch.setattr(TeslaAdapter, "_curl_cffi_get", _unavailable("skip curl get"))
     monkeypatch.setattr(
@@ -273,6 +284,7 @@ def test_curl_cffi_fallback_before_playwright(
         order.append("playwright")
         raise AssertionError("playwright should not run after curl_cffi success")
 
+    monkeypatch.setattr(TeslaAdapter, "_fetch_cdp", _unavailable("skip cdp"))
     monkeypatch.setattr(TeslaAdapter, "_fetch_curl_cffi", curl)
     monkeypatch.setattr(TeslaAdapter, "_fetch_playwright", playwright)
     jobs = TeslaAdapter().fetch()
@@ -282,6 +294,7 @@ def test_curl_cffi_fallback_before_playwright(
 
 def test_playwright_last_resort(monkeypatch: pytest.MonkeyPatch, no_proxy_env: None) -> None:
     monkeypatch.setattr("adapters.tesla.new_session", lambda: FakeSession(FakeResponse(ACCESS_DENIED_HTML, status_code=403)))
+    monkeypatch.setattr(TeslaAdapter, "_fetch_cdp", _unavailable("no cdp"))
     monkeypatch.setattr(TeslaAdapter, "_fetch_curl_cffi", _unavailable("no curl_cffi"))
     monkeypatch.setattr(TeslaAdapter, "_fetch_playwright", lambda self: LISTINGS_PAYLOAD)
     jobs = TeslaAdapter().fetch()
@@ -390,3 +403,107 @@ def test_playwright_evaluate_listings(monkeypatch: pytest.MonkeyPatch, no_proxy_
 def test_intern_type_filter_keeps_y3_only() -> None:
     jobs = TeslaAdapter(session=FakeSession(LISTINGS_PAYLOAD)).fetch()
     assert [job.id for job in jobs] == ["tesla:505789688"]
+
+
+def test_cdp_url_empty_is_skipped() -> None:
+    assert tesla_cdp_url() is None
+    with pytest.raises(TeslaUnavailable, match="no TESLA_CDP_URL"):
+        TeslaAdapter()._fetch_cdp()
+
+
+def test_cdp_success_skips_other_methods(
+    monkeypatch: pytest.MonkeyPatch, no_proxy_env: None
+) -> None:
+    later: list[str] = []
+    monkeypatch.setenv("TESLA_CDP_URL", "http://127.0.0.1:9222")
+    monkeypatch.setattr(TeslaAdapter, "_fetch_cdp", lambda self: LISTINGS_PAYLOAD)
+
+    def mark(name: str):
+        def _inner(self: TeslaAdapter) -> Any:
+            later.append(name)
+            raise AssertionError(f"{name} should not run after cdp success")
+
+        return _inner
+
+    monkeypatch.setattr(TeslaAdapter, "_fetch_direct_requests", mark("requests"))
+    monkeypatch.setattr(TeslaAdapter, "_fetch_curl_cffi", mark("curl_cffi"))
+    monkeypatch.setattr(TeslaAdapter, "_fetch_proxy", mark("proxy"))
+    monkeypatch.setattr(TeslaAdapter, "_fetch_playwright", mark("playwright"))
+    jobs = TeslaAdapter().fetch()
+    assert later == []
+    assert jobs[0].id == "tesla:505789688"
+
+
+def test_cdp_connects_and_does_not_close_browser(
+    monkeypatch: pytest.MonkeyPatch, no_proxy_env: None
+) -> None:
+    monkeypatch.setenv("TESLA_CDP_URL", "http://127.0.0.1:9222")
+    connected: list[str] = []
+    closed: list[str] = []
+
+    class FakePage:
+        def add_init_script(self, script: str) -> None:
+            assert "webdriver" in script
+
+        def set_default_timeout(self, timeout: int) -> None:
+            return None
+
+        def on(self, event: str, handler: Any) -> None:
+            return None
+
+        def goto(self, url: str, **kwargs: Any) -> None:
+            assert url == CAREERS_PAGE
+
+        def wait_for_load_state(self, *args: Any, **kwargs: Any) -> None:
+            return None
+
+        def evaluate(self, script: str, url: str) -> dict[str, Any]:
+            assert "cua-api" in url
+            return {
+                "status": 200,
+                "contentType": "application/json",
+                "text": json.dumps(LISTINGS_PAYLOAD),
+            }
+
+        def close(self) -> None:
+            closed.append("page")
+
+    class FakeContext:
+        def new_page(self) -> FakePage:
+            return FakePage()
+
+    class FakeBrowser:
+        contexts = [FakeContext()]
+
+        def close(self) -> None:
+            closed.append("browser")
+
+    class FakeChromium:
+        def connect_over_cdp(self, url: str) -> FakeBrowser:
+            connected.append(url)
+            return FakeBrowser()
+
+        def launch(self, **kwargs: Any) -> FakeBrowser:
+            raise AssertionError("launch should not run for cdp")
+
+    class FakePlaywright:
+        chromium = FakeChromium()
+
+        def __enter__(self) -> FakePlaywright:
+            return self
+
+        def __exit__(self, *args: Any) -> bool:
+            return False
+
+    fake_playwright = types.ModuleType("playwright")
+    fake_sync_api = types.ModuleType("playwright.sync_api")
+    fake_sync_api.sync_playwright = lambda: FakePlaywright()
+    fake_playwright.sync_api = fake_sync_api
+    monkeypatch.setitem(sys.modules, "playwright", fake_playwright)
+    monkeypatch.setitem(sys.modules, "playwright.sync_api", fake_sync_api)
+
+    payload = TeslaAdapter()._fetch_cdp()
+    assert connected == ["http://127.0.0.1:9222"]
+    assert "browser" not in closed
+    assert "page" in closed
+    assert payload["listings"][0]["y"] == 3

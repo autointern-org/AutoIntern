@@ -48,6 +48,11 @@ def tesla_proxy_url() -> str | None:
     return None
 
 
+def tesla_cdp_url() -> str | None:
+    value = str(os.environ.get("TESLA_CDP_URL") or "").strip()
+    return value or None
+
+
 def parse_tesla_response(response: Any) -> Any:
     status = int(getattr(response, "status_code", 0) or 0)
     text = _response_text(response)
@@ -89,6 +94,7 @@ class TeslaAdapter:
     def _live_fetch(self) -> Any:
         errors: list[str] = []
         steps = (
+            ("cdp", self._fetch_cdp),
             ("requests", self._fetch_direct_requests),
             ("curl_cffi", self._fetch_curl_cffi),
             ("proxy", self._fetch_proxy),
@@ -165,21 +171,36 @@ class TeslaAdapter:
         )
         return parse_tesla_response(response)
 
+    def _fetch_cdp(self) -> Any:
+        cdp_url = tesla_cdp_url()
+        if not cdp_url:
+            raise TeslaUnavailable("no TESLA_CDP_URL")
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError as exc:
+            raise TeslaUnavailable("playwright is not installed") from exc
+
+        remaining_ms = _timeout_remaining_ms(self.timeout, label="cdp")
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.connect_over_cdp(cdp_url)
+            context = browser.contexts[0] if browser.contexts else browser.new_context(
+                locale="en-US",
+                viewport={"width": 1366, "height": 768},
+                timezone_id="America/Los_Angeles",
+            )
+            page = context.new_page()
+            try:
+                return self._scrape_listings_from_page(page, remaining_ms, extra_wait=False)
+            finally:
+                page.close()
+
     def _fetch_playwright(self) -> Any:
         try:
             from playwright.sync_api import sync_playwright
         except ImportError as exc:
             raise TeslaUnavailable("playwright is not installed") from exc
 
-        started = time.monotonic()
-        budget = max(float(self.timeout), float(PLAYWRIGHT_TIMEOUT_S))
-
-        def remaining_ms() -> int:
-            left = budget - (time.monotonic() - started)
-            if left <= 0.5:
-                raise TeslaBlockedError("tesla playwright timed out")
-            return int(left * 1000)
-
+        remaining_ms = _timeout_remaining_ms(self.timeout, label="playwright")
         with sync_playwright() as playwright:
             browser = _launch_playwright_browser(playwright)
             try:
@@ -189,77 +210,88 @@ class TeslaAdapter:
                     timezone_id="America/Los_Angeles",
                 )
                 page = context.new_page()
-                page.add_init_script(
-                    "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
-                )
-                page.set_default_timeout(remaining_ms())
-                captured: dict[str, Any] = {}
-
-                def on_response(response: Any) -> None:
-                    try:
-                        url = str(getattr(response, "url", "") or "")
-                        if "cua-api/apps/careers/state" not in url or "text" in captured:
-                            return
-                        headers = getattr(response, "headers", None) or {}
-                        captured["status"] = int(getattr(response, "status", 0) or 0)
-                        captured["content_type"] = (
-                            headers.get("content-type") or headers.get("Content-Type") or ""
-                        )
-                        captured["text"] = response.text()
-                    except Exception:
-                        return
-
-                page.on("response", on_response)
-                page.goto(CAREERS_PAGE, wait_until="domcontentloaded", timeout=remaining_ms())
-                try:
-                    page.wait_for_load_state("networkidle", timeout=min(15_000, remaining_ms()))
-                except Exception:
-                    pass
-                if _playwright_headed():
-                    try:
-                        page.wait_for_timeout(min(8_000, remaining_ms()))
-                    except Exception:
-                        pass
-
-                if captured.get("text"):
-                    try:
-                        return parse_tesla_response(
-                            _HttpPayload(
-                                int(captured.get("status") or 0),
-                                str(captured.get("text") or ""),
-                                str(captured.get("content_type") or ""),
-                            )
-                        )
-                    except TeslaBlockedError:
-                        pass
-
-                page.set_default_timeout(remaining_ms())
-                result = page.evaluate(
-                    """async (url) => {
-                        const resp = await fetch(url, {
-                            credentials: 'include',
-                            headers: { Accept: 'application/json, text/plain, */*' },
-                        });
-                        const text = await resp.text();
-                        return {
-                            status: resp.status,
-                            contentType: resp.headers.get('content-type') || '',
-                            text,
-                        };
-                    }""",
-                    self.API,
-                )
-                if not isinstance(result, dict):
-                    raise TeslaBlockedError("tesla playwright fetch returned no payload")
-                return parse_tesla_response(
-                    _HttpPayload(
-                        int(result.get("status") or 0),
-                        str(result.get("text") or ""),
-                        str(result.get("contentType") or ""),
-                    )
+                return self._scrape_listings_from_page(
+                    page, remaining_ms, extra_wait=_playwright_headed()
                 )
             finally:
                 browser.close()
+
+    def _scrape_listings_from_page(
+        self,
+        page: Any,
+        remaining_ms: Any,
+        *,
+        extra_wait: bool,
+    ) -> Any:
+        page.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+        )
+        page.set_default_timeout(remaining_ms())
+        captured: dict[str, Any] = {}
+
+        def on_response(response: Any) -> None:
+            try:
+                url = str(getattr(response, "url", "") or "")
+                if "cua-api/apps/careers/state" not in url or "text" in captured:
+                    return
+                headers = getattr(response, "headers", None) or {}
+                captured["status"] = int(getattr(response, "status", 0) or 0)
+                captured["content_type"] = (
+                    headers.get("content-type") or headers.get("Content-Type") or ""
+                )
+                captured["text"] = response.text()
+            except Exception:
+                return
+
+        page.on("response", on_response)
+        page.goto(CAREERS_PAGE, wait_until="domcontentloaded", timeout=remaining_ms())
+        try:
+            page.wait_for_load_state("networkidle", timeout=min(15_000, remaining_ms()))
+        except Exception:
+            pass
+        if extra_wait:
+            try:
+                page.wait_for_timeout(min(8_000, remaining_ms()))
+            except Exception:
+                pass
+
+        if captured.get("text"):
+            try:
+                return parse_tesla_response(
+                    _HttpPayload(
+                        int(captured.get("status") or 0),
+                        str(captured.get("text") or ""),
+                        str(captured.get("content_type") or ""),
+                    )
+                )
+            except TeslaBlockedError:
+                pass
+
+        page.set_default_timeout(remaining_ms())
+        result = page.evaluate(
+            """async (url) => {
+                const resp = await fetch(url, {
+                    credentials: 'include',
+                    headers: { Accept: 'application/json, text/plain, */*' },
+                });
+                const text = await resp.text();
+                return {
+                    status: resp.status,
+                    contentType: resp.headers.get('content-type') || '',
+                    text,
+                };
+            }""",
+            self.API,
+        )
+        if not isinstance(result, dict):
+            raise TeslaBlockedError("tesla playwright fetch returned no payload")
+        return parse_tesla_response(
+            _HttpPayload(
+                int(result.get("status") or 0),
+                str(result.get("text") or ""),
+                str(result.get("contentType") or ""),
+            )
+        )
 
     def _jobs_from_payload(self, payload: Any) -> list[Job]:
         listings = payload.get("listings") if isinstance(payload, dict) else payload
@@ -295,6 +327,19 @@ class TeslaAdapter:
             jd_text=html_to_text(str(description or "")),
             posted_at=raw.get("posted") or raw.get("posted_at"),
         )
+
+
+def _timeout_remaining_ms(timeout: float, *, label: str):
+    started = time.monotonic()
+    budget = max(float(timeout), float(PLAYWRIGHT_TIMEOUT_S))
+
+    def remaining_ms() -> int:
+        left = budget - (time.monotonic() - started)
+        if left <= 0.5:
+            raise TeslaBlockedError(f"tesla {label} timed out")
+        return int(left * 1000)
+
+    return remaining_ms
 
 
 def _playwright_headed() -> bool:
