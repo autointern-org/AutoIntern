@@ -1020,7 +1020,7 @@ def test_fetch_all_keeps_order_and_isolates_failures() -> None:
     outcomes = _fetch_all([a, Boom(), b])
     elapsed = _time.perf_counter() - started
     assert [o[0] for o in outcomes] == [a, outcomes[1][0], b]
-    assert [j.id for j in outcomes[0][1]] == ["greenhouse:anthropic:a"]
+    assert [j.id for j in outcomes[0][1]] == ["a"]
     assert isinstance(outcomes[1][1], RuntimeError)
-    assert [j.id for j in outcomes[2][1]] == ["greenhouse:anthropic:b"]
+    assert [j.id for j in outcomes[2][1]] == ["b"]
     assert elapsed < 0.6
