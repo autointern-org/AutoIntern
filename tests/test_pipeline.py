@@ -998,3 +998,29 @@ def test_scan_persists_per_board_checked_ids() -> None:
     )
     assert kv.values["checked:citadel"]["interns"] == ["2"]
     assert kv.values["checked:citadel-securities"]["checked"] == ["9"]
+
+
+def test_fetch_all_keeps_order_and_isolates_failures() -> None:
+    import time as _time
+
+    from core.pipeline import _fetch_all
+
+    class Slow(FakeAdapter):
+        def fetch(self) -> list[Job]:
+            _time.sleep(0.2)
+            return self.jobs
+
+    class Boom:
+        def fetch(self) -> list[Job]:
+            raise RuntimeError("down")
+
+    a = Slow([make_job(id="a")])
+    b = FakeAdapter([make_job(id="b")])
+    started = _time.perf_counter()
+    outcomes = _fetch_all([a, Boom(), b])
+    elapsed = _time.perf_counter() - started
+    assert [o[0] for o in outcomes] == [a, outcomes[1][0], b]
+    assert [j.id for j in outcomes[0][1]] == ["greenhouse:anthropic:a"]
+    assert isinstance(outcomes[1][1], RuntimeError)
+    assert [j.id for j in outcomes[2][1]] == ["greenhouse:anthropic:b"]
+    assert elapsed < 0.6

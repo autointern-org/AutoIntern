@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 import os
 from time import perf_counter
@@ -143,12 +144,9 @@ def scan(
     matched_jobs: dict[str, list[Job]] = defaultdict(list)
     health_rows: list[CompanyHealth] = []
 
-    for adapter in adapters:
-        started = perf_counter()
-        try:
-            jobs = adapter.fetch()
-        except Exception as exc:
-            duration_ms = int((perf_counter() - started) * 1000)
+    for adapter, outcome, duration_ms in _fetch_all(list(adapters)):
+        if isinstance(outcome, Exception):
+            exc = outcome
             label = adapter.__class__.__name__
             print(f"[scan] adapter {label} failed: {exc}")
             health_rows.append(
@@ -156,7 +154,7 @@ def scan(
             )
             _report_issue(discord, result, f"{label} fetch failed", str(exc), dry_run=dry_run)
             continue
-        duration_ms = int((perf_counter() - started) * 1000)
+        jobs = outcome
         if not dry_run:
             for company_name, (checked, interns) in (getattr(adapter, "checked_by_company", None) or {}).items():
                 try:
@@ -342,6 +340,27 @@ def scan(
     if kv_ops:
         print(f"[kv] " + " ".join(f"{name}={count}" for name, count in kv_ops.items()))
     return result
+
+
+FETCH_WORKERS = 8
+
+
+def _fetch_all(adapters: list[Adapter]) -> list[tuple[Adapter, list[Job] | Exception, int]]:
+    """Fetch every adapter concurrently; results keep the adapters' order so
+    the rest of the scan (and its logs) stay deterministic."""
+
+    def run(adapter: Adapter) -> tuple[Adapter, list[Job] | Exception, int]:
+        started = perf_counter()
+        try:
+            jobs = adapter.fetch()
+        except Exception as exc:  # noqa: BLE001 - reported per adapter below
+            return adapter, exc, int((perf_counter() - started) * 1000)
+        return adapter, jobs, int((perf_counter() - started) * 1000)
+
+    if len(adapters) <= 1:
+        return [run(adapter) for adapter in adapters]
+    with ThreadPoolExecutor(max_workers=min(FETCH_WORKERS, len(adapters))) as pool:
+        return list(pool.map(run, adapters))
 
 
 def _record_health(state: StateStore, company_key: str, *, fetched: int, matched: int) -> None:

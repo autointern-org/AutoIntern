@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from time import sleep
 from typing import Any
 
@@ -11,6 +12,7 @@ from core.http import new_session
 
 
 WorkdayBoard = tuple[str, str, str]
+BOARD_WORKERS = 4
 
 
 class WorkdayAdapter:
@@ -31,13 +33,24 @@ class WorkdayAdapter:
     def fetch(self) -> list[Job]:
         self.board_errors = []
         jobs: list[Job] = []
-        for board in self.boards:
-            name = self.company_names.get(board, board[1])
+
+        def run(board: WorkdayBoard) -> tuple[WorkdayBoard, list[Job] | Exception]:
             try:
-                jobs.extend(self._fetch_board(board))
-            except Exception as exc:
-                print(f"[workday] {name} fetch failed: {exc}")
-                self.board_errors.append((name, str(exc)))
+                return board, self._fetch_board(board)
+            except Exception as exc:  # noqa: BLE001 - recorded per board below
+                return board, exc
+
+        # Boards are independent and each takes seconds; a few threads keep
+        # the 30+ Workday tenants from dominating the scan's wall clock.
+        with ThreadPoolExecutor(max_workers=min(BOARD_WORKERS, max(1, len(self.boards)))) as pool:
+            outcomes = list(pool.map(run, self.boards))
+        for board, outcome in outcomes:
+            name = self.company_names.get(board, board[1])
+            if isinstance(outcome, Exception):
+                print(f"[workday] {name} fetch failed: {outcome}")
+                self.board_errors.append((name, str(outcome)))
+            else:
+                jobs.extend(outcome)
         return jobs
 
     def _fetch_board(self, board: WorkdayBoard) -> list[Job]:
