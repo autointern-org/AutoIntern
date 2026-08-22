@@ -60,9 +60,11 @@ class CitadelAdapter:
         self._sleep = sleep
         self.board_errors: list[tuple[str, str]] = []
         self.checked_by_company: dict[str, tuple[set[str], set[str]]] = {}
+        self.listing_counts: dict[str, int] = {}
 
     def fetch(self) -> list[Job]:
         self.board_errors = []
+        self.listing_counts = {}
         jobs: list[Job] = []
         for board in self.boards:
             try:
@@ -76,6 +78,7 @@ class CitadelAdapter:
         cards = self._list(board)
         if not cards:
             raise RuntimeError(f"citadel {board.host}: listing returned no jobs")
+        self.listing_counts[board.company] = len(cards)
         known_ids, intern_ids = self.known.get(board.company, (set(), set()))
         live = {c["id"] for c in cards}
         checked = known_ids & live

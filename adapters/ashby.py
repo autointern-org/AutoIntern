@@ -23,17 +23,25 @@ class AshbyAdapter:
         self.company_names = company_names or {}
         self.timeout = timeout
         self.session = session or requests.Session()
+        self.board_errors: list[tuple[str, str]] = []
+        self.listing_counts: dict[str, int] = {}
 
     def fetch(self) -> list[Job]:
+        self.board_errors = []
+        self.listing_counts = {}
         jobs: list[Job] = []
         for slug in self.org_slugs:
+            name = self.company_names.get(slug, slug)
             try:
                 response = self.session.get(self.API.format(slug=slug), timeout=self.timeout)
                 response.raise_for_status()
-            except requests.RequestException as exc:
+                rows = response.json().get("jobs", [])
+            except Exception as exc:
                 print(f"[ashby] failed to fetch {slug}: {exc}")
+                self.board_errors.append((name, str(exc)))
                 continue
-            for raw in response.json().get("jobs", []):
+            self.listing_counts[name] = len(rows)
+            for raw in rows:
                 jobs.append(self._normalize(slug, raw))
         return jobs
 

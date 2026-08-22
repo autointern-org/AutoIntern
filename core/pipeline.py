@@ -201,6 +201,15 @@ def scan(
                 continue
             result.matched += 1
             matched_jobs[company_key].append(apply_decision(job, decision))
+        # Adapters that pre-filter titles (Meta, LinkedIn, Radancy, ...) and
+        # boards that were simply empty still report how many listings they
+        # saw, so "scanned, nothing matched" is visible in the health table.
+        for company_name, count in (getattr(adapter, "listing_counts", None) or {}).items():
+            company_key = str(company_name).lower()
+            if company_key in companies_in_batch or company_key not in configs:
+                continue
+            companies_in_batch.add(company_key)
+            fetched_by_company[company_key] = max(fetched_by_company[company_key], int(count))
         for company_key in companies_in_batch:
             health_rows.append(
                 CompanyHealth(

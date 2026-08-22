@@ -41,6 +41,7 @@ class MetaAdapter:
         self.intern_ids = set(intern_ids or set())
         self.checked_ids: set[str] = set()
         self.backlog = 0
+        self.listing_counts: dict[str, int] = {}
 
     def fetch(self) -> list[Job]:
         response = self.session.get(SITEMAP_URL, timeout=self.timeout)
@@ -49,6 +50,7 @@ class MetaAdapter:
         if not ids:
             raise RuntimeError("Meta sitemap returned no job IDs")
         live = set(ids)
+        self.listing_counts = {"meta": len(live)}
         known_live = self.known_ids & live
         interns_live = [job_id for job_id in ids if job_id in self.intern_ids]
         new_ids = [job_id for job_id in ids if job_id not in self.known_ids]

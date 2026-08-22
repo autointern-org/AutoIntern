@@ -1024,3 +1024,20 @@ def test_fetch_all_keeps_order_and_isolates_failures() -> None:
     assert isinstance(outcomes[1][1], RuntimeError)
     assert [j.id for j in outcomes[2][1]] == ["b"]
     assert elapsed < 0.6
+
+
+def test_health_row_for_board_that_listed_jobs_but_matched_none() -> None:
+    class Prefiltering(FakeAdapter):
+        listing_counts = {"intuit": 432}
+
+    kv = FakeKV()
+    state = StateStore(kv)
+    scan(
+        adapters=[Prefiltering([])],
+        configs={"intuit": CompanyConfig(name="intuit", adapter="radancy")},
+        state=state,
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+    assert state.get_health("intuit")["fetched"] == 432
+    assert state.get_health("intuit")["matched"] == 0

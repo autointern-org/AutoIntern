@@ -75,13 +75,14 @@ class LinkedInAdapter:
         self._sleep = sleep
         self.checked_ids: set[str] = set()
         self.backlog = 0
-        self._descriptions: dict[str, str] = {}
+        self.listing_counts: dict[str, int] = {}
 
     def fetch(self) -> list[Job]:
         cards = self._list_cards()
         if not cards:
             raise RuntimeError("LinkedIn guest search returned no job cards")
         live = {card["id"] for card in cards}
+        self.listing_counts = {self.company: len(cards)}
         candidates = [c for c in cards if CANDIDATE_TITLE_RE.search(c["title"])]
         known_live = self.known_ids & live
         to_fetch = [c for c in candidates if c["id"] in self.intern_ids or c["id"] not in self.known_ids]
