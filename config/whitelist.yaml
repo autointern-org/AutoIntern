@@ -11,7 +11,8 @@
 # Hugging Face on Workable; ServiceNow on SmartRecruiters.
 # LinkedIn scrapes the public guest job search (slug = LinkedIn company id) and runs
 # on the laptop runner only, like Tesla: its endpoint rate-limits datacenter IPs.
-# Citadel and Citadel Securities also run on the laptop: Cloudflare challenges GitHub IPs.
+# Citadel, Citadel Securities, and Palo Alto Networks also run on the laptop: their
+# WAFs challenge or block GitHub's IP range.
 # DoorDash uses greenhouse doordashusa (not the HTML marketing site).
 # Uber uses Oracle Recruiting Cloud (not the dead search API).
 # Etsy uses Workday (sitemap fallback exists but is not used here).

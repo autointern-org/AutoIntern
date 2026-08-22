@@ -50,11 +50,12 @@ jobs:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          SCAN_SKIP_COMPANIES: tesla,linkedin,citadel,citadel-securities
+          SCAN_SKIP_COMPANIES: tesla,linkedin,citadel,citadel-securities,palo-alto-networks
         run: PYTHONPATH=. python -m scripts.scan
 
   # Laptop-only companies: Tesla (Akamai), LinkedIn (rate-limits datacenter IPs),
-  # Citadel + Citadel Securities (Cloudflare challenge on GitHub IPs). Add more names
+  # Citadel + Citadel Securities (Cloudflare challenge on GitHub IPs), Palo Alto Networks
+  # (WAF serves HTML to GitHub IPs). Add more names
   # to both SCAN_ONLY_COMPANIES and SCAN_SKIP_COMPANIES the same way.
   # SECURITY: this job runs on a personal machine. Never add pull_request /
   # pull_request_target triggers to this workflow; a fork's PR could then execute
@@ -84,6 +85,6 @@ jobs:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-          SCAN_ONLY_COMPANIES: tesla,linkedin,citadel,citadel-securities
+          SCAN_ONLY_COMPANIES: tesla,linkedin,citadel,citadel-securities,palo-alto-networks
           TESLA_CHROME_JS: "1"
         run: PYTHONPATH=. .venv/bin/python -m scripts.scan

@@ -125,7 +125,11 @@ class RadancyAdapter:
                 "SearchType": "5",
             }
             url = f"https://{board.host}{board.prefix}/search-jobs/results?{urlencode(params)}"
-            response = self.session.get(url, headers={"Accept": "application/json"}, timeout=self.timeout)
+            response = self.session.get(
+                url,
+                headers={"Accept": "application/json", "X-Requested-With": "XMLHttpRequest"},
+                timeout=self.timeout,
+            )
             response.raise_for_status()
             try:
                 payload = response.json()
