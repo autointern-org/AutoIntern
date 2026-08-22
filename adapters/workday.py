@@ -12,7 +12,12 @@ from core.http import new_session
 
 
 WorkdayBoard = tuple[str, str, str]
-BOARD_WORKERS = 4
+# Workday's edge started serving its HTML app shell (instead of JSON) to
+# GitHub's runners about 90 minutes after boards were fetched four at a time.
+# One board at a time with a short pause keeps the traffic shaped like a
+# browser session; the adapters still run concurrently with each other.
+BOARD_WORKERS = 1
+BOARD_PAUSE_SECONDS = 0.5
 
 
 class WorkdayAdapter:
@@ -42,8 +47,15 @@ class WorkdayAdapter:
 
         # Boards are independent and each takes seconds; a few threads keep
         # the 30+ Workday tenants from dominating the scan's wall clock.
-        with ThreadPoolExecutor(max_workers=min(BOARD_WORKERS, max(1, len(self.boards)))) as pool:
-            outcomes = list(pool.map(run, self.boards))
+        if BOARD_WORKERS <= 1:
+            outcomes = []
+            for index, board in enumerate(self.boards):
+                if index:
+                    sleep(BOARD_PAUSE_SECONDS)
+                outcomes.append(run(board))
+        else:
+            with ThreadPoolExecutor(max_workers=min(BOARD_WORKERS, max(1, len(self.boards)))) as pool:
+                outcomes = list(pool.map(run, self.boards))
         for board, outcome in outcomes:
             name = self.company_names.get(board, board[1])
             if isinstance(outcome, Exception):
