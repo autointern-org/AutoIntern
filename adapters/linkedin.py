@@ -65,7 +65,9 @@ class LinkedInAdapter:
         self.company = company
         self.timeout = timeout
         self.session = session or requests.Session()
-        self.session.headers.setdefault("User-Agent", USER_AGENT)
+        headers = getattr(self.session, "headers", None)
+        if isinstance(headers, dict) or hasattr(headers, "setdefault"):
+            headers.setdefault("User-Agent", USER_AGENT)
         self.known_ids = set(known_ids or set())
         self.intern_ids = set(intern_ids or set())
         self.max_details = max_details
