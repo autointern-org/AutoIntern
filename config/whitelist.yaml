@@ -499,7 +499,152 @@ companies:
     slug: thinkingmachines
     tier: "1"
 
+  - name: neuralink
+    adapter: greenhouse
+    slug: neuralink
+    tier: "1"
+
+  - name: samsara
+    adapter: greenhouse
+    slug: samsara
+    tier: "1"
+
+  - name: elevenlabs
+    adapter: ashby
+    slug: elevenlabs
+    tier: "1"
+
+  - name: cognition
+    adapter: ashby
+    slug: cognition
+    tier: "1"
+
+  - name: modal
+    adapter: ashby
+    slug: modal
+    tier: "1"
+
+  - name: vanta
+    adapter: ashby
+    slug: vanta
+    tier: "1"
+
   # --- Tier 2 ---
+  - name: toast
+    adapter: greenhouse
+    slug: toast
+    tier: "2"
+
+  - name: saronic
+    adapter: ashby
+    slug: saronic
+    tier: "2"
+
+  - name: lucid-software
+    adapter: greenhouse
+    slug: lucidsoftware
+    tier: "2"
+
+  - name: vannevar-labs
+    adapter: greenhouse
+    slug: vannevarlabs
+    tier: "2"
+
+  - name: mixpanel
+    adapter: greenhouse
+    slug: mixpanel
+    tier: "2"
+
+  - name: roku
+    adapter: greenhouse
+    slug: roku
+    tier: "2"
+
+  - name: flexport
+    adapter: greenhouse
+    slug: flexport
+    tier: "2"
+
+  - name: gusto
+    adapter: greenhouse
+    slug: gusto
+    tier: "2"
+
+  - name: qualtrics
+    adapter: greenhouse
+    slug: qualtrics
+    tier: "2"
+
+  - name: squarespace
+    adapter: greenhouse
+    slug: squarespace
+    tier: "2"
+
+  - name: nextdoor
+    adapter: greenhouse
+    slug: nextdoor
+    tier: "2"
+
+  - name: airtable
+    adapter: greenhouse
+    slug: airtable
+    tier: "2"
+
+  - name: sigma-computing
+    adapter: greenhouse
+    slug: sigmacomputing
+    tier: "2"
+
+  - name: c3-ai
+    adapter: greenhouse
+    slug: c3iot
+    tier: "2"
+
+  - name: amplitude
+    adapter: greenhouse
+    slug: amplitude
+    tier: "2"
+
+  - name: lovable
+    adapter: ashby
+    slug: lovable
+    tier: "2"
+
+  - name: supabase
+    adapter: ashby
+    slug: supabase
+    tier: "2"
+
+  - name: linear
+    adapter: ashby
+    slug: linear
+    tier: "2"
+
+  - name: anyscale
+    adapter: ashby
+    slug: anyscale
+    tier: "2"
+
+  - name: poolside
+    adapter: ashby
+    slug: poolside
+    tier: "2"
+
+  - name: writer
+    adapter: ashby
+    slug: writer
+    tier: "2"
+
+  - name: speak
+    adapter: ashby
+    slug: speak
+    tier: "2"
+
+  - name: mercor
+    adapter: ashby
+    slug: mercor
+    tier: "2"
+
   - name: affirm
     adapter: greenhouse
     slug: affirm
