@@ -54,6 +54,9 @@ jobs:
         run: PYTHONPATH=. python -m scripts.scan
 
   # Laptop-only companies (Akamai/Chrome). Add more names to SCAN_ONLY_COMPANIES later the same way.
+  # SECURITY: this job runs on a personal machine. Never add pull_request /
+  # pull_request_target triggers to this workflow; a fork's PR could then execute
+  # on that machine. Only schedule and workflow_dispatch are allowed.
   tesla:
     runs-on: self-hosted
     timeout-minutes: 10
