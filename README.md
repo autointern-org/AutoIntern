@@ -12,7 +12,7 @@ It posts new intern roles to Discord. There is no persistent server.
 4. `core.filters` applies the whitelist rules from `config/whitelist.yaml`.
 5. `core.kv` stores seen jobs, Discord message IDs, and dismissals in Cloudflare KV.
 6. `core.discord` posts a Discord embed with `?wait=true` and stores the returned message ID.
-7. The next tick checks stored messages for a ✅ reaction and marks those jobs dismissed.
+7. Optional: with `CHECK_DISMISS_REACTIONS=1`, the next tick checks stored messages for a ✅ reaction and marks those jobs dismissed. Off by default — it costs one Discord request per message and rate-limits after ~30.
 
 ## Setup
 

@@ -923,3 +923,21 @@ def test_build_adapters_seeds_meta_from_state() -> None:
     assert isinstance(adapters[0], MetaAdapter)
     assert adapters[0].known_ids == {"10", "11"}
     assert adapters[0].intern_ids == {"11"}
+
+
+def test_run_scan_skips_reaction_check_unless_enabled(monkeypatch: Any) -> None:
+    import core.pipeline as pipeline
+
+    captured: dict[str, Any] = {}
+
+    def fake_scan(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return pipeline.ScanResult()
+
+    monkeypatch.setattr(pipeline, "scan", fake_scan)
+    monkeypatch.delenv("CHECK_DISMISS_REACTIONS", raising=False)
+    pipeline.run_scan(dry_run=True)
+    assert captured["skip_dismissals"] is True
+    monkeypatch.setenv("CHECK_DISMISS_REACTIONS", "1")
+    pipeline.run_scan(dry_run=True)
+    assert captured["skip_dismissals"] is False

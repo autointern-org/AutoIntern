@@ -94,8 +94,15 @@ def run_scan(
         classifier=classifier,
         dry_run=dry_run,
         skip_claude=skip_claude,
-        skip_dismissals=bool(only),
+        # The reaction check reads every message from the last 7 days (one
+        # Discord request each) and hits the rate limit after ~30, so it is
+        # off unless explicitly enabled.
+        skip_dismissals=bool(only) or not _env_flag("CHECK_DISMISS_REACTIONS"),
     )
+
+
+def _env_flag(name: str) -> bool:
+    return (os.getenv(name) or "").strip().lower() in {"1", "true", "yes"}
 
 
 def select_companies(companies: list[CompanyConfig]) -> list[CompanyConfig]:
