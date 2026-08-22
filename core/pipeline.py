@@ -16,6 +16,7 @@ from adapters.google import GoogleAdapter
 from adapters.greenhouse import GreenhouseAdapter
 from adapters.ibm import IBMAdapter
 from adapters.lever import LeverAdapter
+from adapters.linkedin import LinkedInAdapter
 from adapters.meta import MetaAdapter
 from adapters.optiver import OptiverAdapter
 from adapters.oracle import OracleAdapter, OracleBoard
@@ -155,7 +156,9 @@ def scan(
         if not dry_run and getattr(adapter, "checked_ids", None) is not None:
             try:
                 state.record_checked_ids(
-                    _adapter_company(adapter), set(adapter.checked_ids), set(getattr(adapter, "intern_ids", set()))
+                    str(getattr(adapter, "company", None) or _adapter_company(adapter)),
+                    set(adapter.checked_ids),
+                    set(getattr(adapter, "intern_ids", set())),
                 )
             except Exception as exc:
                 print(f"[scan] checked-id write failed for {adapter.__class__.__name__}: {exc}")
@@ -456,6 +459,7 @@ KNOWN_ADAPTERS = frozenset(
         "workable",
         "smartrecruiters",
         "rippling",
+        "linkedin",
         *SIMPLE_ADAPTERS,
     }
 )
@@ -622,6 +626,14 @@ def build_adapters(companies: list[CompanyConfig], *, state: StateStore | None =
                 [str(company.slug) for company in rippling],
                 company_names={str(company.slug): company.name for company in rippling},
             )
+        )
+
+    for company in companies:
+        if company.adapter != "linkedin" or not company.slug:
+            continue
+        checked, interns = state.get_checked_ids(company.name) if state is not None else (set(), set())
+        adapters.append(
+            LinkedInAdapter(str(company.slug), company=company.name, known_ids=checked, intern_ids=interns)
         )
 
     for adapter_name, adapter_cls in SIMPLE_ADAPTERS.items():

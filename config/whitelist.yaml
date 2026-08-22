@@ -2,13 +2,15 @@
 # Tier 1 first (priority order), then tier 2 (alphabetical).
 #
 # Skipped (no clean JSON path, or folded into another board):
-#   LinkedIn, HashiCorp, Replicate (Cloudflare greenhouse), Cruise (GM Workday),
+#   HashiCorp, Replicate (Cloudflare greenhouse), Cruise (GM Workday),
 #   Weights & Biases (CoreWeave greenhouse), Rivian/Intuit/Arm/Palo Alto (Radancy),
 #   Bloomberg/Two Sigma/Siemens/EA/Synopsys (Avature HTML), Citadel/Citadel Securities (wp-ajax),
 #   D.E. Shaw/Shopify/Circle (sitemap-only), Ansys (stale), Groq (Gem empty), AI21 (Comeet empty),
 #   DocuSign (iCIMS), Spotify (no adapter), ASML (SSR scrape).
 # Aurora posts on Ashby (aurora-operations-inc); Rippling on its own ATS board API;
 # Hugging Face on Workable; ServiceNow on SmartRecruiters.
+# LinkedIn scrapes the public guest job search (slug = LinkedIn company id) and runs
+# on the laptop runner only, like Tesla: its endpoint rate-limits datacenter IPs.
 # DoorDash uses greenhouse doordashusa (not the HTML marketing site).
 # Uber uses Oracle Recruiting Cloud (not the dead search API).
 # Etsy uses Workday (sitemap fallback exists but is not used here).
@@ -131,6 +133,11 @@ companies:
 
   - name: tesla
     adapter: tesla
+    tier: "1"
+
+  - name: linkedin
+    adapter: linkedin
+    slug: "1337"
     tier: "1"
 
   - name: qualcomm

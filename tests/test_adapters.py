@@ -16,6 +16,7 @@ from adapters.google import GoogleAdapter
 from adapters.greenhouse import GreenhouseAdapter
 from adapters.ibm import IBMAdapter
 from adapters.lever import LeverAdapter
+from adapters.linkedin import LinkedInAdapter
 from adapters.meta import MetaAdapter
 from adapters.optiver import OptiverAdapter
 from adapters.oracle import OracleAdapter, OracleBoard
@@ -1215,3 +1216,77 @@ def test_meta_raises_when_sitemap_is_empty() -> None:
 
     with pytest.raises(RuntimeError):
         MetaAdapter(session=session).fetch()
+
+
+def _linkedin_session(list_html: str, detail_html: str, *, rate_limit_once: bool = False) -> FakeSession:
+    class S(FakeSession):
+        def __init__(self) -> None:
+            super().__init__()
+            self.limited = rate_limit_once
+
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if "seeMoreJobPostings" in url:
+                if self.limited:
+                    self.limited = False
+                    resp = FakeResponse("slow down", status_code=429)
+                    resp.headers = {"Retry-After": "7"}
+                    return resp
+                return FakeResponse(list_html if "start=0" in url else "<ul></ul>", status_code=200)
+            return FakeResponse(detail_html, status_code=200)
+
+    return S()
+
+
+def test_linkedin_parses_cards_and_fetches_intern_details_only() -> None:
+    list_html = (FIXTURES / "linkedin_list.html").read_text()
+    detail_html = (FIXTURES / "linkedin_detail.html").read_text()
+    sleeps: list[float] = []
+    session = _linkedin_session(list_html, detail_html)
+    adapter = LinkedInAdapter("1337", session=session, sleep=sleeps.append, max_details=5)
+
+    jobs = adapter.fetch()
+
+    assert [job.id for job in jobs] == ["linkedin:linkedin:111", "linkedin:linkedin:333"]
+    assert jobs[0].title == "Software Engineer Intern"
+    assert jobs[0].location == "Mountain View, CA"
+    assert jobs[0].url == "https://www.linkedin.com/jobs/view/software-engineer-intern-at-linkedin-111"
+    assert jobs[0].posted_at == "2026-08-20"
+    assert "pursuing a Bachelor's degree" in jobs[0].jd_text
+    detail_urls = [u for u in session.urls if "jobPosting/" in u]
+    assert detail_urls == [
+        "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/111",
+        "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/333",
+    ]
+    assert adapter.checked_ids == {"111", "222", "333"}
+    assert adapter.intern_ids == {"111", "333"}
+    assert all(gap == 6.0 for gap in sleeps)
+
+
+def test_linkedin_skips_known_non_interns_and_refreshes_known_interns() -> None:
+    list_html = (FIXTURES / "linkedin_list.html").read_text()
+    detail_html = (FIXTURES / "linkedin_detail.html").read_text()
+    session = _linkedin_session(list_html, detail_html)
+    adapter = LinkedInAdapter("1337", session=session, sleep=lambda s: None, known_ids={"111", "222"}, intern_ids={"111"}, max_details=1)
+    jobs = adapter.fetch()
+    assert [job.id for job in jobs] == ["linkedin:linkedin:111", "linkedin:linkedin:333"]
+    assert adapter.backlog == 0
+
+
+def test_linkedin_backs_off_on_429() -> None:
+    list_html = (FIXTURES / "linkedin_list.html").read_text()
+    detail_html = (FIXTURES / "linkedin_detail.html").read_text()
+    sleeps: list[float] = []
+    session = _linkedin_session(list_html, detail_html, rate_limit_once=True)
+    adapter = LinkedInAdapter("1337", session=session, sleep=sleeps.append, max_details=5)
+    jobs = adapter.fetch()
+    assert len(jobs) == 2
+    assert 7.0 in sleeps
+
+
+def test_linkedin_raises_when_no_cards() -> None:
+    import pytest
+
+    session = _linkedin_session("<ul></ul>", "")
+    with pytest.raises(RuntimeError):
+        LinkedInAdapter("1337", session=session, sleep=lambda s: None).fetch()

@@ -941,3 +941,16 @@ def test_run_scan_skips_reaction_check_unless_enabled(monkeypatch: Any) -> None:
     monkeypatch.setenv("CHECK_DISMISS_REACTIONS", "1")
     pipeline.run_scan(dry_run=True)
     assert captured["skip_dismissals"] is False
+
+
+def test_build_adapters_seeds_linkedin_from_state() -> None:
+    from adapters.linkedin import LinkedInAdapter
+    from core.pipeline import build_adapters
+
+    kv = FakeKV()
+    state = StateStore(kv)
+    state.record_checked_ids("linkedin", {"1", "2"}, {"2"})
+    adapters = build_adapters([CompanyConfig(name="linkedin", adapter="linkedin", slug="1337")], state=state)
+    assert isinstance(adapters[0], LinkedInAdapter)
+    assert adapters[0].company_id == "1337"
+    assert adapters[0].known_ids == {"1", "2"} and adapters[0].intern_ids == {"2"}
