@@ -1464,3 +1464,21 @@ def test_apple_retry_once_recovers_from_a_timeout() -> None:
 
     with pytest.raises(_requests.Timeout):
         retry_once(always)
+
+
+def test_oracle_isolates_a_failing_tenant() -> None:
+    class S(FakeSession):
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if "jpmc" in url:
+                return FakeResponse("Service Temporarily Unavailable", status_code=503)
+            return FakeResponse(load_fixture("oracle.json"), status_code=200)
+
+    adapter = OracleAdapter(
+        [OracleBoard(company="jpmorgan", host="jpmc.fa.oraclecloud.com", site_number="CX_1001"), OracleBoard(company="uber", host="iaziqy.fa.ocs.oraclecloud.com", site_number="CX_1")],
+        session=S(),
+    )
+    jobs = adapter.fetch()
+    assert [job.company for job in jobs] == ["uber"]
+    assert adapter.board_errors == [("jpmorgan", adapter.board_errors[0][1])]
+    assert "503" in adapter.board_errors[0][1]

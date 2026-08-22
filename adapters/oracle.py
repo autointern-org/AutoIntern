@@ -32,11 +32,18 @@ class OracleAdapter:
         self.boards = list(boards)
         self.timeout = timeout
         self.session = session or new_session()
+        self.board_errors: list[tuple[str, str]] = []
 
     def fetch(self) -> list[Job]:
+        # One tenant's 503 must not drop the other Oracle boards for the run.
+        self.board_errors = []
         jobs: list[Job] = []
         for board in self.boards:
-            jobs.extend(self._fetch_board(board))
+            try:
+                jobs.extend(self._fetch_board(board))
+            except Exception as exc:
+                print(f"[oracle] {board.company} fetch failed: {exc}")
+                self.board_errors.append((board.company, str(exc)))
         return jobs
 
     def _fetch_board(self, board: OracleBoard) -> list[Job]:
