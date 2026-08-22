@@ -536,7 +536,112 @@ companies:
     slug: vanta
     tier: "1"
 
+  - name: capital-one
+    adapter: workday
+    host: capitalone.wd12.myworkdayjobs.com
+    tenant: capitalone
+    site: Capital_One
+    tier: "1"
+
+  - name: jpmorgan
+    adapter: oracle
+    host: jpmc.fa.oraclecloud.com
+    site_number: CX_1001
+    tier: "1"
+
+  - name: morgan-stanley
+    adapter: eightfold
+    host: morganstanley.eightfold.ai
+    domain: morganstanley.com
+    api: pcsx
+    tier: "1"
+
+  - name: visa
+    adapter: workday
+    host: visa.wd5.myworkdayjobs.com
+    tenant: visa
+    site: Visa
+    tier: "1"
+
+  - name: mastercard
+    adapter: workday
+    host: mastercard.wd1.myworkdayjobs.com
+    tenant: mastercard
+    site: CorporateCareers
+    tier: "1"
+
+  - name: american-express
+    adapter: oracle
+    host: egug.fa.us2.oraclecloud.com
+    site_number: CX_1
+    tier: "1"
+
   # --- Tier 2 ---
+  - name: northrop-grumman
+    adapter: workday
+    host: ngc.wd1.myworkdayjobs.com
+    tenant: ngc
+    site: Northrop_Grumman_External_Site
+    tier: "2"
+
+  - name: nasa-jpl
+    adapter: workday
+    host: citjpl.wd5.myworkdayjobs.com
+    tenant: citjpl
+    site: Jobs
+    tier: "2"
+
+  - name: texas-instruments
+    adapter: oracle
+    host: edbz.fa.us2.oraclecloud.com
+    site_number: CX_1
+    tier: "2"
+
+  - name: analog-devices
+    adapter: workday
+    host: analogdevices.wd1.myworkdayjobs.com
+    tenant: analogdevices
+    site: External
+    tier: "2"
+
+  - name: arista
+    adapter: smartrecruiters
+    slug: AristaNetworks
+    tier: "2"
+
+  - name: netapp
+    adapter: eightfold
+    host: netapp.eightfold.ai
+    domain: netapp.com
+    api: apply
+    tier: "2"
+
+  - name: western-digital
+    adapter: smartrecruiters
+    slug: WesternDigital
+    tier: "2"
+
+  - name: zillow
+    adapter: workday
+    host: zillow.wd5.myworkdayjobs.com
+    tenant: zillow
+    site: Zillow_Group_External
+    tier: "2"
+
+  - name: expedia
+    adapter: workday
+    host: expedia.wd108.myworkdayjobs.com
+    tenant: expedia
+    site: search
+    tier: "2"
+
+  - name: zoom
+    adapter: workday
+    host: zoom.wd5.myworkdayjobs.com
+    tenant: zoom
+    site: Zoom
+    tier: "2"
+
   - name: toast
     adapter: greenhouse
     slug: toast
