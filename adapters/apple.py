@@ -25,7 +25,7 @@ _PRECISION_FILTERS: dict[str, Any] = {
 class AppleAdapter:
     API = SEARCH_URL
 
-    def __init__(self, *, timeout: int = 30, session: requests.Session | None = None) -> None:
+    def __init__(self, *, timeout: int = 60, session: requests.Session | None = None) -> None:
         self.timeout = timeout
         self.session = session or new_session()
 
@@ -50,7 +50,7 @@ class AppleAdapter:
             "User-Agent": DEFAULT_USER_AGENT,
         }
         try:
-            response = self.session.get(CSRF_URL, timeout=self.timeout)
+            response = retry_once(lambda: self.session.get(CSRF_URL, timeout=self.timeout))
             token = _header(response, "x-apple-csrf-token") or _header(response, "X-Apple-CSRF-Token")
             if token:
                 headers["X-Apple-CSRF-Token"] = token
@@ -71,7 +71,7 @@ class AppleAdapter:
                 "sort": "",
                 "format": _FORMAT,
             }
-            response = self.session.post(SEARCH_URL, json=body, headers=headers, timeout=self.timeout)
+            response = retry_once(lambda: self.session.post(SEARCH_URL, json=body, headers=headers, timeout=self.timeout))
             data = _parse_search(response)
             envelope = data["res"] if isinstance(data.get("res"), dict) else data
             results = envelope.get("searchResults") or []
@@ -163,3 +163,13 @@ def _location(raw: dict[str, Any]) -> str:
         if text:
             parts.append(text)
     return "; ".join(parts)
+
+
+def retry_once(request: Any) -> Any:
+    """jobs.apple.com occasionally stalls past the read timeout; one retry
+    is enough in practice and keeps the whole board from being skipped."""
+    try:
+        return request()
+    except (requests.Timeout, requests.ConnectionError) as exc:
+        print(f"[apple] retrying after {exc.__class__.__name__}")
+        return request()

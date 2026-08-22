@@ -1439,3 +1439,28 @@ def test_radancy_prefixed_routes_and_known_ids() -> None:
     assert session.urls[0].startswith("https://jobs.paloaltonetworks.com/en/search-jobs/results?")
     # Only the known intern is refreshed; the known non-intern is skipped.
     assert [job.id for job in jobs] == ["radancy:palo-alto-networks:96174872720"]
+
+
+def test_apple_retry_once_recovers_from_a_timeout() -> None:
+    import requests as _requests
+
+    from adapters.apple import retry_once
+
+    calls: list[int] = []
+
+    def flaky() -> str:
+        calls.append(1)
+        if len(calls) == 1:
+            raise _requests.Timeout("read timed out")
+        return "ok"
+
+    assert retry_once(flaky) == "ok"
+    assert len(calls) == 2
+
+    def always() -> str:
+        raise _requests.Timeout("still down")
+
+    import pytest
+
+    with pytest.raises(_requests.Timeout):
+        retry_once(always)
