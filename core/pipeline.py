@@ -10,6 +10,9 @@ from adapters.amazon import AmazonAdapter
 from adapters.apple import AppleAdapter
 from adapters.ashby import AshbyAdapter
 from adapters.atlassian import AtlassianAdapter
+from adapters.avature import AvatureAdapter, AvatureBoard
+from adapters.citadel import CitadelAdapter, CitadelBoard
+from adapters.deshaw import DEShawAdapter
 from adapters.base import Adapter, Job
 from adapters.eightfold import EightfoldAdapter, EightfoldBoard, infer_host
 from adapters.google import GoogleAdapter
@@ -21,6 +24,7 @@ from adapters.meta import MetaAdapter
 from adapters.optiver import OptiverAdapter
 from adapters.oracle import OracleAdapter, OracleBoard
 from adapters.phenom import PhenomAdapter, PhenomBoard
+from adapters.radancy import RadancyAdapter, RadancyBoard
 from adapters.rippling import RipplingAdapter
 from adapters.smartrecruiters import SmartRecruitersAdapter
 from adapters.snap import SnapAdapter
@@ -153,6 +157,12 @@ def scan(
             _report_issue(discord, result, f"{label} fetch failed", str(exc), dry_run=dry_run)
             continue
         duration_ms = int((perf_counter() - started) * 1000)
+        if not dry_run:
+            for company_name, (checked, interns) in (getattr(adapter, "checked_by_company", None) or {}).items():
+                try:
+                    state.record_checked_ids(str(company_name), set(checked), set(interns))
+                except Exception as exc:
+                    print(f"[scan] checked-id write failed for {company_name}: {exc}")
         if not dry_run and getattr(adapter, "checked_ids", None) is not None:
             try:
                 state.record_checked_ids(
@@ -460,6 +470,10 @@ KNOWN_ADAPTERS = frozenset(
         "smartrecruiters",
         "rippling",
         "linkedin",
+        "avature",
+        "citadel",
+        "deshaw",
+        "radancy",
         *SIMPLE_ADAPTERS,
     }
 )
@@ -634,6 +648,41 @@ def build_adapters(companies: list[CompanyConfig], *, state: StateStore | None =
         checked, interns = state.get_checked_ids(company.name) if state is not None else (set(), set())
         adapters.append(
             LinkedInAdapter(str(company.slug), company=company.name, known_ids=checked, intern_ids=interns)
+        )
+
+    def _known(names: list[str]) -> dict[str, tuple[set[str], set[str]]]:
+        if state is None:
+            return {}
+        return {name: state.get_checked_ids(name) for name in names}
+
+    avature = [c for c in companies if c.adapter == "avature" and c.host and c.site]
+    if avature:
+        adapters.append(
+            AvatureAdapter(
+                [AvatureBoard(company=c.name, host=str(c.host), path=str(c.site)) for c in avature],
+                known=_known([c.name for c in avature]),
+            )
+        )
+
+    citadel = [c for c in companies if c.adapter == "citadel" and c.host]
+    if citadel:
+        adapters.append(
+            CitadelAdapter(
+                [CitadelBoard(company=c.name, host=str(c.host)) for c in citadel],
+                known=_known([c.name for c in citadel]),
+            )
+        )
+
+    if any(c.adapter == "deshaw" for c in companies):
+        adapters.append(DEShawAdapter())
+
+    radancy = [c for c in companies if c.adapter == "radancy" and c.host]
+    if radancy:
+        adapters.append(
+            RadancyAdapter(
+                [RadancyBoard(company=c.name, host=str(c.host), prefix=str(c.site or "")) for c in radancy],
+                known=_known([c.name for c in radancy]),
+            )
         )
 
     for adapter_name, adapter_cls in SIMPLE_ADAPTERS.items():

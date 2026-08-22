@@ -4,8 +4,8 @@
 # Skipped (no clean JSON path, or folded into another board):
 #   HashiCorp, Replicate (Cloudflare greenhouse), Cruise (GM Workday),
 #   Weights & Biases (CoreWeave greenhouse), Rivian/Intuit/Arm/Palo Alto (Radancy),
-#   Bloomberg/Two Sigma/Siemens/EA/Synopsys (Avature HTML), Citadel/Citadel Securities (wp-ajax),
-#   D.E. Shaw/Shopify/Circle (sitemap-only), Ansys (stale), Groq (Gem empty), AI21 (Comeet empty),
+#   Siemens/EA/Synopsys (Avature HTML, not yet configured), Shopify/Circle (sitemap-only),
+#   Ansys (stale), Groq (Gem empty), AI21 (Comeet empty),
 #   DocuSign (iCIMS), Spotify (no adapter), ASML (SSR scrape).
 # Aurora posts on Ashby (aurora-operations-inc); Rippling on its own ATS board API;
 # Hugging Face on Workable; ServiceNow on SmartRecruiters.
@@ -576,7 +576,59 @@ companies:
     site_number: CX_1
     tier: "1"
 
+  - name: citadel
+    adapter: citadel
+    host: www.citadel.com
+    tier: "1"
+
+  - name: citadel-securities
+    adapter: citadel
+    host: www.citadelsecurities.com
+    tier: "1"
+
+  - name: two-sigma
+    adapter: avature
+    host: careers.twosigma.com
+    site: careers/OpenRoles
+    tier: "1"
+
+  - name: de-shaw
+    adapter: deshaw
+    tier: "1"
+
+  - name: bloomberg
+    adapter: avature
+    host: bloomberg.avature.net
+    site: careers/SearchJobs
+    tier: "1"
+
+  - name: intuit
+    adapter: radancy
+    host: jobs.intuit.com
+    tier: "1"
+
+  - name: palo-alto-networks
+    adapter: radancy
+    host: jobs.paloaltonetworks.com
+    site: /en
+    tier: "1"
+
+  - name: arm
+    adapter: radancy
+    host: careers.arm.com
+    tier: "1"
+
   # --- Tier 2 ---
+  - name: l3harris
+    adapter: radancy
+    host: careers.l3harris.com
+    tier: "2"
+
+  - name: disney
+    adapter: radancy
+    host: www.disneycareers.com
+    tier: "2"
+
   - name: northrop-grumman
     adapter: workday
     host: ngc.wd1.myworkdayjobs.com

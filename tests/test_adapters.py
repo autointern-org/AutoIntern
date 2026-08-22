@@ -11,6 +11,9 @@ from adapters.amazon import AmazonAdapter
 from adapters.apple import AppleAdapter
 from adapters.ashby import AshbyAdapter
 from adapters.atlassian import AtlassianAdapter
+from adapters.avature import AvatureAdapter, AvatureBoard
+from adapters.citadel import CitadelAdapter, CitadelBoard
+from adapters.deshaw import DEShawAdapter
 from adapters.eightfold import EightfoldAdapter, EightfoldBoard
 from adapters.google import GoogleAdapter
 from adapters.greenhouse import GreenhouseAdapter
@@ -21,6 +24,7 @@ from adapters.meta import MetaAdapter
 from adapters.optiver import OptiverAdapter
 from adapters.oracle import OracleAdapter, OracleBoard
 from adapters.phenom import PhenomAdapter, PhenomBoard
+from adapters.radancy import RadancyAdapter, RadancyBoard
 from adapters.rippling import RipplingAdapter
 from adapters.smartrecruiters import SmartRecruitersAdapter
 from adapters.workable import WorkableAdapter
@@ -1290,3 +1294,148 @@ def test_linkedin_raises_when_no_cards() -> None:
     session = _linkedin_session("<ul></ul>", "")
     with pytest.raises(RuntimeError):
         LinkedInAdapter("1337", session=session, sleep=lambda s: None).fetch()
+
+
+def _html(name: str) -> str:
+    return (FIXTURES / name).read_text()
+
+
+def test_avature_lists_pages_and_fetches_intern_details() -> None:
+    class S(FakeSession):
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if "jobOffset=0" in url:
+                return FakeResponse(_html("avature_list.html"), status_code=200)
+            if "jobOffset=" in url:
+                return FakeResponse("<div></div>", status_code=200)
+            return FakeResponse(_html("avature_detail.html"), status_code=200)
+
+    session = S()
+    adapter = AvatureAdapter([AvatureBoard("two-sigma", "careers.twosigma.com", "careers/OpenRoles")], session=session)
+    jobs = adapter.fetch()
+    assert [job.id for job in jobs] == ["avature:two-sigma:14096", "avature:two-sigma:19932"]
+    assert session.urls[0] == "https://careers.twosigma.com/careers/OpenRoles/?jobOffset=0"
+    assert session.urls[1] == "https://careers.twosigma.com/careers/OpenRoles/?jobOffset=3"
+    intern = jobs[0]
+    assert intern.title == "AI Research Scientist - Intern [2027 Summer]"
+    assert intern.location == "United States - NY New York"
+    assert intern.url.endswith("/JobDetail/New-York-AI-Research-Scientist-Intern-2027-Summer/14096")
+    assert "ML research" in intern.jd_text and "Bachelor's" in intern.jd_text
+    assert jobs[1].location == "Sao Paulo, São Paulo, Brazil"
+    # Senior Engineer (13000) is checked without a detail fetch; the filler article is ignored.
+    assert adapter.checked_by_company["two-sigma"] == ({"14096", "13000", "19932"}, {"14096", "19932"})
+    assert adapter.board_errors == []
+
+
+def test_avature_isolates_board_failure() -> None:
+    class S(FakeSession):
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if "bloomberg" in url:
+                return FakeResponse("nope", status_code=500)
+            if "jobOffset=0" in url:
+                return FakeResponse(_html("avature_list.html"), status_code=200)
+            return FakeResponse("<div></div>" if "jobOffset" in url else _html("avature_detail.html"), status_code=200)
+
+    adapter = AvatureAdapter(
+        [AvatureBoard("bloomberg", "bloomberg.avature.net", "careers/SearchJobs"), AvatureBoard("two-sigma", "careers.twosigma.com", "careers/OpenRoles")],
+        session=S(),
+    )
+    jobs = adapter.fetch()
+    assert len(jobs) == 2 and adapter.board_errors[0][0] == "bloomberg"
+
+
+def test_citadel_lists_via_admin_ajax_and_reads_ldjson() -> None:
+    class S(FakeSession):
+        def __init__(self) -> None:
+            super().__init__()
+            self.challenged = True
+
+        def post(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            self.calls.append({"url": url, "data": kwargs.get("data"), "headers": kwargs.get("headers")})
+            if self.challenged:
+                self.challenged = False
+                return FakeResponse("Just a moment...", status_code=403)
+            return FakeResponse(load_fixture("citadel_list.json"), status_code=200)
+
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            return FakeResponse(_html("citadel_detail.html"), status_code=200)
+
+    session = S()
+    sleeps: list[float] = []
+    adapter = CitadelAdapter([CitadelBoard("citadel", "www.citadel.com")], session=session, sleep=sleeps.append)
+    jobs = adapter.fetch()
+    assert session.calls[0]["data"]["action"] == "careers_listing_filter"
+    assert session.calls[0]["headers"]["X-Requested-With"] == "XMLHttpRequest"
+    assert sleeps == [3.0]  # one Cloudflare challenge, one retry
+    assert [job.id for job in jobs] == ["citadel:citadel:software-engineer-intern-us", "citadel:citadel:software-engineer-intern-asia"]
+    intern = jobs[0]
+    assert intern.title == "Software Engineer – Intern (US)"
+    assert intern.location == "New York, NY, US; Miami, FL, US"
+    assert intern.posted_at == "2026-08-22"
+    assert "trading systems" in intern.jd_text
+    assert intern.country_codes == ("US",)
+    assert intern.location_names == ("Miami, New York", "New York, NY, US; Miami, FL, US")
+    assert adapter.checked_by_company["citadel"][0] == {"software-engineer-intern-us", "quant-researcher", "software-engineer-intern-asia"}
+
+
+def test_deshaw_reads_next_data() -> None:
+    session = FakeSession(FakeResponse(_html("deshaw.html"), status_code=200))
+    jobs = DEShawAdapter(session=session).fetch()
+    assert session.urls == ["https://www.deshaw.com/careers"]
+    assert [job.id for job in jobs] == ["deshaw:5709", "deshaw:5800", "deshaw:100"]
+    intern = jobs[0]
+    assert intern.company == "de-shaw"
+    assert intern.title == "Software Developer Intern (New York) – Summer 2027"
+    assert intern.location == "New York"
+    assert intern.url == "https://www.deshaw.com/careers/Software-Developer-Intern-New-York-Summer-2027-5709"
+    assert "software developer interns" in intern.jd_text and "Build systems" in intern.jd_text
+    assert jobs[1].location == "London"
+
+
+def test_radancy_parses_results_html_and_ldjson() -> None:
+    class S(FakeSession):
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if "/search-jobs/results" in url:
+                return FakeResponse(load_fixture("radancy_results.json"), status_code=200)
+            return FakeResponse(_html("radancy_detail.html"), status_code=200)
+
+    session = S()
+    adapter = RadancyAdapter([RadancyBoard("intuit", "jobs.intuit.com")], session=session)
+    jobs = adapter.fetch()
+    assert "RecordsPerPage=40" in session.urls[0] and "CurrentPage=1" in session.urls[0]
+    assert [job.id for job in jobs] == ["radancy:intuit:87369448720", "radancy:intuit:96174872720"]
+    intern = jobs[0]
+    assert intern.title == "Software Engineer Intern"
+    assert intern.url == "https://jobs.intuit.com/job/mountain-view/software-engineer-intern/27595/87369448720"
+    assert intern.location == "Mountain View, California"
+    assert intern.posted_at == "2026-8-14"
+    assert intern.country_codes == ("US",)
+    assert "Join Intuit" in intern.jd_text
+    assert jobs[1].posted_at == "2026-8-14"  # ld+json wins over the card date
+    # The principal architect was checked without a detail fetch.
+    assert adapter.checked_by_company["intuit"][0] == {"87369448720", "96174872720", "79031267008"}
+    assert adapter.checked_by_company["intuit"][1] == {"87369448720", "96174872720"}
+
+
+def test_radancy_prefixed_routes_and_known_ids() -> None:
+    class S(FakeSession):
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if "/search-jobs/results" in url:
+                return FakeResponse(load_fixture("radancy_results.json"), status_code=200)
+            return FakeResponse(_html("radancy_detail.html"), status_code=200)
+
+    session = S()
+    adapter = RadancyAdapter(
+        [RadancyBoard("palo-alto-networks", "jobs.paloaltonetworks.com", "/en")],
+        session=session,
+        known={"palo-alto-networks": ({"87369448720", "96174872720", "79031267008"}, {"96174872720"})},
+    )
+    jobs = adapter.fetch()
+    assert session.urls[0].startswith("https://jobs.paloaltonetworks.com/en/search-jobs/results?")
+    # Only the known intern is refreshed; the known non-intern is skipped.
+    assert [job.id for job in jobs] == ["radancy:palo-alto-networks:96174872720"]

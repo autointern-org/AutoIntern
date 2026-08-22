@@ -954,3 +954,47 @@ def test_build_adapters_seeds_linkedin_from_state() -> None:
     assert isinstance(adapters[0], LinkedInAdapter)
     assert adapters[0].company_id == "1337"
     assert adapters[0].known_ids == {"1", "2"} and adapters[0].intern_ids == {"2"}
+
+
+def test_build_adapters_wires_tier_c_boards_with_known_ids() -> None:
+    from adapters.avature import AvatureAdapter
+    from adapters.citadel import CitadelAdapter
+    from adapters.deshaw import DEShawAdapter
+    from adapters.radancy import RadancyAdapter
+    from core.pipeline import build_adapters
+
+    kv = FakeKV()
+    state = StateStore(kv)
+    state.record_checked_ids("citadel", {"a"}, {"a"})
+    adapters = build_adapters(
+        [
+            CompanyConfig(name="two-sigma", adapter="avature", host="careers.twosigma.com", site="careers/OpenRoles"),
+            CompanyConfig(name="citadel", adapter="citadel", host="www.citadel.com"),
+            CompanyConfig(name="de-shaw", adapter="deshaw"),
+            CompanyConfig(name="intuit", adapter="radancy", host="jobs.intuit.com"),
+            CompanyConfig(name="palo-alto-networks", adapter="radancy", host="jobs.paloaltonetworks.com", site="/en"),
+        ],
+        state=state,
+    )
+    names = [type(a).__name__ for a in adapters]
+    assert names == ["AvatureAdapter", "CitadelAdapter", "DEShawAdapter", "RadancyAdapter"]
+    citadel = adapters[1]
+    assert isinstance(citadel, CitadelAdapter) and citadel.known["citadel"] == ({"a"}, {"a"})
+    radancy = adapters[3]
+    assert isinstance(radancy, RadancyAdapter) and [b.prefix for b in radancy.boards] == ["", "/en"]
+
+
+def test_scan_persists_per_board_checked_ids() -> None:
+    class MultiAdapter(FakeAdapter):
+        checked_by_company = {"citadel": ({"1", "2"}, {"2"}), "citadel-securities": ({"9"}, set())}
+
+    kv = FakeKV()
+    scan(
+        adapters=[MultiAdapter([])],
+        configs={"citadel": CompanyConfig(name="citadel", adapter="citadel")},
+        state=StateStore(kv),
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+    )
+    assert kv.values["checked:citadel"]["interns"] == ["2"]
+    assert kv.values["checked:citadel-securities"]["checked"] == ["9"]
