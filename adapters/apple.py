@@ -6,7 +6,7 @@ from typing import Any
 import requests
 
 from adapters.base import DEFAULT_USER_AGENT, Job, compact_text, html_to_text
-from core.http import new_session
+from core.http import new_session, retry_once
 
 
 SEARCH_URL = "https://jobs.apple.com/api/v1/search"
@@ -164,12 +164,3 @@ def _location(raw: dict[str, Any]) -> str:
             parts.append(text)
     return "; ".join(parts)
 
-
-def retry_once(request: Any) -> Any:
-    """jobs.apple.com occasionally stalls past the read timeout; one retry
-    is enough in practice and keeps the whole board from being skipped."""
-    try:
-        return request()
-    except (requests.Timeout, requests.ConnectionError) as exc:
-        print(f"[apple] retrying after {exc.__class__.__name__}")
-        return request()

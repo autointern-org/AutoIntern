@@ -7,7 +7,7 @@ from typing import Any
 import requests
 
 from adapters.base import Job, compact_text, html_to_text, normalize_country_code
-from core.http import new_session
+from core.http import new_session, retry_once
 
 
 LIMIT = 25
@@ -26,7 +26,7 @@ class OracleAdapter:
         self,
         boards: Iterable[OracleBoard],
         *,
-        timeout: int = 30,
+        timeout: int = 45,
         session: requests.Session | None = None,
     ) -> None:
         self.boards = list(boards)
@@ -51,7 +51,7 @@ class OracleAdapter:
         offset = 0
         for _ in range(MAX_PAGES):
             url = _requisition_url(board.host, board.site_number, offset)
-            response = self.session.get(url, timeout=self.timeout)
+            response = retry_once(lambda: self.session.get(url, timeout=self.timeout), label="oracle")
             response.raise_for_status()
             payload = response.json()
             items = payload.get("items") if isinstance(payload, dict) else None

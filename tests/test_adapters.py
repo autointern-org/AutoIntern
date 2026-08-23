@@ -1444,7 +1444,7 @@ def test_radancy_prefixed_routes_and_known_ids() -> None:
 def test_apple_retry_once_recovers_from_a_timeout() -> None:
     import requests as _requests
 
-    from adapters.apple import retry_once
+    from core.http import retry_once
 
     calls: list[int] = []
 
