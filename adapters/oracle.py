@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from time import sleep
 from typing import Any
 
 import requests
@@ -52,6 +53,9 @@ class OracleAdapter:
         for _ in range(MAX_PAGES):
             url = _requisition_url(board.host, board.site_number, offset)
             response = retry_once(lambda: self.session.get(url, timeout=self.timeout), label="oracle")
+            if response.status_code == 503:
+                sleep(5)
+                response = self.session.get(url, timeout=self.timeout)
             response.raise_for_status()
             payload = response.json()
             items = payload.get("items") if isinstance(payload, dict) else None

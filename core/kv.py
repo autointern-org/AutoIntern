@@ -252,6 +252,18 @@ class StateStore:
         doc["pruned_at"] = (now or datetime.now(UTC)).isoformat()
         self._health_dirty = True
 
+    def issue_recently_posted(self, title: str, *, within_seconds: int, now: datetime | None = None) -> bool:
+        doc = self._load_health()
+        last = parse_datetime((doc.get("issues") or {}).get(title))
+        if last is None:
+            return False
+        return ((now or datetime.now(UTC)) - last).total_seconds() < within_seconds
+
+    def mark_issue_posted(self, title: str, now: datetime | None = None) -> None:
+        doc = self._load_health()
+        doc.setdefault("issues", {})[title] = (now or datetime.now(UTC)).isoformat()
+        self._health_dirty = True
+
     def _load_health(self) -> dict[str, Any]:
         if self._health_doc is None:
             try:
@@ -261,9 +273,11 @@ class StateStore:
                 raw = {}
                 self._health_read_failed = True
             companies = raw.get("companies") if isinstance(raw.get("companies"), dict) else {}
+            issues = raw.get("issues") if isinstance(raw.get("issues"), dict) else {}
             self._health_doc = {
                 "scope": self.health_scope,
                 "pruned_at": raw.get("pruned_at"),
+                "issues": {str(k): v for k, v in issues.items() if isinstance(v, str)},
                 "companies": {str(k): dict(v) for k, v in companies.items() if isinstance(v, dict)},
             }
         return self._health_doc

@@ -152,7 +152,7 @@ def scan(
             health_rows.append(
                 CompanyHealth(company=label, status="error", duration_ms=duration_ms, error=str(exc))
             )
-            _report_issue(discord, result, f"{label} fetch failed", str(exc), dry_run=dry_run)
+            _report_issue(discord, result, f"{label} fetch failed", str(exc), dry_run=dry_run, state=state)
             continue
         jobs = outcome
         if not dry_run:
@@ -186,6 +186,7 @@ def scan(
                 f"{company_key} fetch failed",
                 str(error),
                 dry_run=dry_run,
+                state=state,
             )
         result.fetched += len(jobs)
         companies_in_batch: set[str] = set()
@@ -232,7 +233,7 @@ def scan(
             print(f"[scan] health read failed for {row.company}: {exc}")
     for line in anomaly_lines(health_rows, previous):
         print(line)
-        _report_issue(discord, result, "Company fetch looks off", line, dry_run=dry_run)
+        _report_issue(discord, result, "Company fetch looks off", line, dry_run=dry_run, state=state)
 
     prune = (not dry_run) and state.should_prune()
     for company_key, jobs in matched_jobs.items():
@@ -432,6 +433,9 @@ def _remember(state: StateStore, job: Job, message: DiscordMessage, *, dry_run: 
     )
 
 
+ISSUE_REPEAT_SECONDS = 6 * 60 * 60
+
+
 def _report_issue(
     discord: DiscordClient,
     result: ScanResult,
@@ -439,15 +443,31 @@ def _report_issue(
     body: str,
     *,
     dry_run: bool,
+    state: StateStore | None = None,
 ) -> None:
     result.issues += 1
     if dry_run:
         print(f"[dry-run] issue {title}: {body}")
         return
+    # A board that stays broken would otherwise post the same message every
+    # 15 minutes; one message per title per six hours is enough to notice.
+    if state is not None:
+        try:
+            if state.issue_recently_posted(title, within_seconds=ISSUE_REPEAT_SECONDS):
+                print(f"[issues] suppressed repeat: {title}")
+                return
+        except Exception as exc:
+            print(f"[issues] warning: de-dup check failed: {exc}")
     try:
         discord.post_issue(title, body)
     except Exception as exc:
         print(f"[issues] warning: {title} not posted: {exc}")
+        return
+    if state is not None:
+        try:
+            state.mark_issue_posted(title)
+        except Exception as exc:
+            print(f"[issues] warning: de-dup mark failed: {exc}")
 
 
 def mark_reaction_dismissals(state: StateStore, discord: DiscordClient) -> int:

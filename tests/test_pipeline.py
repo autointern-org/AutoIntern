@@ -1041,3 +1041,27 @@ def test_health_row_for_board_that_listed_jobs_but_matched_none() -> None:
     )
     assert state.get_health("intuit")["fetched"] == 432
     assert state.get_health("intuit")["matched"] == 0
+
+
+def test_repeated_board_failure_posts_one_issue_per_six_hours() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    class Broken:
+        board_errors = [("dell", "503 Server Error")]
+
+        def fetch(self) -> list[Job]:
+            return []
+
+    kv = FakeKV()
+    configs = {"dell": CompanyConfig(name="dell", adapter="oracle")}
+    first = FakeDiscord()
+    scan(adapters=[Broken()], configs=configs, state=StateStore(kv), discord=first, classifier=FakeClassifier())
+    second = FakeDiscord()
+    scan(adapters=[Broken()], configs=configs, state=StateStore(kv), discord=second, classifier=FakeClassifier())
+    assert len(first.issues) == 1
+    assert len(second.issues) == 0
+    # Six hours later the same failure is reported again.
+    kv.values["health:all"]["issues"]["dell fetch failed"] = (datetime.now(UTC) - timedelta(hours=6, minutes=1)).isoformat()
+    third = FakeDiscord()
+    scan(adapters=[Broken()], configs=configs, state=StateStore(kv), discord=third, classifier=FakeClassifier())
+    assert len(third.issues) == 1
