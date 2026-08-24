@@ -621,6 +621,341 @@ companies:
     tier: "1"
 
   # --- Tier 2 ---
+  - name: 1x
+    adapter: ashby
+    slug: "1x"
+    tier: "2"
+
+  - name: abridge
+    adapter: ashby
+    slug: "abridge"
+    tier: "2"
+
+  - name: alchemy
+    adapter: ashby
+    slug: "alchemy"
+    tier: "2"
+
+  - name: axiom
+    adapter: ashby
+    slug: "axiom"
+    tier: "2"
+
+  - name: base-power
+    adapter: ashby
+    slug: "base-power"
+    tier: "2"
+
+  - name: baseten
+    adapter: ashby
+    slug: "baseten"
+    tier: "2"
+
+  - name: beyond-reach-labs
+    adapter: ashby
+    slug: "beyondreachlabs"
+    tier: "2"
+
+  - name: braintrust
+    adapter: ashby
+    slug: "braintrust"
+    tier: "2"
+
+  - name: browserbase
+    adapter: ashby
+    slug: "browserbase"
+    tier: "2"
+
+  - name: cartesia
+    adapter: ashby
+    slug: "cartesia"
+    tier: "2"
+
+  - name: circleback
+    adapter: ashby
+    slug: "circleback"
+    tier: "2"
+
+  - name: column
+    adapter: ashby
+    slug: "column"
+    tier: "2"
+
+  - name: commure
+    adapter: ashby
+    slug: "commure"
+    tier: "2"
+
+  - name: crusoe
+    adapter: ashby
+    slug: "crusoe"
+    tier: "2"
+
+  - name: ctgt
+    adapter: ashby
+    slug: "ctgt"
+    tier: "2"
+
+  - name: deepgram
+    adapter: ashby
+    slug: "deepgram"
+    tier: "2"
+
+  - name: e2b
+    adapter: ashby
+    slug: "e2b"
+    tier: "2"
+
+  - name: ellipsis-labs
+    adapter: ashby
+    slug: "ellipsislabs"
+    tier: "2"
+
+  - name: exa
+    adapter: ashby
+    slug: "exa"
+    tier: "2"
+
+  - name: firecrawl
+    adapter: ashby
+    slug: "firecrawl"
+    tier: "2"
+
+  - name: gamma
+    adapter: ashby
+    slug: "gamma"
+    tier: "2"
+
+  - name: granola
+    adapter: ashby
+    slug: "granola"
+    tier: "2"
+
+  - name: grow-therapy
+    adapter: ashby
+    slug: "grow-therapy"
+    tier: "2"
+
+  - name: harmonic
+    adapter: ashby
+    slug: "harmonic"
+    tier: "2"
+
+  - name: headway
+    adapter: ashby
+    slug: "headway"
+    tier: "2"
+
+  - name: heliux
+    adapter: ashby
+    slug: "heliux"
+    tier: "2"
+
+  - name: kalshi
+    adapter: ashby
+    slug: "kalshi"
+    tier: "2"
+
+  - name: ledger
+    adapter: ashby
+    slug: "ledger"
+    tier: "2"
+
+  - name: liquid-ai
+    adapter: ashby
+    slug: "liquid-ai"
+    tier: "2"
+
+  - name: melius
+    adapter: ashby
+    slug: "melius"
+    tier: "2"
+
+  - name: middesk
+    adapter: ashby
+    slug: "middesk"
+    tier: "2"
+
+  - name: midjourney
+    adapter: ashby
+    slug: "midjourney"
+    tier: "2"
+
+  - name: mintlify
+    adapter: ashby
+    slug: "mintlify"
+    tier: "2"
+
+  - name: nationgraph
+    adapter: ashby
+    slug: "NationGraph"
+    tier: "2"
+
+  - name: neon
+    adapter: ashby
+    slug: "neon"
+    tier: "2"
+
+  - name: openevidence
+    adapter: ashby
+    slug: "openevidence"
+    tier: "2"
+
+  - name: opensea
+    adapter: ashby
+    slug: "opensea"
+    tier: "2"
+
+  - name: paradigm
+    adapter: ashby
+    slug: "paradigm"
+    tier: "2"
+
+  - name: persona
+    adapter: ashby
+    slug: "persona"
+    tier: "2"
+
+  - name: phantom
+    adapter: ashby
+    slug: "phantom"
+    tier: "2"
+
+  - name: photoroom
+    adapter: ashby
+    slug: "photoroom"
+    tier: "2"
+
+  - name: pika
+    adapter: ashby
+    slug: "pika"
+    tier: "2"
+
+  - name: polymarket
+    adapter: ashby
+    slug: "polymarket"
+    tier: "2"
+
+  - name: posthog
+    adapter: ashby
+    slug: "posthog"
+    tier: "2"
+
+  - name: primer
+    adapter: ashby
+    slug: "primer"
+    tier: "2"
+
+  - name: quadrillion
+    adapter: ashby
+    slug: "quadrillion-labs"
+    tier: "2"
+
+  - name: railway
+    adapter: ashby
+    slug: "railway"
+    tier: "2"
+
+  - name: resend
+    adapter: ashby
+    slug: "resend"
+    tier: "2"
+
+  - name: rilla
+    adapter: ashby
+    slug: "rilla"
+    tier: "2"
+
+  - name: rula
+    adapter: ashby
+    slug: "rula"
+    tier: "2"
+
+  - name: sardine
+    adapter: ashby
+    slug: "sardine"
+    tier: "2"
+
+  - name: sentry
+    adapter: ashby
+    slug: "sentry"
+    tier: "2"
+
+  - name: sesame
+    adapter: ashby
+    slug: "sesame"
+    tier: "2"
+
+  - name: spring-health
+    adapter: ashby
+    slug: "spring-health"
+    tier: "2"
+
+  - name: stytch
+    adapter: ashby
+    slug: "stytch"
+    tier: "2"
+
+  - name: suno
+    adapter: ashby
+    slug: "suno"
+    tier: "2"
+
+  - name: synthesia
+    adapter: ashby
+    slug: "synthesia"
+    tier: "2"
+
+  - name: temporal
+    adapter: ashby
+    slug: "temporal"
+    tier: "2"
+
+  - name: tennr
+    adapter: ashby
+    slug: "tennr"
+    tier: "2"
+
+  - name: turnkey
+    adapter: ashby
+    slug: "turnkey"
+    tier: "2"
+
+  - name: uniswap
+    adapter: ashby
+    slug: "uniswap"
+    tier: "2"
+
+  - name: vapi
+    adapter: ashby
+    slug: "vapi"
+    tier: "2"
+
+  - name: warp
+    adapter: ashby
+    slug: "warp"
+    tier: "2"
+
+  - name: watershed
+    adapter: ashby
+    slug: "watershed"
+    tier: "2"
+
+  - name: wayve
+    adapter: ashby
+    slug: "wayve"
+    tier: "2"
+
+  - name: workos
+    adapter: ashby
+    slug: "workos"
+    tier: "2"
+
+  - name: zed
+    adapter: ashby
+    slug: "zed"
+    tier: "2"
+
   - name: l3harris
     adapter: radancy
     host: careers.l3harris.com
