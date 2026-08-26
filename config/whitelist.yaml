@@ -5,7 +5,8 @@
 #   HashiCorp, Replicate (Cloudflare greenhouse), Cruise (GM Workday),
 #   Weights & Biases (CoreWeave greenhouse), Rivian/Intuit/Arm/Palo Alto (Radancy),
 #   Siemens/EA/Synopsys (Avature HTML, not yet configured), Shopify/Circle (sitemap-only),
-#   Ansys (stale), Groq (Gem empty), AI21 (Comeet empty),
+#   Ansys (stale), Groq (Gem empty), AI21 (Comeet empty), Spotify tech roles (own site; the
+#   Lever board covers only part of their hiring),
 #   DocuSign (iCIMS), Spotify (no adapter), ASML (SSR scrape).
 # Aurora posts on Ashby (aurora-operations-inc); Rippling on its own ATS board API;
 # Hugging Face on Workable; ServiceNow on SmartRecruiters.
@@ -620,7 +621,167 @@ companies:
     host: careers.arm.com
     tier: "1"
 
+  - name: flow-traders
+    adapter: greenhouse
+    slug: flowtraders
+    tier: "1"
+
+  - name: pdt-partners
+    adapter: greenhouse
+    slug: pdtpartners
+    tier: "1"
+
+  - name: walleye-capital
+    adapter: greenhouse
+    slug: walleyecapital-external-students
+    tier: "1"
+
   # --- Tier 2 ---
+  - name: abnormal-security
+    adapter: greenhouse
+    slug: abnormalsecurity
+    tier: "2"
+
+  - name: adyen
+    adapter: greenhouse
+    slug: adyen
+    tier: "2"
+
+  - name: bungie
+    adapter: greenhouse
+    slug: bungie
+    tier: "2"
+
+  - name: calendly
+    adapter: greenhouse
+    slug: calendly
+    tier: "2"
+
+  - name: checkr
+    adapter: greenhouse
+    slug: checkr
+    tier: "2"
+
+  - name: circleci
+    adapter: greenhouse
+    slug: circleci
+    tier: "2"
+
+  - name: feedzai
+    adapter: greenhouse
+    slug: feedzai
+    tier: "2"
+
+  - name: general-matter
+    adapter: greenhouse
+    slug: generalmatter
+    tier: "2"
+
+  - name: huntress
+    adapter: greenhouse
+    slug: huntress
+    tier: "2"
+
+  - name: ionq
+    adapter: greenhouse
+    slug: ionq
+    tier: "2"
+
+  - name: labelbox
+    adapter: greenhouse
+    slug: labelbox
+    tier: "2"
+
+  - name: launchdarkly
+    adapter: greenhouse
+    slug: launchdarkly
+    tier: "2"
+
+  - name: lightmatter
+    adapter: greenhouse
+    slug: lightmatter
+    tier: "2"
+
+  - name: marqeta
+    adapter: greenhouse
+    slug: marqeta
+    tier: "2"
+
+  - name: mozilla
+    adapter: greenhouse
+    slug: mozilla
+    tier: "2"
+
+  - name: pagerduty
+    adapter: greenhouse
+    slug: pagerduty
+    tier: "2"
+
+  - name: peloton
+    adapter: greenhouse
+    slug: peloton
+    tier: "2"
+
+  - name: planet-labs
+    adapter: greenhouse
+    slug: planetlabs
+    tier: "2"
+
+  - name: psiquantum
+    adapter: greenhouse
+    slug: psiquantum
+    tier: "2"
+
+  - name: ripple
+    adapter: greenhouse
+    slug: ripple
+    tier: "2"
+
+  - name: sumo-logic
+    adapter: greenhouse
+    slug: sumologic
+    tier: "2"
+
+  - name: tanium
+    adapter: greenhouse
+    slug: tanium
+    tier: "2"
+
+  - name: webflow
+    adapter: greenhouse
+    slug: webflow
+    tier: "2"
+
+  - name: wikimedia
+    adapter: greenhouse
+    slug: wikimedia
+    tier: "2"
+
+  - name: wise
+    adapter: greenhouse
+    slug: wise
+    tier: "2"
+
+  - name: dexterity
+    adapter: lever
+    slug: dexterity
+    tier: "2"
+
+  - name: kepler
+    adapter: lever
+    slug: kepler
+    tier: "2"
+
+  - name: outreach
+    adapter: lever
+    slug: outreach
+    tier: "2"
+
+  - name: spotify
+    adapter: lever
+    slug: spotify
+    tier: "2"
+
   - name: 1x
     adapter: ashby
     slug: "1x"
