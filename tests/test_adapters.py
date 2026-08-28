@@ -1482,3 +1482,12 @@ def test_oracle_isolates_a_failing_tenant() -> None:
     assert [job.company for job in jobs] == ["uber"]
     assert adapter.board_errors == [("jpmorgan", adapter.board_errors[0][1])]
     assert "503" in adapter.board_errors[0][1]
+
+
+def test_workday_job_url_includes_the_career_site() -> None:
+    adapter = WorkdayAdapter([("hpe.wd5.myworkdayjobs.com", "hpe", "Jobsathpe")], session=FakeSession({}))
+    raw = {"title": "Software Engineer Intern", "externalPath": "/job/Spring-Texas-United-States-of-America/Software-Engineer-Intern_1213625", "locationsText": "10 Locations"}
+    job = adapter._normalize(("hpe.wd5.myworkdayjobs.com", "hpe", "Jobsathpe"), raw)
+    assert job.url == "https://hpe.wd5.myworkdayjobs.com/Jobsathpe/job/Spring-Texas-United-States-of-America/Software-Engineer-Intern_1213625"
+    already = dict(raw, externalPath="/Jobsathpe/job/Spring-Texas/Software-Engineer-Intern_1213625")
+    assert adapter._normalize(("hpe.wd5.myworkdayjobs.com", "hpe", "Jobsathpe"), already).url.count("/Jobsathpe/") == 1

@@ -135,7 +135,12 @@ class WorkdayAdapter:
         job_id = raw.get("jobReqId") or raw.get("requisitionId") or raw.get("id") or job_id or raw.get("externalPath")
         external_path = raw.get("externalPath") or raw.get("url")
         if external_path and str(external_path).startswith("/"):
-            url = f"https://{host}{external_path}"
+            # externalPath is relative to the career site ("/job/..."); the
+            # public link Workday itself uses is https://{host}/{site}/job/...
+            path = str(external_path)
+            if not path.startswith(f"/{site}/"):
+                path = f"/{site}{path}"
+            url = f"https://{host}{path}"
         else:
             url = str(external_path or f"https://{host}/wday/cxs/{tenant}/{site}/job/{job_id}")
 
