@@ -1065,3 +1065,24 @@ def test_repeated_board_failure_posts_one_issue_per_six_hours() -> None:
     third = FakeDiscord()
     scan(adapters=[Broken()], configs=configs, state=StateStore(kv), discord=third, classifier=FakeClassifier())
     assert len(third.issues) == 1
+
+
+def test_many_board_failures_collapse_into_one_issue() -> None:
+    class Outage:
+        board_errors = [(f"company-{i}", "500 Server Error") for i in range(8)]
+
+        def fetch(self) -> list[Job]:
+            return []
+
+    discord = FakeDiscord()
+    result = scan(
+        adapters=[Outage()],
+        configs={f"company-{i}": CompanyConfig(name=f"company-{i}", adapter="workday") for i in range(8)},
+        state=StateStore(FakeKV()),
+        discord=discord,
+        classifier=FakeClassifier(),
+    )
+    assert len(discord.issues) == 1
+    assert "8 boards failed" in discord.issues[0][0]
+    assert "company-7" in discord.issues[0][1]
+    assert result.issues == 1

@@ -170,7 +170,8 @@ def scan(
                 )
             except Exception as exc:
                 print(f"[scan] checked-id write failed for {adapter.__class__.__name__}: {exc}")
-        for company_key, error in getattr(adapter, "board_errors", []) or []:
+        board_errors = list(getattr(adapter, "board_errors", []) or [])
+        for company_key, error in board_errors:
             print(f"[scan] {company_key} fetch failed: {error}")
             health_rows.append(
                 CompanyHealth(
@@ -180,14 +181,30 @@ def scan(
                     error=str(error),
                 )
             )
+        if len(board_errors) >= OUTAGE_BOARD_THRESHOLD:
+            # Many boards behind one provider failing together is the
+            # provider's outage (Workday's Friday-night maintenance, for
+            # example), so it gets one message instead of one per company.
+            label = adapter.__class__.__name__.removesuffix("Adapter")
+            names = ", ".join(str(company) for company, _ in board_errors)
             _report_issue(
                 discord,
                 result,
-                f"{company_key} fetch failed",
-                str(error),
+                f"{label}: {len(board_errors)} boards failed (provider outage likely)",
+                f"{names}\n\nFirst error: {board_errors[0][1]}"[:1800],
                 dry_run=dry_run,
                 state=state,
             )
+        else:
+            for company_key, error in board_errors:
+                _report_issue(
+                    discord,
+                    result,
+                    f"{company_key} fetch failed",
+                    str(error),
+                    dry_run=dry_run,
+                    state=state,
+                )
         result.fetched += len(jobs)
         companies_in_batch: set[str] = set()
         for job in jobs:
@@ -434,6 +451,7 @@ def _remember(state: StateStore, job: Job, message: DiscordMessage, *, dry_run: 
 
 
 ISSUE_REPEAT_SECONDS = 6 * 60 * 60
+OUTAGE_BOARD_THRESHOLD = 5
 
 
 def _report_issue(
