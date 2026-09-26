@@ -396,3 +396,12 @@ def test_infra_style_intern_titles_are_kept() -> None:
     ):
         job = Job(id="x", company="meta", title=title, location="Menlo Park, CA, US", url="u", jd_text="")
         assert evaluate_job(job, config).keep, title
+
+
+def test_campus_as_a_place_is_not_an_intern_signal() -> None:
+    config = CompanyConfig(name="x", adapter="greenhouse")
+    assert not passes_filter(make_job(title="Campus Infrastructure Project Manager"), config)
+    assert not passes_filter(make_job(title="OCI Core Infrastructure Engineer 2 - Nashville Campus"), config)
+    assert passes_filter(make_job(title="Software Engineer (Campus)"), config)
+    assert passes_filter(make_job(title="Campus Hire - Software Engineer"), config)
+    assert passes_filter(make_job(title="Campus Data Engineer (Intern)"), config)

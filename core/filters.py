@@ -9,9 +9,13 @@ from core.config import CompanyConfig
 
 INTERN_TITLE_RE = re.compile(
     r"\b(intern|interns|internship|internships|winternship|"
-    r"co-?ops?|summer analyst|campus|student|apprentice)\b",
+    r"co-?ops?|summer analyst|student|apprentice)\b",
     re.IGNORECASE,
 )
+# "Campus" alone also names physical sites ("Nashville Campus", "Campus
+# Infrastructure Project Manager"); it signals a campus-recruiting role only
+# in these forms.
+CAMPUS_HIRE_RE = re.compile(r"\(campus\)|\bcampus\s+(?:hire|program|recruit\w*)", re.IGNORECASE)
 HARD_DROP_TITLE_RE = re.compile(r"\b(recruiter|ambassador)\b", re.IGNORECASE)
 FULL_TIME_RE = re.compile(r"\bfull[\s-]?time\b", re.IGNORECASE)
 INTERN_FOR_FULLTIME_RE = re.compile(
@@ -241,7 +245,7 @@ class FilterDecision:
 def evaluate_job(job: Job, config: CompanyConfig) -> FilterDecision:
     title = job.title
     haystack = f"{job.title}\n{job.location}\n{job.jd_text}"
-    if not INTERN_TITLE_RE.search(title):
+    if not (INTERN_TITLE_RE.search(title) or CAMPUS_HIRE_RE.search(title)):
         return FilterDecision(keep=False, stage="intern")
     if HARD_DROP_TITLE_RE.search(title):
         return FilterDecision(keep=False, stage="intern")
