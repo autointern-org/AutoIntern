@@ -1491,3 +1491,23 @@ def test_workday_job_url_includes_the_career_site() -> None:
     assert job.url == "https://hpe.wd5.myworkdayjobs.com/Jobsathpe/job/Spring-Texas-United-States-of-America/Software-Engineer-Intern_1213625"
     already = dict(raw, externalPath="/Jobsathpe/job/Spring-Texas/Software-Engineer-Intern_1213625")
     assert adapter._normalize(("hpe.wd5.myworkdayjobs.com", "hpe", "Jobsathpe"), already).url.count("/Jobsathpe/") == 1
+
+
+def test_google_keeps_bs_ms_internships_tagged_non_intern_employment_type() -> None:
+    from adapters.google import _jobs_from_blob
+
+    def record(job_id: str, title: str, employment: list[int]) -> list:
+        rec: list = [None] * 21
+        rec[0], rec[1], rec[2] = job_id, title, f"/about/careers/applications/jobs/results/{job_id}"
+        rec[7], rec[11] = "Google", employment
+        return rec
+
+    payload = [[record("1", "Software Engineering Intern, BS, Summer 2027", [2]), record("2", "Research Intern, PhD, Summer 2027", [4]), record("3", "Security Engineering Intern, BS/MS, Summer 2027", [2, 3])], None, 3]
+    html = "AF_initDataCallback({key: 'ds:1', hash: '1', data:" + json.dumps(payload) + ", sideChannel: {}});"
+    jobs, total, ok = _jobs_from_blob(html)
+    assert ok and total == 3
+    assert [job.title for job in jobs] == [
+        "Software Engineering Intern, BS, Summer 2027",
+        "Research Intern, PhD, Summer 2027",
+        "Security Engineering Intern, BS/MS, Summer 2027",
+    ]

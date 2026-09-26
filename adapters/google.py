@@ -93,8 +93,8 @@ def _jobs_from_blob(html: str) -> tuple[list[Job], int | None, bool]:
     for record in records:
         if not isinstance(record, list) or len(record) != RECORD_LEN or record[COMPANY_INDEX] != "Google":
             raise RuntimeError("Google ds:1 record failed shape check (len==21 and company Google)")
-        if _employment_type(record[EMPLOYMENT_INDEX]) != INTERN_EMPLOYMENT_TYPE:
-            continue
+        # No employment-type filter: Google tags BS/MS internships as [2] or
+        # [2, 3] and only PhD ones as [4]; the pipeline's title filter decides.
         jobs.append(_normalize_blob_record(record))
     return jobs, total, True
 
