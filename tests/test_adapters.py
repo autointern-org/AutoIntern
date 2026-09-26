@@ -1511,3 +1511,15 @@ def test_google_keeps_bs_ms_internships_tagged_non_intern_employment_type() -> N
         "Research Intern, PhD, Summer 2027",
         "Security Engineering Intern, BS/MS, Summer 2027",
     ]
+
+
+def test_amazon_pages_past_the_first_hundred() -> None:
+    from adapters.amazon import BASE_API, AmazonAdapter
+
+    def page(start: int, count: int) -> dict:
+        return {"hits": 130, "jobs": [{"id_icims": str(start + i), "title": f"SDE Intern {start + i}", "normalized_location": "Seattle, WA, USA", "job_path": f"/jobs/{start + i}"} for i in range(count)]}
+
+    session = FakeSession(by_url={f"{BASE_API}&offset=100": page(100, 30), BASE_API: page(0, 100)})
+    jobs = AmazonAdapter(["amazon"], session=session).fetch()
+    assert len(jobs) == 130
+    assert session.urls == [BASE_API, f"{BASE_API}&offset=100"]

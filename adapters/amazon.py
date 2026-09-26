@@ -9,6 +9,8 @@ from adapters.base import Job, compact_text, html_to_text
 from core.http import new_session
 
 
+PAGE_SIZE = 100
+MAX_PAGES = 20
 BASE_API = (
     "https://www.amazon.jobs/en/search.json"
     "?normalized_country_code[]=USA&base_query=intern&result_limit=100&sort=recent"
@@ -37,12 +39,21 @@ class AmazonAdapter:
             url = BASE_API
             if _is_aws(company, self.slugs.get(company)):
                 url = f"{BASE_API}&business_category[]=aws"
-            response = self.session.get(url, timeout=self.timeout)
-            response.raise_for_status()
-            rows = response.json().get("jobs") or []
-            for raw in rows:
-                if isinstance(raw, dict):
-                    jobs.append(self._normalize(company, raw))
+            # result_limit caps a page at 100; peak season exceeds that.
+            offset = 0
+            for _ in range(MAX_PAGES):
+                page_url = f"{url}&offset={offset}" if offset else url
+                response = self.session.get(page_url, timeout=self.timeout)
+                response.raise_for_status()
+                payload = response.json()
+                rows = payload.get("jobs") or []
+                for raw in rows:
+                    if isinstance(raw, dict):
+                        jobs.append(self._normalize(company, raw))
+                offset += len(rows)
+                hits = payload.get("hits")
+                if len(rows) < PAGE_SIZE or (isinstance(hits, int) and offset >= hits):
+                    break
         return jobs
 
     def _normalize(self, company: str, raw: dict[str, Any]) -> Job:
