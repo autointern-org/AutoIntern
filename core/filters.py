@@ -33,6 +33,7 @@ TECH_KEEP_RE = re.compile(
     r"machine learning|\bml\b|"
     r"ai(?:\s+engineer)?|applied scientist|"
     r"data scientist|data science|data engineer|site reliability|\bsre\b|"
+    r"production engineer(?:ing)?|infrastructure|platform engineer(?:ing)?|devops|cloud engineer(?:ing)?|"
     r"quant(?:itative)?|step)\b",
     re.IGNORECASE,
 )

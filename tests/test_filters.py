@@ -382,3 +382,17 @@ def test_classify_job_location_country_names_step() -> None:
     # Nothing structured -> text rule.
     assert classify_job_location(job(location="London, United Kingdom")) == "non_us"
     assert classify_job_location(job(location="Remote")) == "unknown"
+
+
+def test_infra_style_intern_titles_are_kept() -> None:
+    config = CompanyConfig(name="meta", adapter="meta")
+    for title in (
+        "Production Engineer Intern",
+        "Network Production Engineer Intern",
+        "Infrastructure Engineering Intern",
+        "Platform Engineer Intern - Summer 2027",
+        "DevOps Intern",
+        "Cloud Engineering Intern",
+    ):
+        job = Job(id="x", company="meta", title=title, location="Menlo Park, CA, US", url="u", jd_text="")
+        assert evaluate_job(job, config).keep, title
