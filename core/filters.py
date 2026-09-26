@@ -16,6 +16,14 @@ INTERN_TITLE_RE = re.compile(
 # Infrastructure Project Manager"); it signals a campus-recruiting role only
 # in these forms.
 CAMPUS_HIRE_RE = re.compile(r"\(campus\)|\bcampus\s+(?:hire|program|recruit\w*)", re.IGNORECASE)
+CAMPUS_RE = re.compile(r"\bcampus\b", re.IGNORECASE)
+JD_INTERN_RE = re.compile(r"\b(?:intern|interns|internship|internships)\b", re.IGNORECASE)
+
+
+def _campus_intern(title: str, jd_text: str) -> bool:
+    if CAMPUS_HIRE_RE.search(title):
+        return True
+    return bool(CAMPUS_RE.search(title) and JD_INTERN_RE.search(jd_text or ""))
 HARD_DROP_TITLE_RE = re.compile(r"\b(recruiter|ambassador)\b", re.IGNORECASE)
 FULL_TIME_RE = re.compile(r"\bfull[\s-]?time\b", re.IGNORECASE)
 INTERN_FOR_FULLTIME_RE = re.compile(
@@ -245,7 +253,7 @@ class FilterDecision:
 def evaluate_job(job: Job, config: CompanyConfig) -> FilterDecision:
     title = job.title
     haystack = f"{job.title}\n{job.location}\n{job.jd_text}"
-    if not (INTERN_TITLE_RE.search(title) or CAMPUS_HIRE_RE.search(title)):
+    if not (INTERN_TITLE_RE.search(title) or _campus_intern(title, job.jd_text)):
         return FilterDecision(keep=False, stage="intern")
     if HARD_DROP_TITLE_RE.search(title):
         return FilterDecision(keep=False, stage="intern")

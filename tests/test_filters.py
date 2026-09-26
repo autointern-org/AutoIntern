@@ -405,3 +405,6 @@ def test_campus_as_a_place_is_not_an_intern_signal() -> None:
     assert passes_filter(make_job(title="Software Engineer (Campus)"), config)
     assert passes_filter(make_job(title="Campus Hire - Software Engineer"), config)
     assert passes_filter(make_job(title="Campus Data Engineer (Intern)"), config)
+    # A plain "Campus" title counts when the JD says it's an internship.
+    assert passes_filter(make_job(title="Campus Software Engineer", jd_text="This 12-week internship runs in summer."), config)
+    assert not passes_filter(make_job(title="Campus Software Engineer", jd_text="Full-time role on our platform team."), config)
