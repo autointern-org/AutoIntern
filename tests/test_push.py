@@ -61,10 +61,16 @@ def test_push_publishes_json_with_topic_and_click() -> None:
     assert post["json"]["priority"] == 5
 
 
-def test_catch_up_postings_push_at_lower_priority() -> None:
-    old = job(2, posted_at=(datetime.now(UTC) - timedelta(days=30)).date().isoformat())
-    payload = job_payload(old)
-    assert payload["priority"] == 3 and "catch-up" in payload["message"]
+def test_catch_up_postings_collapse_into_one_summary_per_run() -> None:
+    old = [job(i, posted_at=(datetime.now(UTC) - timedelta(days=30)).date().isoformat()) for i in range(20, 25)]
+    assert job_payload(old[0])["priority"] == 3 and "catch-up" in job_payload(old[0])["message"]
+    session = FakeSession()
+    notifier = PushNotifier("t", session=session)
+    assert notifier.push_jobs(old + [job(1)]) == 2
+    titles = [post["json"]["title"] for post in session.posts]
+    assert titles[0] == "google: Software Engineering Intern 1"
+    assert titles[1] == "5 older priority postings became visible: see Discord"
+    assert notifier.push_jobs(old) == 0  # one catch-up summary per run
 
 
 def test_push_caps_per_run_and_summarizes_overflow() -> None:

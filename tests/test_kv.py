@@ -50,7 +50,7 @@ def test_record_health_skips_unchanged_counts() -> None:
     state.record_health("anthropic", fetched=4, matched=1)
     state.flush_health()
     assert kv.puts == []  # count-only change within the hour: held in memory
-    later = datetime.now(UTC) + timedelta(minutes=61)
+    later = datetime.now(UTC) + timedelta(hours=3, minutes=1)
     state.flush_health(now=later)
     assert kv.puts == [("health:all", HEALTH_TTL_SECONDS)]
     assert kv.values["health:all"]["companies"]["anthropic"]["fetched"] == 4

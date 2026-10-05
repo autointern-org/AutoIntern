@@ -40,6 +40,7 @@ class PushNotifier:
         self.timeout = timeout
         self.session = session or requests.Session()
         self.sent = 0
+        self.catch_up_summarized = False
 
     @classmethod
     def from_env(cls, *, dry_run: bool = False) -> "PushNotifier":
@@ -51,6 +52,25 @@ class PushNotifier:
 
     def push_jobs(self, jobs: list[Job]) -> int:
         if not jobs or not self.enabled:
+            return 0
+        fresh = [job for job in jobs if not is_catch_up(job)]
+        catch_up = [job for job in jobs if is_catch_up(job)]
+        pushed = self._push_fresh(fresh)
+        if catch_up and not self.catch_up_summarized:
+            # Older postings that just became visible (new board, filter change)
+            # can arrive by the hundred; one summary per run instead of a buzz each.
+            payload = summary_payload(catch_up)
+            payload["title"] = f"{len(catch_up)} older priority postings became visible: see Discord"
+            payload["priority"] = 3
+            payload["tags"] = ["hourglass"]
+            if self._publish(payload):
+                pushed += 1
+                self.sent += 1
+            self.catch_up_summarized = True
+        return pushed
+
+    def _push_fresh(self, jobs: list[Job]) -> int:
+        if not jobs:
             return 0
         room = MAX_PUSHES_PER_RUN - self.sent
         if room <= 0:
@@ -78,6 +98,11 @@ class PushNotifier:
         except Exception as exc:
             print(f"[push] warning: ntfy publish failed: {exc}")
             return False
+
+
+def is_catch_up(job: Job) -> bool:
+    age = posted_age_days(job.posted_at)
+    return age is not None and age >= CATCHUP_DAYS
 
 
 def job_payload(job: Job) -> dict[str, Any]:

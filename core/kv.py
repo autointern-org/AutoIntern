@@ -25,7 +25,8 @@ HEALTH_TTL_SECONDS = 60 * 60 * 24 * 90
 PRUNE_INTERVAL_SECONDS = 60 * 60 * 24
 # Count-only health changes are written at most this often per scope; issue
 # de-dup marks and prune timestamps are written immediately.
-HEALTH_COUNTS_WRITE_SECONDS = 60 * 60
+HEALTH_COUNTS_WRITE_SECONDS = 3 * 60 * 60
+CHECKED_WRITE_SECONDS = 3 * 60 * 60
 STATS_KEY = "stats:lifetimes"
 STATS_TTL_SECONDS = 60 * 60 * 24 * 400
 LIFETIME_SAMPLES_PER_COMPANY = 50
@@ -164,6 +165,8 @@ class StateStore:
         self._health_urgent = False
         self._stats_doc: dict[str, Any] | None = None
         self._checked_cache: dict[str, tuple[set[str], set[str]]] = {}
+        self._checked_doc: dict[str, Any] | None = None
+        self._checked_dirty = False
         self._stats_dirty = False
 
     @property
@@ -352,10 +355,14 @@ class StateStore:
         """(checked_ids, intern_ids) remembered for adapters that must fetch one page per job."""
         key = company.lower()
         if key not in self._checked_cache:
-            value = self._get(self._checked_key(company)) or {}
+            doc = self._load_checked()
+            entry = doc["companies"].get(key)
+            if entry is None:
+                # Legacy per-company key, carried into the scope doc on its next write.
+                entry = self._get(self._checked_key(company)) or {}
             self._checked_cache[key] = (
-                {str(x) for x in value.get("checked") or []},
-                {str(x) for x in value.get("interns") or []},
+                {str(x) for x in entry.get("checked") or []},
+                {str(x) for x in entry.get("interns") or []},
             )
         checked, interns = self._checked_cache[key]
         return set(checked), set(interns)
@@ -364,12 +371,39 @@ class StateStore:
         existing_checked, existing_interns = self.get_checked_ids(company)
         if existing_checked == checked and existing_interns == interns:
             return
-        self._checked_cache[company.lower()] = (set(checked), set(interns))
-        self._put(
-            self._checked_key(company),
-            {"company": company.lower(), "checked": sorted(checked), "interns": sorted(interns), "at": now_iso()},
-            ttl_seconds=HEALTH_TTL_SECONDS,
-        )
+        key = company.lower()
+        self._checked_cache[key] = (set(checked), set(interns))
+        self._load_checked()["companies"][key] = {"checked": sorted(checked), "interns": sorted(interns)}
+        self._checked_dirty = True
+
+    def flush_checked(self, now: datetime | None = None) -> None:
+        """One doc per scan scope, written at most every CHECKED_WRITE_SECONDS:
+        it only saves detail-page fetches, so a stale copy costs requests,
+        never correctness."""
+        if not self._checked_dirty or self._checked_doc is None:
+            return
+        current = now or datetime.now(UTC)
+        written = parse_datetime(self._checked_doc.get("written_at"))
+        if written is not None and (current - written).total_seconds() < CHECKED_WRITE_SECONDS:
+            return
+        self._checked_doc["written_at"] = current.isoformat()
+        self._put(self._checked_scope_key(), self._checked_doc, ttl_seconds=HEALTH_TTL_SECONDS)
+        self._checked_dirty = False
+
+    def _load_checked(self) -> dict[str, Any]:
+        if self._checked_doc is None:
+            try:
+                raw = self._get(self._checked_scope_key()) or {}
+            except Exception as exc:
+                print(f"[scan] checked-id doc read failed: {exc}")
+                raw = {}
+            companies = raw.get("companies") if isinstance(raw.get("companies"), dict) else {}
+            self._checked_doc = {
+                "scope": self.health_scope,
+                "written_at": raw.get("written_at"),
+                "companies": {str(k): dict(v) for k, v in companies.items() if isinstance(v, dict)},
+            }
+        return self._checked_doc
 
     def record_notification(
         self,
@@ -726,6 +760,9 @@ class StateStore:
     def _checked_key(company: str) -> str:
         return f"checked:{company.lower()}"
 
+    def _checked_scope_key(self) -> str:
+        return f"checked-scope:{self.health_scope}"
+
 
 SCAN_STATE_PREFIXES = (
     "job:",
@@ -735,6 +772,7 @@ SCAN_STATE_PREFIXES = (
     "thread:",
     "dismissed:",
     "checked:",
+    "checked-scope:",
     "stats:",
 )
 

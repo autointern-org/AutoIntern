@@ -907,9 +907,8 @@ def test_scan_persists_checked_ids_for_meta() -> None:
         discord=FakeDiscord(),
         classifier=FakeClassifier(),
     )
-    assert kv.values["checked:checking"]["checked"] == ["1", "2"]
-    assert kv.values["checked:checking"]["interns"] == ["2"]
-    assert state.get_checked_ids("checking") == ({"1", "2"}, {"2"})
+    assert kv.values["checked-scope:all"]["companies"]["checking"] == {"checked": ["1", "2"], "interns": ["2"]}
+    assert StateStore(kv).get_checked_ids("checking") == ({"1", "2"}, {"2"})
 
 
 def test_build_adapters_seeds_meta_from_state() -> None:
@@ -996,8 +995,9 @@ def test_scan_persists_per_board_checked_ids() -> None:
         discord=FakeDiscord(),
         classifier=FakeClassifier(),
     )
-    assert kv.values["checked:citadel"]["interns"] == ["2"]
-    assert kv.values["checked:citadel-securities"]["checked"] == ["9"]
+    companies = kv.values["checked-scope:all"]["companies"]
+    assert companies["citadel"]["interns"] == ["2"]
+    assert companies["citadel-securities"]["checked"] == ["9"]
 
 
 def test_fetch_all_keeps_order_and_isolates_failures() -> None:
@@ -1311,15 +1311,29 @@ def test_steady_state_run_reads_no_per_job_dismissed_keys() -> None:
     assert kv.gets.count("seen:anthropic") == 1
 
 
-def test_checked_ids_are_read_once_per_run() -> None:
+def test_checked_ids_live_in_one_scope_doc_written_at_most_every_three_hours() -> None:
+    from datetime import UTC, datetime, timedelta
+
     kv = FakeKV()
-    kv.values["checked:meta"] = {"checked": ["1"], "interns": []}
+    kv.values["checked:meta"] = {"checked": ["1"], "interns": []}  # legacy per-company key
     state = StateStore(kv)
-    state.get_checked_ids("meta")
+    assert state.get_checked_ids("meta") == ({"1"}, set())
     state.record_checked_ids("meta", {"1"}, set())
     state.record_checked_ids("meta", {"1", "2"}, set())
+    state.record_checked_ids("linkedin", {"9"}, {"9"})
     assert kv.gets.count("checked:meta") == 1
-    assert [key for key, _ in kv.puts] == ["checked:meta"]
+    assert kv.puts == []
+    state.flush_checked()
+    assert [key for key, _ in kv.puts] == ["checked-scope:all"]
+    assert set(kv.values["checked-scope:all"]["companies"]) == {"meta", "linkedin"}
+    kv.clear_io()
+    later_state = StateStore(kv)
+    later_state.record_checked_ids("meta", {"1", "2", "3"}, set())
+    later_state.flush_checked()
+    assert kv.puts == []  # within three hours of the last write
+    later_state.flush_checked(now=datetime.now(UTC) + timedelta(hours=3, minutes=1))
+    assert [key for key, _ in kv.puts] == ["checked-scope:all"]
+    assert StateStore(kv).get_checked_ids("meta") == ({"1", "2", "3"}, set())
 
 
 def test_failed_first_look_is_retried_and_other_companies_continue() -> None:

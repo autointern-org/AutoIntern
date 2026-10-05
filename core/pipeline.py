@@ -442,6 +442,7 @@ def scan(
         state.flush_dirty_seen()
         state.flush_health()
         state.flush_stats()
+        state.flush_checked()
         if state.write_blocked:
             _report_issue(
                 discord,
