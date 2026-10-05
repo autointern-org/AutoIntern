@@ -15,7 +15,7 @@ from typing import Any
 _RELATIVE_RE = re.compile(r"posted\s+(today|yesterday|(\d+)\+?\s+days?\s+ago)", re.IGNORECASE)
 _YMD_RE = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})")
 _MDY_RE = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{4})$")
-_LONG_FORMATS = ("%B %d, %Y", "%b %d, %Y", "%d %B %Y", "%d %b %Y")
+_LONG_FORMATS = ("%B %d, %Y", "%b %d, %Y", "%d %B %Y", "%d %b %Y", "%d-%b-%Y")
 
 
 def parse_posted(value: Any, *, now: datetime | None = None) -> date | None:

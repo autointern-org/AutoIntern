@@ -1652,3 +1652,77 @@ def test_citadel_falls_back_to_career_sitemap_when_challenged() -> None:
     assert [j.title for j in jobs][0] == "Software Engineer Intern (US)"
     assert classify_job_location(jobs[0]) == "us"
     assert classify_job_location(jobs[1]) == "non_us" and classify_job_location(jobs[3]) == "non_us"
+
+
+def test_gem_normalizes_job_posts() -> None:
+    from adapters.gem import GemAdapter
+
+    payload = [
+        {
+            "id": "abc",
+            "title": "Software Engineering Intern",
+            "absolute_url": "https://jobs.gem.com/groq/abc",
+            "content_plain": "Build the LPU compiler.",
+            "first_published_at": "2026-09-22T01:02:11.972Z",
+            "location": {"name": ""},
+            "offices": [{"location": {"name": "Mountain View, CA"}}],
+        }
+    ]
+    session = FakeSession(payload)
+    adapter = GemAdapter(["groq"], company_names={"groq": "groq"}, session=session)
+    jobs = adapter.fetch()
+    assert session.urls == ["https://api.gem.com/job_board/v0/groq/job_posts/"]
+    assert jobs[0].id == "gem:groq:abc" and jobs[0].location == "Mountain View, CA"
+    assert jobs[0].jd_text == "Build the LPU compiler." and jobs[0].posted_at.startswith("2026-09-22")
+    assert adapter.listing_counts == {"groq": 1}
+
+
+def test_sitemap_adapter_titles_from_slugs_and_fetches_intern_pages_only() -> None:
+    from adapters.sitemap import SitemapAdapter, SitemapBoard, sitemap_job_cards
+
+    xml = """<urlset>
+<url><loc>https://www.shopify.com/careers</loc></url>
+<url><loc>https://www.shopify.com/careers/us-software-engineering-internships-summer-2027_2c62d9d7-3f52-42b3-a51d-3a7f3ed03679</loc></url>
+<url><loc>https://www.shopify.com/careers/staff-software-engineer-internal-tools_12490bc5-00b1-4baf-9caa-8f01b4be4dbf</loc></url>
+<url><loc>https://www.shopify.com/blog/not-a-job</loc></url>
+</urlset>"""
+    cards = sitemap_job_cards(xml, "https://www.shopify.com/careers/sitemap.xml")
+    assert [c["title"] for c in cards] == ["US Software Engineering Internships Summer 2027", "Staff Software Engineer Internal Tools"]
+    assert cards[0]["country_codes"] == ("US",) and cards[1]["country_codes"] == ()
+
+    class S(FakeSession):
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if url.endswith("sitemap.xml"):
+                return FakeResponse(xml, status_code=200)
+            return FakeResponse('<html><head><meta property="og:title" content="US Software Engineering Internships Summer 2027"></head><main><p>Join us for Summer 2027.</p></main></html>', status_code=200)
+
+    session = S()
+    adapter = SitemapAdapter([SitemapBoard("shopify", "https://www.shopify.com/careers/sitemap.xml")], session=session)
+    jobs = adapter.fetch()
+    assert [j.title for j in jobs] == ["US Software Engineering Internships Summer 2027"]
+    assert "Join us for Summer 2027." in jobs[0].jd_text
+    assert len([u for u in session.urls if "/careers/" in u and not u.endswith(".xml")]) == 1  # "internal" is not an intern title
+
+
+def test_avature_template_variants() -> None:
+    from adapters.avature import parse_listing
+
+    html = """
+<article class="article article--result article--non-toggle" id="article--1"><div class="article__header"><div class="article__header__text">
+<h3 class="article__header__text__title title title--04 "><a class="link link_result" href="https://jobs.ea.com/en_US/careers/JobDetail/Software-Engineer-Intern/215930"> Software Engineer Intern - Summer 2027 </a></h3>
+<div class="article__header__text__subtitle"><span class="list-item-location">Austin, United States of America</span></div></div></div></article>
+<article class="article article--result" id="article--2"><div class="article__header"><div class="article__header__text">
+<a class="shareButton" href="https://koch.avature.net/_linkedinApiv2?shareUrl=https%3A%2F%2Fkoch.avature.net%2Fen_US%2Fcareers%2FJobDetail%2FX%2F1">LinkedIn</a>
+<h3 class="article__header__text__title article__header__text__title--7"><a href="https://koch.avature.net/en_US/careers/JobDetail/Intern-Sourcing/194752"> Intern, Sourcing </a></h3></div></div>
+<div class="article__content"><div class="article__content__field m--t--s"><div class="article__content__field__label"> Location: </div><div class="article__content__field__value"> Wichita, Kansas </div></div></div></article>
+<article class="article article--result 1" id="article--3"><div class="article__header"><div class="article__header__text">
+<h3 class="article__header__text__title title title--04"><a class="link" href="https://synopsys.avature.net/careers/JobDetail/Software-Intern-18887/18887?businessTitle=Software+Intern"> Software Intern </a></h3>
+<div class="article__header__text__subtitle"><span class="list-item-posted">Posted 21-Sep-2026</span></div></div></div></article>
+"""
+    cards = parse_listing(html)
+    assert [(c["id"], c["title"], c["location"], c["posted"]) for c in cards] == [
+        ("215930", "Software Engineer Intern - Summer 2027", "Austin, United States of America", ""),
+        ("194752", "Intern, Sourcing", "Wichita, Kansas", ""),
+        ("18887", "Software Intern", "", "21-Sep-2026"),
+    ]

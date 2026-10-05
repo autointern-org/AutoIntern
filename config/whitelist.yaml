@@ -1,13 +1,11 @@
 # AutoIntern whitelist — JSON / requests-only ATS boards.
 # Tier 1 first (priority order), then tier 2 (alphabetical).
 #
-# Skipped (no clean JSON path, or folded into another board):
-#   HashiCorp, Replicate (Cloudflare greenhouse), Cruise (GM Workday),
-#   Weights & Biases (CoreWeave greenhouse), Rivian/Intuit/Arm/Palo Alto (Radancy),
-#   Siemens/EA/Synopsys (Avature HTML, not yet configured), Shopify/Circle (sitemap-only),
-#   Ansys (stale), Groq (Gem empty), AI21 (Comeet empty), Spotify tech roles (own site; the
-#   Lever board covers only part of their hiring),
-#   DocuSign (iCIMS), Spotify (no adapter), ASML (SSR scrape).
+# Skipped:
+#   HashiCorp (IBM), Replicate (Cloudflare-blocked Greenhouse), Cruise (closed), Weights &
+#   Biases (CoreWeave board), Ansys (Synopsys), AI21 (Comeet API needs a private token;
+#   roles mostly in Israel), ASML (server-rendered only), Palantir / Anduril / Lockheed
+#   Martin (excluded by choice). Spotify's Lever board covers only part of its hiring.
 # iCIMS classic portals use adapter icims; iCIMS Jibe sites (custom domains, *.jibeapply.com)
 # expose the same /api/jobs API as Phenom "get" sites.
 # Aurora posts on Ashby (aurora-operations-inc); Rippling on its own ATS board API;
@@ -660,7 +658,63 @@ companies:
     tier: "1"
     aliases: ["Johns Hopkins Applied Physics Laboratory", "JHU APL"]
 
+  - name: electronic-arts
+    adapter: avature
+    host: jobs.ea.com
+    site: en_US/careers/SearchJobs/intern
+    tier: "1"
+    aliases: ["Electronic Arts", "EA"]
+
+  - name: shopify
+    adapter: sitemap
+    host: www.shopify.com
+    site: careers/sitemap.xml
+    tier: "1"
+
+  - name: groq
+    adapter: gem
+    slug: groq
+    tier: "1"
+
   # --- Tier 2 ---
+  - name: synopsys
+    adapter: avature
+    host: synopsys.avature.net
+    site: careers/SearchJobs/intern
+    tier: "2"
+
+  - name: siemens
+    adapter: avature
+    host: jobs.siemens.com
+    site: en_US/externaljobs/SearchJobs/intern
+    tier: "2"
+
+  - name: koch
+    adapter: avature
+    host: koch.avature.net
+    site: en_US/careers/SearchJobs/intern
+    tier: "2"
+    aliases: ["Koch Industries"]
+
+  - name: metlife
+    adapter: avature
+    host: metlife.avature.net
+    site: en_US/ml/SearchJobs/intern
+    tier: "2"
+    aliases: ["MetLife"]
+
+  - name: rivian
+    adapter: phenom
+    host: careers.rivian.com
+    variant: get
+    tier: "2"
+
+  - name: circle
+    adapter: phenom
+    host: careers.circle.com
+    variant: widgets
+    tier: "2"
+
   - name: shure
     adapter: icims
     host: careersus-shure.icims.com

@@ -17,6 +17,7 @@ from adapters.citadel import CitadelAdapter, CitadelBoard
 from adapters.deshaw import DEShawAdapter
 from adapters.base import Adapter, Job
 from adapters.eightfold import EightfoldAdapter, EightfoldBoard, infer_host
+from adapters.gem import GemAdapter
 from adapters.google import GoogleAdapter
 from adapters.greenhouse import GreenhouseAdapter
 from adapters.ibm import IBMAdapter
@@ -29,6 +30,7 @@ from adapters.oracle import OracleAdapter, OracleBoard
 from adapters.phenom import PhenomAdapter, PhenomBoard
 from adapters.radancy import RadancyAdapter, RadancyBoard
 from adapters.rippling import RipplingAdapter
+from adapters.sitemap import SitemapAdapter, SitemapBoard
 from adapters.smartrecruiters import SmartRecruitersAdapter
 from adapters.snap import SnapAdapter
 from adapters.tesla import TeslaAdapter
@@ -700,6 +702,8 @@ KNOWN_ADAPTERS = frozenset(
         "deshaw",
         "radancy",
         "icims",
+        "gem",
+        "sitemap",
         *SIMPLE_ADAPTERS,
     }
 )
@@ -917,6 +921,21 @@ def build_adapters(companies: list[CompanyConfig], *, state: StateStore | None =
             ICIMSAdapter(
                 [ICIMSBoard(company=c.name, host=str(c.host), search=c.search_keywords or "intern") for c in icims],
                 known=_known([c.name for c in icims]),
+            )
+        )
+
+    gem = [c for c in companies if c.adapter == "gem" and c.slug]
+    if gem:
+        adapters.append(
+            GemAdapter([str(c.slug) for c in gem], company_names={str(c.slug): c.name for c in gem})
+        )
+
+    sitemap = [c for c in companies if c.adapter == "sitemap" and c.host and c.site]
+    if sitemap:
+        adapters.append(
+            SitemapAdapter(
+                [SitemapBoard(company=c.name, sitemap_url=f"https://{c.host}/{str(c.site).lstrip('/')}") for c in sitemap],
+                known=_known([c.name for c in sitemap]),
             )
         )
 

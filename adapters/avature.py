@@ -17,8 +17,17 @@ CANDIDATE_TITLE_RE = re.compile(
     r"\b(intern|interns|internship|internships|co-?ops?|student|campus|apprentice|placement)\b",
     re.IGNORECASE,
 )
-ARTICLE_RE = re.compile(r'<article class="article article--result"(.*?)</article>', re.S)
-LINK_RE = re.compile(r'<a class="link" href="([^"]*?/JobDetail/[^"]+)"[^>]*>(.*?)</a>', re.S)
+ARTICLE_RE = re.compile(r'<article class="article article--result[^"]*"(.*?)</article>', re.S)
+# Templates differ (link classes, extra article classes); the job link is the
+# anchor inside the result's title heading.
+TITLE_LINK_RE = re.compile(
+    r'<h3[^>]*article__header__text__title[^>]*>.*?<a[^>]*href="([^"]*?/JobDetail/[^"]+)"[^>]*>(.*?)</a>', re.S
+)
+LINK_RE = re.compile(r'<a[^>]*href="([^"]*?/JobDetail/[^"]+)"[^>]*>(.*?)</a>', re.S)
+FIELD_LOCATION_RE = re.compile(
+    r'article__content__field__label">\s*Location:?\s*</div>\s*<div class="article__content__field__value">(.*?)</div>', re.S
+)
+POSTED_RE = re.compile(r'class="list-item-posted"[^>]*>\s*(?:Posted\s*)?(.*?)</span>', re.S)
 BLOOMBERG_LOCATION_RE = re.compile(r'class="list-item-location"[^>]*>(.*?)</span>', re.S)
 TWOSIGMA_SPAN_RE = re.compile(r'class="paragraph_inner-span"[^>]*>(.*?)</span>', re.S)
 DETAIL_BLOCK_RE = re.compile(r'<article class="article article--details"(.*?)</article>', re.S)
@@ -97,7 +106,7 @@ class AvatureAdapter:
                     location=card["location"] or "Unspecified",
                     url=card["url"],
                     jd_text=description,
-                    posted_at=None,
+                    posted_at=card.get("posted") or None,
                 )
             )
         self.checked_by_company[board.company] = (checked, {j.id.rsplit(":", 1)[1] for j in jobs})
@@ -135,19 +144,28 @@ class AvatureAdapter:
 def parse_listing(html: str) -> list[dict[str, str]]:
     cards: list[dict[str, str]] = []
     for block in ARTICLE_RE.findall(html):
-        link = LINK_RE.search(block)
+        link = TITLE_LINK_RE.search(block) or LINK_RE.search(block)
         if not link:
             continue  # "No jobs found" filler articles have no JobDetail link
         url = unescape(link.group(1))
-        job_id = url.rstrip("/").rsplit("/", 1)[-1]
+        job_id = url.split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1]
         title = compact_text(unescape(re.sub(r"<[^>]+>", " ", link.group(2))))
         location = ""
-        match = BLOOMBERG_LOCATION_RE.search(block)
+        match = BLOOMBERG_LOCATION_RE.search(block) or FIELD_LOCATION_RE.search(block)
         if match:
             location = compact_text(unescape(re.sub(r"<[^>]+>", " ", match.group(1))))
         else:
             spans = [compact_text(unescape(re.sub(r"<[^>]+>", " ", s))) for s in TWOSIGMA_SPAN_RE.findall(block)]
             if spans:
                 location = spans[0]
-        cards.append({"id": job_id, "title": title, "url": url, "location": location})
+        posted = POSTED_RE.search(block)
+        cards.append(
+            {
+                "id": job_id,
+                "title": title,
+                "url": url,
+                "location": location,
+                "posted": compact_text(unescape(posted.group(1))) if posted else "",
+            }
+        )
     return cards
