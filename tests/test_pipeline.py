@@ -1086,3 +1086,64 @@ def test_many_board_failures_collapse_into_one_issue() -> None:
     assert "8 boards failed" in discord.issues[0][0]
     assert "company-7" in discord.issues[0][1]
     assert result.issues == 1
+
+
+def test_same_posting_on_two_boards_in_a_dedupe_group_pings_once() -> None:
+    configs = {
+        "amazon": CompanyConfig(name="amazon", adapter="amazon", dedupe_group="amazon"),
+        "aws": CompanyConfig(name="aws", adapter="amazon", dedupe_group="amazon"),
+    }
+    url = "https://www.amazon.jobs/en/jobs/3012345/software-dev-engineer-intern"
+    on_amazon = make_job(id="amazon:amazon:3012345", company="amazon", title="Software Dev Engineer Intern", url=url)
+    on_aws = make_job(id="amazon:aws:3012345", company="aws", title="Software Dev Engineer Intern", url=url)
+    other_aws = make_job(id="amazon:aws:999", company="aws", title="Software Engineer Intern, AWS Lambda", url="https://www.amazon.jobs/en/jobs/3099999/x")
+    kv = FakeKV()
+    state = StateStore(kv)
+    for key in configs:
+        state.mark_bootstrapped(key)
+    discord = FakeDiscord()
+    result = scan(
+        adapters=[FakeAdapter([on_amazon, on_aws, other_aws])],
+        configs=configs,
+        state=state,
+        discord=discord,
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+    titles = [job.title for job, *_ in discord.posted_jobs] if hasattr(discord, "posted_jobs") else None
+    assert result.notified == 2
+    assert result.skipped_seen == 1
+    assert on_aws.id in kv.values["seen:aws"]["jobs"]
+    if titles is not None:
+        assert titles.count("Software Dev Engineer Intern") == 1
+
+
+def test_dedupe_matches_workday_req_suffix_variants_but_not_other_reqs() -> None:
+    from core.pipeline import _pinged_on_group_mate
+
+    kv = FakeKV()
+    state = StateStore(kv)
+    state.record_notification(
+        job_id="workday:spgi:Kensho_Careers:1",
+        company="kensho",
+        title="Machine Learning Engineer - Summer Intern 2027",
+        url="https://spgi.wd5.myworkdayjobs.com/Kensho_Careers/job/Cambridge-MA/Machine-Learning-Engineer---Summer-Intern-2027_331714",
+        message_id="m1",
+        channel_id="c1",
+    )
+    twin = make_job(
+        id="workday:spgi:SPGI_Careers:1",
+        company="kensho-spgi",
+        title="Machine Learning Engineer - Summer Intern 2027",
+        url="https://spgi.wd5.myworkdayjobs.com/SPGI_Careers/job/Cambridge-MA/Machine-Learning-Engineer---Summer-Intern-2027_331714-1",
+    )
+    different_req = make_job(
+        id="workday:spgi:SPGI_Careers:2",
+        company="kensho-spgi",
+        title="Machine Learning Engineer - Summer Intern 2027",
+        url="https://spgi.wd5.myworkdayjobs.com/SPGI_Careers/job/New-York/Machine-Learning-Engineer---Summer-Intern-2027_339999",
+    )
+    assert _pinged_on_group_mate(state, ["kensho"], twin, dry_run=False)
+    assert twin.id in kv.values.get("seen:kensho-spgi", {}).get("jobs", {}) or twin.id in state.seen_entries("kensho-spgi")
+    assert not _pinged_on_group_mate(state, ["kensho"], different_req, dry_run=False)
+    assert not _pinged_on_group_mate(state, [], twin, dry_run=False)

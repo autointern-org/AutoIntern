@@ -35,6 +35,9 @@ class CompanyConfig:
     exclude_keywords: list[str] = field(default_factory=list)
     include_phd: bool = False
     include_intl: bool = False
+    # Boards that list the same postings (Amazon/AWS, Kensho/SPGI) share a
+    # group; a job already pinged under one is not pinged again under another.
+    dedupe_group: str | None = None
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "CompanyConfig":
@@ -56,6 +59,7 @@ class CompanyConfig:
             exclude_keywords=list(raw.get("exclude_keywords") or []),
             include_phd=bool(raw.get("include_phd", False)),
             include_intl=bool(raw.get("include_intl", False)),
+            dedupe_group=(str(raw["dedupe_group"]).lower() if raw.get("dedupe_group") else None),
         )
 
     @property

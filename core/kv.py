@@ -325,6 +325,9 @@ class StateStore:
         doc["jobs"][job_id] = entry
         self._seen_dirty.add(company_key)
 
+    def seen_entries(self, company: str) -> dict[str, dict[str, Any]]:
+        return self._load_seen(company)["jobs"]
+
     def prune_seen(
         self,
         company: str,

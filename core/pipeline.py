@@ -4,6 +4,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 import os
+import re
 from time import perf_counter
 from typing import Iterable
 
@@ -62,7 +63,6 @@ def run_scan(
     whitelist = Whitelist.load(whitelist_path)
     companies = select_companies(whitelist.companies)
     configs = {company.name.lower(): company for company in companies}
-    adapters = build_adapters(companies)
     only = os.getenv("SCAN_ONLY_COMPANIES", "").strip()
     state = StateStore(
         CloudflareKV(
@@ -261,12 +261,14 @@ def scan(
             # A ping that cannot be recorded would ping again next run.
             result.deferred += len(jobs)
             continue
+        group_mates = _group_mates(config, configs)
         if not state.is_bootstrapped(company_key):
             unseen = [
                 job
                 for job in jobs
                 if not state.is_seen(job.id, company=company_key, url=job.url)
                 and not state.is_dismissed(job.id, company=company_key)
+                and not _pinged_on_group_mate(state, group_mates, job, dry_run=dry_run)
             ]
             for job in jobs:
                 if state.is_seen(job.id, company=company_key, url=job.url) or state.is_dismissed(
@@ -303,6 +305,7 @@ def scan(
             if (
                 state.is_seen(job.id, company=company_key, url=job.url)
                 or state.is_dismissed(job.id, company=company_key)
+                or _pinged_on_group_mate(state, group_mates, job, dry_run=dry_run)
             ):
                 result.skipped_seen += 1
                 continue
@@ -388,6 +391,69 @@ def _fetch_all(adapters: list[Adapter]) -> list[tuple[Adapter, list[Job] | Excep
         return [run(adapter) for adapter in adapters]
     with ThreadPoolExecutor(max_workers=min(FETCH_WORKERS, len(adapters))) as pool:
         return list(pool.map(run, adapters))
+
+
+def _group_mates(config: CompanyConfig, configs: dict[str, CompanyConfig]) -> list[str]:
+    if not config.dedupe_group:
+        return []
+    return [
+        key
+        for key, other in configs.items()
+        if other.dedupe_group == config.dedupe_group and key != config.name.lower()
+    ]
+
+
+_NON_WORD_RE = re.compile(r"[^a-z0-9]+")
+_REQ_RE = re.compile(r"(\d{5,})(?:-\d+)?(?=[^\d]*$)")
+
+
+def _norm_title(title: str) -> str:
+    return _NON_WORD_RE.sub(" ", (title or "").lower()).strip()
+
+
+def _norm_url(url: str) -> str:
+    return (url or "").strip().rstrip("/").lower()
+
+
+def _req_number(url: str) -> str | None:
+    match = _REQ_RE.search((url or "").split("?", 1)[0])
+    return match.group(1) if match else None
+
+
+def _pinged_on_group_mate(state: StateStore, mates: list[str], job: Job, *, dry_run: bool) -> bool:
+    """True when the same posting was already pinged under another board in
+    this company's dedupe group; the job is then recorded as seen here too."""
+    if not mates:
+        return False
+    title = _norm_title(job.title)
+    url = _norm_url(job.url)
+    req = _req_number(job.url)
+    for mate in mates:
+        try:
+            entries = state.seen_entries(mate)
+        except Exception as exc:
+            print(f"[scan] dedupe read failed for {mate}: {exc}")
+            continue
+        for entry in entries.values():
+            if not isinstance(entry, dict):
+                continue
+            same_url = bool(url) and _norm_url(str(entry.get("url") or "")) == url
+            other_req = _req_number(str(entry.get("url") or ""))
+            same_req = req is None or other_req is None or req == other_req
+            same_title = _norm_title(str(entry.get("title") or "")) == title
+            if same_url or (same_title and same_req):
+                print(f"[scan] {job.company} {job.id} already pinged under {mate}; skipping")
+                if not dry_run and entry.get("message_id"):
+                    state.record_notification(
+                        job_id=job.id,
+                        company=job.company,
+                        title=job.title,
+                        url=job.url,
+                        message_id=str(entry["message_id"]),
+                        channel_id=entry.get("channel_id"),
+                    )
+                return True
+    return False
 
 
 def _record_health(state: StateStore, company_key: str, *, fetched: int, matched: int) -> None:

@@ -52,10 +52,12 @@ companies:
 
   - name: amazon
     adapter: amazon
+    dedupe_group: amazon
     tier: "1"
 
   - name: aws
     adapter: amazon
+    dedupe_group: amazon
     slug: aws
     tier: "1"
 
@@ -1472,6 +1474,7 @@ companies:
 
   - name: kensho
     adapter: workday
+    dedupe_group: spgi
     host: spgi.wd5.myworkdayjobs.com
     tenant: spgi
     site: Kensho_Careers
@@ -1479,6 +1482,7 @@ companies:
 
   - name: kensho-spgi
     adapter: workday
+    dedupe_group: spgi
     host: spgi.wd5.myworkdayjobs.com
     tenant: spgi
     site: SPGI_Careers
