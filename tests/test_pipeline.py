@@ -1274,3 +1274,27 @@ def test_build_adapters_wires_icims() -> None:
 
     adapters = build_adapters([CompanyConfig(name="sas", adapter="icims", host="careers-sas.icims.com")], state=StateStore(FakeKV()))
     assert isinstance(adapters[0], ICIMSAdapter) and adapters[0].boards[0].host == "careers-sas.icims.com"
+
+
+def test_first_look_for_a_new_company_costs_one_kv_write() -> None:
+    kv = FakeKV()
+    scan(
+        adapters=[FakeAdapter([make_job(id="n1"), make_job(id="n2")])],
+        configs={"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse")},
+        state=StateStore(kv),
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+    company_puts = [key for key, _ in kv.puts if key.endswith(":anthropic")]
+    assert company_puts == ["seen:anthropic"]
+    assert kv.values["seen:anthropic"]["bootstrapped_at"]
+    # Next run treats it as bootstrapped from the seen doc alone.
+    assert StateStore(kv).is_bootstrapped("anthropic")
+
+
+def test_legacy_bootstrap_key_still_counts() -> None:
+    kv = FakeKV()
+    kv.values["bootstrapped:stripe"] = {"company": "stripe", "bootstrapped_at": "2026-08-01T00:00:00+00:00"}
+    assert StateStore(kv).is_bootstrapped("stripe")
+    assert not StateStore(kv).is_bootstrapped("figma")

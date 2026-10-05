@@ -201,14 +201,21 @@ class StateStore:
         return self._legacy_job(job_id)
 
     def is_bootstrapped(self, company: str) -> bool:
-        return self._get(self._bootstrap_key(company)) is not None
+        doc = self._load_seen(company)
+        if doc.get("bootstrapped_at"):
+            return True
+        if self._get(self._bootstrap_key(company)) is not None:
+            # Legacy marker key; carried into the seen doc on its next write.
+            doc["bootstrapped_at"] = now_iso()
+            return True
+        return False
 
     def mark_bootstrapped(self, company: str) -> None:
-        self._put(
-            self._bootstrap_key(company),
-            {"company": company, "bootstrapped_at": now_iso()},
-            ttl_seconds=60 * 60 * 24 * 400,
-        )
+        # Stored in the company's seen doc, which the same run writes anyway:
+        # a newly added company costs one KV write instead of two.
+        doc = self._load_seen(company)
+        doc["bootstrapped_at"] = now_iso()
+        self._seen_dirty.add(company.lower())
 
     def record_forum_thread(self, company: str, thread_id: str) -> None:
         self._put(
@@ -436,6 +443,7 @@ class StateStore:
             {
                 "company": doc.get("company") or company_key,
                 "jobs": {job_id: dict(entry) for job_id, entry in doc["jobs"].items()},
+                **({"bootstrapped_at": doc["bootstrapped_at"]} if doc.get("bootstrapped_at") else {}),
             },
             ttl_seconds=SEEN_LIST_TTL_SECONDS,
         )
@@ -570,6 +578,8 @@ class StateStore:
                 if isinstance(entry, dict):
                     jobs[str(job_id)] = dict(entry)
         doc = {"company": str((raw or {}).get("company") or company_key), "jobs": jobs}
+        if raw and raw.get("bootstrapped_at"):
+            doc["bootstrapped_at"] = raw["bootstrapped_at"]
         self._seen_cache[company_key] = doc
         return doc
 
