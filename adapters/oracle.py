@@ -74,7 +74,11 @@ class OracleAdapter:
             if total:
                 self.source_totals[board.company] = (min(total, MAX_PAGES * LIMIT), len(jobs))
             offset += LIMIT
-            if len(rows) < LIMIT or (total and offset >= total):
+            # Pages can come back a row short mid-listing; trust the total.
+            if total:
+                if offset >= total:
+                    break
+            elif len(rows) < LIMIT:
                 break
         return jobs
 

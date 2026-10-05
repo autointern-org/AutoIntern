@@ -1762,3 +1762,18 @@ def test_workday_links_on_myworkdaysite_hosts_include_recruiting_tenant() -> Non
     assert job.url == "https://wd1.myworkdaysite.com/recruiting/wf/WellsFargoJobs/job/CHARLOTTE-NC/Intern_R-574285"
     regular = adapter._normalize(("hpe.wd5.myworkdayjobs.com", "hpe", "Jobsathpe"), {"title": "x", "externalPath": "/job/a_1"})
     assert regular.url == "https://hpe.wd5.myworkdayjobs.com/Jobsathpe/job/a_1"
+
+
+def test_oracle_keeps_paging_past_a_short_page_when_total_is_known() -> None:
+    class S(FakeSession):
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            offset = int(url.split("offset=")[1].split(",")[0]) if "offset=" in url else 0
+            count = {0: 25, 25: 24, 50: 10}.get(offset, 0)
+            rows = [{"Id": f"{offset}-{i}", "Title": "Software Engineer Intern", "PrimaryLocation": "Austin, TX, United States"} for i in range(count)]
+            return FakeResponse({"items": [{"TotalJobsCount": 59, "requisitionList": rows}]})
+
+    adapter = OracleAdapter([OracleBoard(company="honeywell", host="x.oraclecloud.com", site_number="Honeywell")], session=S())
+    jobs = adapter.fetch()
+    assert len(jobs) == 59
+    assert adapter.source_totals == {"honeywell": (59, 59)}

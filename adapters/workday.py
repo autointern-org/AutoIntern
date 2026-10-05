@@ -106,6 +106,7 @@ class WorkdayAdapter:
         host, tenant, site = board
         url = f"https://{host}/wday/cxs/{tenant}/{site}/jobs"
         rows: list[dict[str, Any]] = []
+        seen_keys: set[str] = set()
         first_payload: dict[str, Any] = {}
         total = 0
         offset = 0
@@ -141,10 +142,17 @@ class WorkdayAdapter:
             page_total = _as_int(payload.get("total")) if isinstance(payload, dict) else 0
             if page_total:
                 total = max(total, page_total)
-            rows.extend(page_rows)
+            new_rows = [row for row in page_rows if _row_key(row) not in seen_keys]
+            seen_keys.update(_row_key(row) for row in new_rows)
+            rows.extend(new_rows)
             offset += PAGE_LIMIT
             page += 1
-            if not page_rows or (total and offset >= total) or len(page_rows) < PAGE_LIMIT:
+            if not new_rows:
+                break
+            if total:
+                if offset >= total:
+                    break
+            elif len(page_rows) < PAGE_LIMIT:
                 break
         return rows, total, first_payload
 

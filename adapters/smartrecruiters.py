@@ -11,7 +11,7 @@ from core.http import new_session
 
 
 LIMIT = 100
-MAX_PAGES = 30
+MAX_PAGES = 60
 # The list endpoint's `q` parameter matches the whole posting, not the title,
 # so titles are pre-filtered here before fetching each job's detail.
 CANDIDATE_TITLE_RE = re.compile(
