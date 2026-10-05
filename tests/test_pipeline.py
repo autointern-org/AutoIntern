@@ -1266,3 +1266,11 @@ def test_select_companies_applies_shard_after_skip(monkeypatch: Any) -> None:
     assert [c.name for c in select_companies(companies)] == ["wd-b"]
     monkeypatch.setenv("SCAN_SHARD", "0/2")
     assert [c.name for c in select_companies(companies)] == ["wd-a"]
+
+
+def test_build_adapters_wires_icims() -> None:
+    from adapters.icims import ICIMSAdapter
+    from core.pipeline import build_adapters
+
+    adapters = build_adapters([CompanyConfig(name="sas", adapter="icims", host="careers-sas.icims.com")], state=StateStore(FakeKV()))
+    assert isinstance(adapters[0], ICIMSAdapter) and adapters[0].boards[0].host == "careers-sas.icims.com"

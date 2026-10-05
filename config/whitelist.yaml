@@ -8,6 +8,8 @@
 #   Ansys (stale), Groq (Gem empty), AI21 (Comeet empty), Spotify tech roles (own site; the
 #   Lever board covers only part of their hiring),
 #   DocuSign (iCIMS), Spotify (no adapter), ASML (SSR scrape).
+# iCIMS classic portals use adapter icims; iCIMS Jibe sites (custom domains, *.jibeapply.com)
+# expose the same /api/jobs API as Phenom "get" sites.
 # Aurora posts on Ashby (aurora-operations-inc); Rippling on its own ATS board API;
 # Hugging Face on Workable; ServiceNow on SmartRecruiters.
 # LinkedIn scrapes the public guest job search (slug = LinkedIn company id) and runs
@@ -639,7 +641,153 @@ companies:
     slug: walleyecapital-external-students
     tier: "1"
 
+  - name: charles-schwab
+    adapter: icims
+    host: career-schwab.icims.com
+    tier: "1"
+    aliases: ["Charles Schwab", "Schwab"]
+
+  - name: sas
+    adapter: icims
+    host: careers-sas.icims.com
+    tier: "1"
+    aliases: ["SAS Institute"]
+
+  - name: jhu-apl
+    adapter: phenom
+    host: careers.jhuapl.edu
+    variant: get
+    tier: "1"
+    aliases: ["Johns Hopkins Applied Physics Laboratory", "JHU APL"]
+
   # --- Tier 2 ---
+  - name: shure
+    adapter: icims
+    host: careersus-shure.icims.com
+    tier: "2"
+
+  - name: peraton
+    adapter: icims
+    host: careers-peraton.icims.com
+    tier: "2"
+
+  - name: gd-mission-systems
+    adapter: icims
+    host: careers-gdms.icims.com
+    tier: "2"
+    aliases: ["General Dynamics Mission Systems"]
+
+  - name: western-southern
+    adapter: icims
+    host: careers-westernsouthern.icims.com
+    tier: "2"
+    aliases: ["Western & Southern Financial Group"]
+
+  - name: lennox
+    adapter: icims
+    host: uscareers-lennox.icims.com
+    tier: "2"
+    aliases: ["Lennox International"]
+
+  - name: west-bend-insurance
+    adapter: icims
+    host: careers-thesilverlining.icims.com
+    tier: "2"
+    aliases: ["West Bend Insurance"]
+
+  - name: enterprise-holdings
+    adapter: icims
+    host: us-erac.icims.com
+    tier: "2"
+    aliases: ["Enterprise Holdings", "Enterprise Mobility"]
+
+  - name: hr-block
+    adapter: icims
+    host: careers-hrblock.icims.com
+    tier: "2"
+    aliases: ["H&R Block"]
+
+  - name: steel-dynamics
+    adapter: icims
+    host: careers-steeldynamics.icims.com
+    tier: "2"
+    aliases: ["Steel Dynamics"]
+
+  - name: urbn
+    adapter: icims
+    host: homeoffice-na-urbn.icims.com
+    tier: "2"
+    aliases: ["URBN", "Urban Outfitters"]
+
+  - name: corgan
+    adapter: icims
+    host: campus-us-corgan.icims.com
+    tier: "2"
+
+  - name: federated-insurance
+    adapter: icims
+    host: careers-federatedinsurance.icims.com
+    tier: "2"
+    aliases: ["Federated Insurance"]
+
+  - name: grow-financial
+    adapter: icims
+    host: careers-growfinancial.icims.com
+    tier: "2"
+    aliases: ["Grow Financial Federal Credit Union"]
+
+  - name: itt
+    adapter: icims
+    host: careersenus-itt-inc.icims.com
+    tier: "2"
+    aliases: ["ITT"]
+
+  - name: rovisys
+    adapter: icims
+    host: careers-rovisys.icims.com
+    tier: "2"
+    aliases: ["RoviSys"]
+
+  - name: springs-window-fashions
+    adapter: icims
+    host: careers-springswindowfashions.icims.com
+    tier: "2"
+    aliases: ["Springs Window Fashions"]
+
+  - name: wr-berkley
+    adapter: icims
+    host: careers-berkley.icims.com
+    tier: "2"
+    aliases: ["W.R. Berkley"]
+
+  - name: state-farm
+    adapter: phenom
+    host: jobs.statefarm.com
+    variant: get
+    tier: "2"
+    aliases: ["State Farm"]
+
+  - name: constellation-energy
+    adapter: phenom
+    host: jobs.constellationenergy.com
+    variant: get
+    tier: "2"
+    aliases: ["Constellation Energy"]
+
+  - name: first-citizens
+    adapter: phenom
+    host: firstcitizens.jibeapply.com
+    variant: get
+    tier: "2"
+    aliases: ["First Citizens BancShares", "First Citizens Bank"]
+
+  - name: simventions
+    adapter: phenom
+    host: simventions.jibeapply.com
+    variant: get
+    tier: "2"
+    aliases: ["SimVentions"]
+
   - name: abnormal-security
     adapter: greenhouse
     slug: abnormalsecurity

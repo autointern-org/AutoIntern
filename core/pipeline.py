@@ -20,6 +20,7 @@ from adapters.eightfold import EightfoldAdapter, EightfoldBoard, infer_host
 from adapters.google import GoogleAdapter
 from adapters.greenhouse import GreenhouseAdapter
 from adapters.ibm import IBMAdapter
+from adapters.icims import ICIMSAdapter, ICIMSBoard
 from adapters.lever import LeverAdapter
 from adapters.linkedin import LinkedInAdapter
 from adapters.meta import MetaAdapter
@@ -698,6 +699,7 @@ KNOWN_ADAPTERS = frozenset(
         "citadel",
         "deshaw",
         "radancy",
+        "icims",
         *SIMPLE_ADAPTERS,
     }
 )
@@ -906,6 +908,15 @@ def build_adapters(companies: list[CompanyConfig], *, state: StateStore | None =
             RadancyAdapter(
                 [RadancyBoard(company=c.name, host=str(c.host), prefix=str(c.site or "")) for c in radancy],
                 known=_known([c.name for c in radancy]),
+            )
+        )
+
+    icims = [c for c in companies if c.adapter == "icims" and c.host]
+    if icims:
+        adapters.append(
+            ICIMSAdapter(
+                [ICIMSBoard(company=c.name, host=str(c.host), search=c.search_keywords or "intern") for c in icims],
+                known=_known([c.name for c in icims]),
             )
         )
 

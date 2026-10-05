@@ -1574,3 +1574,41 @@ def test_workday_without_intern_facet_reads_text_search_to_the_end() -> None:
     jobs = adapter.fetch()
     assert len(jobs) == 700 and len(session.calls) == 35 <= MAX_PAGES
     assert adapter.source_totals == {"gd": (700, 700)}
+
+
+def test_icims_parses_cards_pages_and_ldjson() -> None:
+    from adapters.icims import ICIMSAdapter, ICIMSBoard, location_country_codes
+
+    class S(FakeSession):
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if "/jobs/search" in url:
+                body = (FIXTURES / "icims_search.html").read_text() if "pr=0" in url else "<html><ul class=\"iCIMS_JobsTable\"></ul></html>"
+                return FakeResponse(body, status_code=200)
+            return FakeResponse((FIXTURES / "icims_detail.html").read_text(), status_code=200)
+
+    session = S()
+    adapter = ICIMSAdapter([ICIMSBoard("charles-schwab", "career-x.icims.com")], session=session)
+    jobs = adapter.fetch()
+    assert session.urls[0] == "https://career-x.icims.com/jobs/search?ss=1&searchKeyword=intern&in_iframe=1&pr=0"
+    assert session.urls[1].endswith("pr=1")  # "Page 1 of 2"
+    assert [job.id for job in jobs] == ["icims:charles-schwab:101", "icims:charles-schwab:102"]
+    intern = jobs[0]
+    assert intern.title == "2027 Software Engineering Intern"
+    assert intern.url == "https://career-x.icims.com/jobs/101/2027-software-engineering-intern/job"
+    assert intern.location == "Austin, TX, US"
+    assert intern.posted_at is None  # iCIMS datePosted is not the real posting date
+    assert "Pursuing a Bachelor's degree" in intern.jd_text
+    assert intern.country_codes == ("US",)
+    assert jobs[1].country_codes[-1] == "CA"
+    assert adapter.listing_counts == {"charles-schwab": 3}
+    assert adapter.checked_by_company["charles-schwab"] == ({"101", "102", "103"}, {"101", "102"})
+    assert location_country_codes("US-TX-Austin | US-NY-New York") == ("US",)
+
+
+def test_icims_rejects_pages_without_a_job_table() -> None:
+    from adapters.icims import ICIMSAdapter, ICIMSBoard
+
+    session = FakeSession(FakeResponse("<html>Access denied</html>", status_code=200))
+    adapter = ICIMSAdapter([ICIMSBoard("x", "careers-x.icims.com")], session=session)
+    assert adapter.fetch() == [] and adapter.board_errors and "no job table" in adapter.board_errors[0][1]
