@@ -1237,3 +1237,32 @@ def test_scan_reports_parse_gaps_in_one_issue() -> None:
     title, body = discord.issues[0]
     assert "Possible missed postings" in title
     assert "google: parsed 30 of 61" in body and "apple: parsed 600 of 900" in body and "intel" not in body
+
+
+def test_sharding_splits_workday_round_robin_and_keeps_others_on_shard_zero() -> None:
+    from core.pipeline import _health_scope, parse_shard, shard_companies
+
+    companies = [CompanyConfig(name=f"wd{i}", adapter="workday") for i in range(7)] + [
+        CompanyConfig(name="figma", adapter="greenhouse"),
+        CompanyConfig(name="google", adapter="google"),
+    ]
+    shards = [shard_companies(companies, i, 3) for i in range(3)]
+    names = [sorted(c.name for c in shard) for shard in shards]
+    assert names[0] == ["figma", "google", "wd0", "wd3", "wd6"]
+    assert names[1] == ["wd1", "wd4"] and names[2] == ["wd2", "wd5"]
+    assert sorted(n for shard in names for n in shard) == sorted(c.name for c in companies)
+    assert parse_shard("2/5") == (2, 5)
+    assert parse_shard("5/5") is None and parse_shard("x") is None and parse_shard(None) is None
+    assert _health_scope("", "0/4") == "all" and _health_scope("", "2/4") == "shard-2"
+    assert _health_scope("tesla,linkedin", None) == "only-linkedin-tesla"
+
+
+def test_select_companies_applies_shard_after_skip(monkeypatch: Any) -> None:
+    from core.pipeline import select_companies
+
+    companies = [CompanyConfig(name="wd-a", adapter="workday"), CompanyConfig(name="wd-b", adapter="workday"), CompanyConfig(name="tesla", adapter="tesla")]
+    monkeypatch.setenv("SCAN_SKIP_COMPANIES", "tesla")
+    monkeypatch.setenv("SCAN_SHARD", "1/2")
+    assert [c.name for c in select_companies(companies)] == ["wd-b"]
+    monkeypatch.setenv("SCAN_SHARD", "0/2")
+    assert [c.name for c in select_companies(companies)] == ["wd-a"]

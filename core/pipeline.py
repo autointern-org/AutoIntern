@@ -75,7 +75,7 @@ def run_scan(
         ),
         # The laptop-only run (Tesla) and the cloud run execute at the same
         # time; separate health docs keep them from overwriting each other.
-        health_scope=("only-" + "-".join(sorted(_company_names(only)))) if only else "all",
+        health_scope=_health_scope(only, os.getenv("SCAN_SHARD")),
     )
     adapters = build_adapters(companies, state=state)
     discord = DiscordClient(
@@ -123,7 +123,49 @@ def select_companies(companies: list[CompanyConfig]) -> list[CompanyConfig]:
         selected = [company for company in selected if company.name.lower() in only]
     if skip:
         selected = [company for company in selected if company.name.lower() not in skip]
+    shard = parse_shard(os.getenv("SCAN_SHARD"))
+    if shard is not None:
+        selected = shard_companies(selected, *shard)
     return selected
+
+
+SHARDED_ADAPTERS = frozenset({"workday"})
+
+
+def parse_shard(raw: str | None) -> tuple[int, int] | None:
+    """"i/n" -> (i, n); None when unset or malformed."""
+    if not raw or "/" not in raw:
+        return None
+    try:
+        index, count = (int(part) for part in raw.split("/", 1))
+    except ValueError:
+        return None
+    if count < 1 or not 0 <= index < count:
+        return None
+    return index, count
+
+
+def shard_companies(companies: list[CompanyConfig], index: int, count: int) -> list[CompanyConfig]:
+    """Workday boards are fetched one at a time (Workday blocks bursts from one
+    IP), so they are split round-robin across parallel cloud jobs; every other
+    board stays on shard 0."""
+    sharded = sorted((c for c in companies if c.adapter in SHARDED_ADAPTERS), key=lambda c: c.name.lower())
+    mine = {c.name.lower() for i, c in enumerate(sharded) if i % count == index}
+    return [
+        c
+        for c in companies
+        if (c.adapter in SHARDED_ADAPTERS and c.name.lower() in mine)
+        or (c.adapter not in SHARDED_ADAPTERS and index == 0)
+    ]
+
+
+def _health_scope(only: str, shard_raw: str | None) -> str:
+    if only:
+        return "only-" + "-".join(sorted(_company_names(only)))
+    shard = parse_shard(shard_raw)
+    if shard is not None and shard[0] > 0:
+        return f"shard-{shard[0]}"
+    return "all"
 
 
 def _company_names(raw: str | None) -> set[str]:

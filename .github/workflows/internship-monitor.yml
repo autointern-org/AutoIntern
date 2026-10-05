@@ -18,10 +18,17 @@ permissions:
 
 jobs:
   scan:
+    # Workday boards must be fetched one at a time per IP, so they are split
+    # across parallel shards (separate runners); shard 0 also scans every
+    # non-Workday board. Keep SCAN_SHARD's denominator equal to the matrix size.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
-      group: internship-cloud
+      group: internship-cloud-${{ matrix.shard }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +41,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Reset KV state
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.reset_state == 'true' }}
+        if: ${{ matrix.shard == 0 && github.event_name == 'workflow_dispatch' && github.event.inputs.reset_state == 'true' }}
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
@@ -53,12 +60,13 @@ jobs:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           SCAN_SKIP_COMPANIES: tesla,linkedin,citadel,citadel-securities,palo-alto-networks
+          SCAN_SHARD: ${{ matrix.shard }}/4
         run: PYTHONPATH=. python -m scripts.scan
 
       # Runs even when the laptop is asleep (hourly schedule), and alerts only
       # when the laptop timer is dispatching but no laptop job is running.
       - name: Check laptop runner
-        if: always()
+        if: ${{ always() && matrix.shard == 0 }}
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
