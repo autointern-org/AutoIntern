@@ -349,8 +349,13 @@ def scan(
                 ):
                     result.skipped_seen += 1
             if unseen:
+                try:
+                    recap = discord.post_recap(config.name, unseen, color=config.color)
+                except Exception as exc:
+                    # Not marked bootstrapped, so the first look is retried next run.
+                    print(f"[discord] warning: first look for {config.name} failed: {exc}")
+                    continue
                 result.recaps += 1
-                recap = discord.post_recap(config.name, unseen, color=config.color)
                 forum_messages: list[DiscordMessage] = []
                 try:
                     forum_messages = _post_forum_listing(
@@ -386,7 +391,7 @@ def scan(
             fresh.append((job, resume_config, config.color))
         if not fresh:
             if not dry_run:
-                if not state.get_forum_thread(company_key):
+                if len(jobs) > PREVIEW_MAX and not state.get_forum_thread(company_key):
                     try:
                         forum_messages = _post_forum_listing(
                             discord,

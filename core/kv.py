@@ -163,6 +163,7 @@ class StateStore:
         self._health_read_failed = False
         self._health_urgent = False
         self._stats_doc: dict[str, Any] | None = None
+        self._checked_cache: dict[str, tuple[set[str], set[str]]] = {}
         self._stats_dirty = False
 
     @property
@@ -182,8 +183,10 @@ class StateStore:
 
     def is_dismissed(self, job_id: str, company: str | None = None) -> bool:
         entry = self._seen_entry(job_id, company)
-        if entry and entry.get("dismissed"):
-            return True
+        if entry is not None:
+            # mark_dismissed always flags the seen entry, so the separate
+            # dismissed:<id> key only matters for jobs with no seen entry.
+            return bool(entry.get("dismissed"))
         if self._dismissed_record(job_id):
             self._flag_seen_dismissed(job_id, company)
             return True
@@ -347,15 +350,21 @@ class StateStore:
 
     def get_checked_ids(self, company: str) -> tuple[set[str], set[str]]:
         """(checked_ids, intern_ids) remembered for adapters that must fetch one page per job."""
-        value = self._get(self._checked_key(company)) or {}
-        checked = {str(x) for x in value.get("checked") or []}
-        interns = {str(x) for x in value.get("interns") or []}
-        return checked, interns
+        key = company.lower()
+        if key not in self._checked_cache:
+            value = self._get(self._checked_key(company)) or {}
+            self._checked_cache[key] = (
+                {str(x) for x in value.get("checked") or []},
+                {str(x) for x in value.get("interns") or []},
+            )
+        checked, interns = self._checked_cache[key]
+        return set(checked), set(interns)
 
     def record_checked_ids(self, company: str, checked: set[str], interns: set[str]) -> None:
         existing_checked, existing_interns = self.get_checked_ids(company)
         if existing_checked == checked and existing_interns == interns:
             return
+        self._checked_cache[company.lower()] = (set(checked), set(interns))
         self._put(
             self._checked_key(company),
             {"company": company.lower(), "checked": sorted(checked), "interns": sorted(interns), "at": now_iso()},

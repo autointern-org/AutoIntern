@@ -1298,3 +1298,45 @@ def test_legacy_bootstrap_key_still_counts() -> None:
     kv.values["bootstrapped:stripe"] = {"company": "stripe", "bootstrapped_at": "2026-08-01T00:00:00+00:00"}
     assert StateStore(kv).is_bootstrapped("stripe")
     assert not StateStore(kv).is_bootstrapped("figma")
+
+
+def test_steady_state_run_reads_no_per_job_dismissed_keys() -> None:
+    kv = FakeKV()
+    configs = {"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse")}
+    jobs = [make_job(id=f"j{i}") for i in range(4)]
+    scan(adapters=[FakeAdapter(jobs)], configs=configs, state=StateStore(kv), discord=FakeDiscord(), classifier=FakeClassifier(), skip_dismissals=True)
+    kv.clear_io()
+    scan(adapters=[FakeAdapter(jobs)], configs=configs, state=StateStore(kv), discord=FakeDiscord(), classifier=FakeClassifier(), skip_dismissals=True)
+    assert not any(key.startswith(("dismissed:", "job:", "thread:", "bootstrapped:")) for key in kv.gets), kv.gets
+    assert kv.gets.count("seen:anthropic") == 1
+
+
+def test_checked_ids_are_read_once_per_run() -> None:
+    kv = FakeKV()
+    kv.values["checked:meta"] = {"checked": ["1"], "interns": []}
+    state = StateStore(kv)
+    state.get_checked_ids("meta")
+    state.record_checked_ids("meta", {"1"}, set())
+    state.record_checked_ids("meta", {"1", "2"}, set())
+    assert kv.gets.count("checked:meta") == 1
+    assert [key for key, _ in kv.puts] == ["checked:meta"]
+
+
+def test_failed_first_look_is_retried_and_other_companies_continue() -> None:
+    class FlakyDiscord(FakeDiscord):
+        def post_recap(self, company: str, jobs: list[Job], *, color: int) -> DiscordMessage:
+            if company == "anthropic":
+                raise RuntimeError("429 Too Many Requests")
+            return super().post_recap(company, jobs, color=color)
+
+    kv = FakeKV()
+    configs = {
+        "anthropic": CompanyConfig(name="anthropic", adapter="greenhouse"),
+        "stripe": CompanyConfig(name="stripe", adapter="greenhouse"),
+    }
+    jobs = [make_job(id="a1"), make_job(id="s1", company="stripe")]
+    result = scan(adapters=[FakeAdapter(jobs)], configs=configs, state=StateStore(kv), discord=FlakyDiscord(), classifier=FakeClassifier(), skip_dismissals=True)
+    assert result.recaps == 1
+    assert not StateStore(kv).is_bootstrapped("anthropic") and StateStore(kv).is_bootstrapped("stripe")
+    result = scan(adapters=[FakeAdapter(jobs)], configs=configs, state=StateStore(kv), discord=FakeDiscord(), classifier=FakeClassifier(), skip_dismissals=True)
+    assert result.recaps == 1  # anthropic's first look on the retry; stripe not repeated
