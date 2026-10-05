@@ -44,3 +44,18 @@ def test_audit_splits_uncovered_and_finds_misses() -> None:
     assert report["covered_companies"] == 2
     assert [miss["title"] for miss in report["misses"]] == ["Data Engineer Intern (2027)", "Software Developer Intern"]
     assert audit(listings, companies, None)["misses"] == []
+
+
+def test_misses_match_by_posting_id_or_close_title() -> None:
+    companies = [CompanyConfig(name="tiktok", adapter="tiktok"), CompanyConfig(name="figma", adapter="greenhouse", slug="figma")]
+    listings = [
+        listing("TikTok", "Machine Learning Engineer Intern - Recommendation", "https://lifeattiktok.com/search/7669700361976809733"),
+        listing("Figma", "Software Engineer Intern", "https://job-boards.greenhouse.io/figma/jobs/555"),
+        listing("Figma", "Data Science Intern (2027)", "https://job-boards.greenhouse.io/figma/jobs/777"),
+    ]
+    kv = FakeKV()
+    state = StateStore(kv)
+    state.record_notification(job_id="t1", company="tiktok", title="(General Hire) Machine Learning Engineer Intern (Recommendation) - 2027 Summer", url="https://lifeattiktok.com/search/7669700361976809733", message_id="m", channel_id="c")
+    state.record_notification(job_id="f1", company="figma", title="Software Engineer Intern (2027)", url="https://boards.greenhouse.io/figma/jobs/999", message_id="m", channel_id="c")
+    report = audit(listings, companies, state)
+    assert [m["title"] for m in report["misses"]] == ["Data Science Intern (2027)"]

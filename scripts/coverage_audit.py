@@ -132,10 +132,35 @@ def listing_job(listing: dict[str, Any], company: str) -> Job:
 
 
 _TITLE_RE = re.compile(r"[^a-z0-9]+")
+_ID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\d{5,}", re.IGNORECASE)
+_TITLE_STOP = {"intern", "interns", "internship", "internships", "summer", "2027", "2026", "the", "and", "of", "for", "a", "an", "general", "hire", "start", "us", "usa"}
 
 
 def _title(text: str) -> str:
     return _TITLE_RE.sub(" ", (text or "").lower()).strip()
+
+
+def _title_tokens(text: str) -> frozenset[str]:
+    return frozenset(t for t in _title(text).split() if t not in _TITLE_STOP)
+
+
+def posting_ids(url: str) -> set[str]:
+    """Long numeric ids and UUIDs in a posting URL (Greenhouse job ids, Workday
+    req numbers, TikTok ids, Ashby/Lever UUIDs) identify the same posting even
+    when the community list rewrites its title."""
+    return {match.lower() for match in _ID_RE.findall(url or "")}
+
+
+def _already_pinged(listing_job: Job, entries: list[dict[str, Any]]) -> bool:
+    ids = posting_ids(listing_job.url)
+    tokens = _title_tokens(listing_job.title)
+    for entry in entries:
+        if ids and ids & posting_ids(str(entry.get("url") or "")):
+            return True
+        other = _title_tokens(str(entry.get("title") or ""))
+        if tokens and other and len(tokens & other) / len(tokens | other) >= 0.8:
+            return True
+    return False
 
 
 def audit(listings: list[dict[str, Any]], companies: list[CompanyConfig], state: StateStore | None) -> dict[str, Any]:
@@ -161,7 +186,7 @@ def audit(listings: list[dict[str, Any]], companies: list[CompanyConfig], state:
         for company_key, items in covered_listings.items():
             config = configs[company_key]
             try:
-                seen_titles = {_title(str(e.get("title") or "")) for e in state.seen_entries(company_key).values() if isinstance(e, dict)}
+                entries = [e for e in state.seen_entries(company_key).values() if isinstance(e, dict)]
             except Exception as exc:
                 print(f"[audit] seen read failed for {company_key}: {exc}")
                 continue
@@ -169,7 +194,7 @@ def audit(listings: list[dict[str, Any]], companies: list[CompanyConfig], state:
                 job = listing_job(listing, company_key)
                 if not evaluate_job(job, config).keep:
                     continue
-                if _title(job.title) not in seen_titles:
+                if not _already_pinged(job, entries):
                     misses.append({"company": company_key, "title": job.title, "url": job.url, "locations": job.location})
     return {
         "uncovered": sorted(uncovered.values(), key=lambda r: (-r["count"], r["company"].lower())),
@@ -185,7 +210,13 @@ def render_markdown(report: dict[str, Any], closers: list[tuple[str, dict[str, A
     lines += ["", f"## A. Companies not scanned ({len(report['uncovered'])})", "", "| Company | Listings | Job board | Example |", "|---|---|---|---|"]
     for row in report["uncovered"]:
         lines.append(f"| {row['company']} | {row['count']} | {', '.join(sorted(row['boards'])) or '?'} | {row['sample']} |")
-    lines += ["", "## B. Possible misses (pass filters, never pinged)", ""]
+    lines += [
+        "",
+        "## B. Possible misses (pass filters, never pinged)",
+        "",
+        "_Matched by posting id or title. Some are expected: the scan also applies description-based rules (PhD-only, location in the posting) that this list has no text for._",
+        "",
+    ]
     if not kv:
         lines.append("_Skipped: no Cloudflare credentials in this run._")
     elif not report["misses"]:
