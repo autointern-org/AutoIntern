@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import re
 from concurrent.futures import ThreadPoolExecutor
 from time import sleep
 from typing import Any
@@ -18,6 +19,15 @@ WorkdayBoard = tuple[str, str, str]
 # browser session; the adapters still run concurrently with each other.
 BOARD_WORKERS = 1
 BOARD_PAUSE_SECONDS = 0.5
+PAGE_LIMIT = 20
+# The "intern" text search ranks by relevance, not title, and intern postings
+# can sit past result #500 (Capital One had 12 of 13 there). Each tenant's
+# own intern facet (workerSubType / jobFamilyGroup ...) is queried exhaustively
+# on top; tenants without such a facet get the text search read to the end.
+TEXT_PAGES_WITH_FACET = 25
+MAX_PAGES = 80
+FACET_PREFERENCE = ("workerSubType", "jobFamilyGroup", "jobFamily", "Job_Family", "jobFamilies", "timeType")
+FACET_VALUE_RE = re.compile(r"\b(intern|interns|internship|internships|co-?ops?|student|trainee|apprentice)\b", re.IGNORECASE)
 
 
 class WorkdayAdapter:
@@ -34,9 +44,11 @@ class WorkdayAdapter:
         self.timeout = timeout
         self.session = session or new_session()
         self.board_errors: list[tuple[str, str]] = []
+        self.source_totals: dict[str, tuple[int, int]] = {}
 
     def fetch(self) -> list[Job]:
         self.board_errors = []
+        self.source_totals = {}
         jobs: list[Job] = []
 
         def run(board: WorkdayBoard) -> tuple[WorkdayBoard, list[Job] | Exception]:
@@ -67,44 +79,89 @@ class WorkdayAdapter:
 
     def _fetch_board(self, board: WorkdayBoard) -> list[Job]:
         host, tenant, site = board
+        name = self.company_names.get(board, tenant)
+        text_rows, text_total, first_payload = self._paginate(board, {}, "intern", None)
+        facet = intern_facet(first_payload)
+        rows = list(text_rows)
+        if facet is None:
+            reported, parsed = text_total, len(text_rows)
+        else:
+            facet_rows, facet_total, _ = self._paginate(board, {facet[0]: facet[1]}, "", MAX_PAGES)
+            seen = {_row_key(row) for row in rows}
+            rows.extend(row for row in facet_rows if _row_key(row) not in seen)
+            reported, parsed = facet_total, len(facet_rows)
+        if reported:
+            self.source_totals[name] = (reported, parsed)
+        return [self._normalize(board, raw) for raw in rows]
+
+    def _paginate(
+        self,
+        board: WorkdayBoard,
+        applied: dict[str, list[str]],
+        search: str,
+        max_pages: int | None,
+    ) -> tuple[list[dict[str, Any]], int, dict[str, Any]]:
+        """All rows for one query. max_pages=None means: TEXT_PAGES_WITH_FACET
+        when the first page shows an intern facet, otherwise MAX_PAGES."""
+        host, tenant, site = board
         url = f"https://{host}/wday/cxs/{tenant}/{site}/jobs"
-        jobs: list[Job] = []
+        rows: list[dict[str, Any]] = []
+        first_payload: dict[str, Any] = {}
+        total = 0
         offset = 0
-        limit = 20
         warmed = False
-        for _ in range(25):
+        limit_pages = max_pages or MAX_PAGES
+        page = 0
+        while page < limit_pages:
             try:
-                payload = self._post_jobs(url, host=host, site=site, offset=offset, limit=limit)
+                payload = self._post_jobs(url, host=host, site=site, offset=offset, limit=PAGE_LIMIT, applied=applied, search=search)
             except Exception as exc:
-                if not jobs and not warmed:
+                if not rows and not warmed:
                     warmed = True
                     print(f"[workday] {host}/{tenant}/{site} retry after: {exc}")
                     self._warmup(host, site)
-                elif jobs:
+                elif rows:
                     print(f"[workday] {host}/{tenant}/{site} retry offset={offset}: {exc}")
                     sleep(1)
                 else:
                     raise RuntimeError(f"workday {host}/{tenant}/{site}: {exc}") from exc
                 try:
-                    payload = self._post_jobs(url, host=host, site=site, offset=offset, limit=limit)
+                    payload = self._post_jobs(url, host=host, site=site, offset=offset, limit=PAGE_LIMIT, applied=applied, search=search)
                 except Exception as retry_exc:
-                    if jobs:
+                    if rows:
                         print(f"[workday] {host}/{tenant}/{site} pagination stopped: {retry_exc}")
                         break
                     raise RuntimeError(f"workday {host}/{tenant}/{site}: {retry_exc}") from retry_exc
-            rows = _find_workday_jobs(payload)
-            total = _as_int(payload.get("total")) if isinstance(payload, dict) else 0
-            for raw in rows:
-                jobs.append(self._normalize(board, raw))
-            offset += limit
-            if not rows or (total and offset >= total) or len(rows) < limit:
+            if page == 0:
+                first_payload = payload if isinstance(payload, dict) else {}
+                if max_pages is None and intern_facet(first_payload) is not None:
+                    limit_pages = TEXT_PAGES_WITH_FACET
+            page_rows = _find_workday_jobs(payload)
+            # Workday returns the total on the first page only.
+            page_total = _as_int(payload.get("total")) if isinstance(payload, dict) else 0
+            if page_total:
+                total = max(total, page_total)
+            rows.extend(page_rows)
+            offset += PAGE_LIMIT
+            page += 1
+            if not page_rows or (total and offset >= total) or len(page_rows) < PAGE_LIMIT:
                 break
-        return jobs
+        return rows, total, first_payload
 
-    def _post_jobs(self, url: str, *, host: str, site: str, offset: int, limit: int) -> Any:
+    def _post_jobs(
+        self,
+        url: str,
+        *,
+        host: str,
+        site: str,
+        offset: int,
+        limit: int,
+        applied: dict[str, list[str]] | None = None,
+        search: str = "intern",
+    ) -> Any:
         response = self.session.post(
             url,
-            json={"appliedFacets": {}, "limit": limit, "offset": offset, "searchText": "intern"},
+            json={"appliedFacets": applied or {}, "limit": limit, "offset": offset, "searchText": search},
             headers={
                 "Accept": "application/json",
                 "Content-Type": "application/json",
@@ -177,6 +234,33 @@ def _response_json(response: Any, *, host: str) -> Any:
     if not isinstance(payload, dict):
         raise RuntimeError(f"workday {host} expected object, got {type(payload).__name__}")
     return payload
+
+
+def intern_facet(payload: Any) -> tuple[str, list[str]] | None:
+    """The tenant's own intern filter, e.g. ("workerSubType", [<id of "Intern (Fixed Term)">])."""
+    facets = payload.get("facets") if isinstance(payload, dict) else None
+    if not isinstance(facets, list):
+        return None
+    by_param = {f.get("facetParameter"): f for f in facets if isinstance(f, dict)}
+    for param in FACET_PREFERENCE:
+        facet = by_param.get(param)
+        if not facet:
+            continue
+        ids = [
+            str(value["id"])
+            for value in facet.get("values") or []
+            if isinstance(value, dict)
+            and value.get("id")
+            and FACET_VALUE_RE.search(str(value.get("descriptor") or ""))
+            and "internal" not in str(value.get("descriptor") or "").lower()
+        ]
+        if ids:
+            return param, ids
+    return None
+
+
+def _row_key(row: dict[str, Any]) -> str:
+    return str(row.get("externalPath") or row.get("bulletFields") or row.get("title"))
 
 
 def _find_workday_jobs(data: Any) -> list[dict[str, Any]]:

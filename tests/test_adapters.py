@@ -1523,3 +1523,54 @@ def test_amazon_pages_past_the_first_hundred() -> None:
     jobs = AmazonAdapter(["amazon"], session=session).fetch()
     assert len(jobs) == 130
     assert session.urls == [BASE_API, f"{BASE_API}&offset=100"]
+
+
+def test_workday_queries_intern_facet_and_unions_with_text_search() -> None:
+    from adapters.workday import intern_facet
+
+    facets = [
+        {"facetParameter": "jobFamilies", "values": [{"id": "ic", "descriptor": "Internal Controls"}]},
+        {"facetParameter": "workerSubType", "values": [{"id": "ft", "descriptor": "Regular"}, {"id": "in", "descriptor": "Intern (Fixed Term)"}]},
+    ]
+
+    def posting(path: str, title: str) -> dict:
+        return {"title": title, "externalPath": path, "locationsText": "McLean, VA", "bulletFields": [path]}
+
+    class S(FakeSession):
+        def post(self, url: str, **kwargs: Any) -> FakeResponse:
+            body = kwargs.get("json") or {}
+            self.calls.append({"url": url, "json": body})
+            if body.get("appliedFacets"):
+                assert body["appliedFacets"] == {"workerSubType": ["in"]} and body["searchText"] == ""
+                return FakeResponse({"total": 2, "jobPostings": [posting("/job/a_1", "Software Engineer Intern"), posting("/job/c_3", "Data Intern")]})
+            return FakeResponse({"total": 900, "facets": facets, "jobPostings": [posting("/job/a_1", "Software Engineer Intern"), posting("/job/b_2", "Internal Auditor")]})
+
+    assert intern_facet({"facets": facets}) == ("workerSubType", ["in"])
+    assert intern_facet({"facets": facets[:1]}) is None
+    session = S()
+    adapter = WorkdayAdapter([("cap.wd12.myworkdayjobs.com", "cap", "Cap")], company_names={("cap.wd12.myworkdayjobs.com", "cap", "Cap"): "capital-one"}, session=session)
+    jobs = adapter.fetch()
+    paths = sorted(job.url.rsplit("/", 1)[-1] for job in jobs)
+    assert paths == ["a_1", "b_2", "c_3"]  # union, a_1 not duplicated
+    assert adapter.source_totals == {"capital-one": (2, 2)}
+    text_calls = [c for c in session.calls if not c["json"].get("appliedFacets")]
+    # Text search pages 20 at a time and stops at the facet-board cap of 25 pages.
+    assert 1 <= len(text_calls) <= 25
+
+
+def test_workday_without_intern_facet_reads_text_search_to_the_end() -> None:
+    from adapters.workday import MAX_PAGES
+
+    class S(FakeSession):
+        def post(self, url: str, **kwargs: Any) -> FakeResponse:
+            body = kwargs.get("json") or {}
+            self.calls.append({"json": body})
+            offset = body["offset"]
+            rows = [{"title": f"Job {offset + i}", "externalPath": f"/job/x_{offset + i}"} for i in range(20)] if offset < 700 else []
+            return FakeResponse({"total": 700 if offset == 0 else 0, "jobPostings": rows})
+
+    session = S()
+    adapter = WorkdayAdapter([("gd.wd5.myworkdayjobs.com", "gd", "Ext")], session=session)
+    jobs = adapter.fetch()
+    assert len(jobs) == 700 and len(session.calls) == 35 <= MAX_PAGES
+    assert adapter.source_totals == {"gd": (700, 700)}
