@@ -19,6 +19,8 @@
 # Etsy uses Workday (sitemap fallback exists but is not used here).
 # HRT jobs live on greenhouse wehrtyou (hrtcampus is an empty campus board).
 
+excluded: ["Palantir", "Palantir Technologies", "Anduril", "Anduril Industries", "Lockheed Martin"]
+
 companies:
   # --- Tier 1 ---
   - name: meta
@@ -1456,6 +1458,24 @@ companies:
     aliases: ["United Launch Alliance"]
 
   # --- Tier 2 ---
+  - name: empirical-foods
+    adapter: icims
+    host: careers-empiricalfoods.icims.com
+    tier: "2"
+    aliases: ["Empirical Foods"]
+
+  - name: southern-star
+    adapter: icims
+    host: careers-sscgp.icims.com
+    tier: "2"
+    aliases: ["Southern Star Central Gas Pipeline"]
+
+  - name: tighe-and-bond
+    adapter: icims
+    host: careers-tighebond.icims.com
+    tier: "2"
+    aliases: ["Tighe & Bond"]
+
   - name: qorvo
     adapter: successfactors
     host: careers.qorvo.com

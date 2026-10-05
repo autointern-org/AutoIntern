@@ -163,8 +163,14 @@ def _already_pinged(listing_job: Job, entries: list[dict[str, Any]]) -> bool:
     return False
 
 
-def audit(listings: list[dict[str, Any]], companies: list[CompanyConfig], state: StateStore | None) -> dict[str, Any]:
+def audit(
+    listings: list[dict[str, Any]],
+    companies: list[CompanyConfig],
+    state: StateStore | None,
+    excluded: list[str] | None = None,
+) -> dict[str, Any]:
     index = build_index(companies)
+    skip = {norm_name(name) for name in excluded or []}
     uncovered: dict[str, dict[str, Any]] = {}
     covered_listings: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for listing in listings:
@@ -173,6 +179,8 @@ def audit(listings: list[dict[str, Any]], companies: list[CompanyConfig], state:
         config = match(index, listing)
         if config is None:
             name = str(listing.get("company_name") or "?")
+            if norm_name(name) in skip or any(norm_name(name).startswith(x) for x in skip if len(x) >= 5):
+                continue
             row = uncovered.setdefault(norm_name(name), {"company": name, "count": 0, "boards": set(), "sample": listing.get("url")})
             row["count"] += 1
             key = board_key(str(listing.get("url") or ""))
@@ -251,14 +259,15 @@ def discord_summary(report: dict[str, Any], closers: list[tuple[str, dict[str, A
 
 def main() -> None:
     listings = requests.get(LISTINGS_URL, timeout=60).json()
-    companies = Whitelist.load("config/whitelist.yaml").companies
+    whitelist = Whitelist.load("config/whitelist.yaml")
+    companies = whitelist.companies
     kv = CloudflareKV(
         account_id=os.getenv("CF_ACCOUNT_ID"),
         namespace_id=os.getenv("CF_KV_NAMESPACE_ID"),
         api_token=os.getenv("CF_API_TOKEN"),
     )
     state = StateStore(kv) if kv.enabled else None
-    report = audit(listings, companies, state)
+    report = audit(listings, companies, state, whitelist.excluded)
     closers = fastest_closers(state.lifetime_stats()) if state is not None else []
     markdown = render_markdown(report, closers, kv=state is not None)
     out = os.getenv("AUDIT_OUTPUT") or os.getenv("GITHUB_STEP_SUMMARY")

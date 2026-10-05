@@ -59,3 +59,13 @@ def test_misses_match_by_posting_id_or_close_title() -> None:
     state.record_notification(job_id="f1", company="figma", title="Software Engineer Intern (2027)", url="https://boards.greenhouse.io/figma/jobs/999", message_id="m", channel_id="c")
     report = audit(listings, companies, state)
     assert [m["title"] for m in report["misses"]] == ["Data Science Intern (2027)"]
+
+
+def test_excluded_companies_never_show_as_uncovered() -> None:
+    listings = [
+        listing("Palantir", "Software Engineer Intern", "https://jobs.lever.co/palantir/1"),
+        listing("Anduril Industries", "Software Engineer Intern", "https://job-boards.greenhouse.io/andurilindustries/jobs/2"),
+        listing("Booz Allen", "Software Engineer Intern", "https://bah.wd1.myworkdayjobs.com/bah_jobs/job/y"),
+    ]
+    report = audit(listings, [], None, ["Palantir", "Anduril"])
+    assert [row["company"] for row in report["uncovered"]] == ["Booz Allen"]

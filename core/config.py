@@ -77,12 +77,17 @@ class CompanyConfig:
 @dataclass(frozen=True)
 class Whitelist:
     companies: list[CompanyConfig]
+    # Companies deliberately never scanned; the coverage audit skips them.
+    excluded: list[str] = field(default_factory=list)
 
     @classmethod
     def load(cls, path: str | Path) -> "Whitelist":
         with Path(path).open("r", encoding="utf-8") as handle:
             raw = yaml.safe_load(handle) or {}
-        return cls([CompanyConfig.from_dict(item) for item in raw.get("companies", [])])
+        return cls(
+            [CompanyConfig.from_dict(item) for item in raw.get("companies", [])],
+            [str(name) for name in raw.get("excluded") or []],
+        )
 
     def by_company(self) -> dict[str, CompanyConfig]:
         return {company.name.lower(): company for company in self.companies}
