@@ -1177,3 +1177,34 @@ def test_scan_attaches_lifetime_notes_to_job_embeds() -> None:
     assert "**Typically open:** ~2 days at anthropic" in discord.company_notes["anthropic"]
     # No prune pass ran for lifetimes on this tick unless due; stats are only written when dirty.
     assert all(key != "stats:lifetimes" for key, _ in kv.puts)
+
+
+def test_scan_pushes_only_priority_fresh_jobs() -> None:
+    from core.push import PushNotifier
+
+    class RecordingPush(PushNotifier):
+        def __init__(self) -> None:
+            super().__init__("t", dry_run=True)
+            self.batches: list[list[str]] = []
+
+        def push_jobs(self, jobs: list[Job]) -> int:
+            self.batches.append([job.title for job in jobs])
+            return len(jobs)
+
+    kv = FakeKV()
+    state = StateStore(kv)
+    state.mark_bootstrapped("anthropic")
+    push = RecordingPush()
+    target = make_job(id="p1", title="Software Engineer Intern, Summer 2027")
+    unknown_term = make_job(id="p2", title="Software Engineer Intern")
+    result = scan(
+        adapters=[FakeAdapter([target, unknown_term])],
+        configs={"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse", tier="1")},
+        state=state,
+        discord=FakeDiscord(),
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+        push=push,
+    )
+    assert push.batches == [["Software Engineer Intern, Summer 2027"]]
+    assert result.pushed == 1

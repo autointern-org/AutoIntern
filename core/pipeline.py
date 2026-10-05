@@ -41,6 +41,7 @@ from core.filters import apply_decision, evaluate_job, sort_alert_jobs
 from core.health import CompanyHealth, anomaly_lines, format_health
 from core.kv import CloudflareKV, StateStore
 from core.lifetimes import company_notes
+from core.push import PushNotifier, is_priority
 
 
 @dataclass
@@ -53,6 +54,7 @@ class ScanResult:
     recaps: int = 0
     issues: int = 0
     deferred: int = 0
+    pushed: int = 0
 
 
 def run_scan(
@@ -105,6 +107,7 @@ def run_scan(
         # Discord request each) and hits the rate limit after ~30, so it is
         # off unless explicitly enabled.
         skip_dismissals=bool(only) or not _env_flag("CHECK_DISMISS_REACTIONS"),
+        push=PushNotifier.from_env(dry_run=dry_run),
     )
 
 
@@ -137,6 +140,7 @@ def scan(
     dry_run: bool = False,
     skip_claude: bool = True,
     skip_dismissals: bool = False,
+    push: PushNotifier | None = None,
 ) -> ScanResult:
     result = ScanResult()
     if not skip_dismissals:
@@ -347,6 +351,10 @@ def scan(
             print(f"[discord] warning: notify {config.name} failed: {exc}")
             messages = []
         result.notified += _remember_fresh(state, fresh, messages, dry_run=dry_run)
+        if push is not None and messages:
+            priority = [job for job, _, _ in fresh if is_priority(job, tier1=config.is_tier1)]
+            if priority:
+                result.pushed += push.push_jobs(priority)
         if not dry_run:
             stored_thread = discord.thread_ids.get(config.name)
             if stored_thread:

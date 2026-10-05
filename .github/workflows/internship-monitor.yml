@@ -50,6 +50,7 @@ jobs:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           SCAN_SKIP_COMPANIES: tesla,linkedin,citadel,citadel-securities,palo-alto-networks
         run: PYTHONPATH=. python -m scripts.scan
 
@@ -85,6 +86,7 @@ jobs:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_KV_NAMESPACE_ID: ${{ secrets.CF_KV_NAMESPACE_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           SCAN_ONLY_COMPANIES: tesla,linkedin,citadel,citadel-securities,palo-alto-networks
           TESLA_CHROME_JS: "1"
         run: PYTHONPATH=. .venv/bin/python -m scripts.scan
