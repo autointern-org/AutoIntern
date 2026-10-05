@@ -26,12 +26,21 @@ class LeverAdapter:
         self.session = session or new_session()
 
     def fetch(self) -> list[Job]:
+        self.board_errors: list[tuple[str, str]] = []
+        self.listing_counts: dict[str, int] = {}
         jobs: list[Job] = []
         for slug in self.board_slugs:
-            response = self.session.get(self.API.format(slug=slug), timeout=self.timeout)
-            response.raise_for_status()
-            payload = response.json()
+            name = self.company_names.get(slug, slug)
+            try:
+                response = self.session.get(self.API.format(slug=slug), timeout=self.timeout)
+                response.raise_for_status()
+                payload = response.json()
+            except Exception as exc:
+                print(f"[lever] failed to fetch {slug}: {exc}")
+                self.board_errors.append((name, str(exc)))
+                continue
             rows = payload if isinstance(payload, list) else payload.get("data") or []
+            self.listing_counts[name] = len(rows)
             for raw in rows:
                 if isinstance(raw, dict):
                     jobs.append(self._normalize(slug, raw))

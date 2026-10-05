@@ -5,7 +5,7 @@
 #   HashiCorp (IBM), Replicate (Cloudflare-blocked Greenhouse), Cruise (closed), Weights &
 #   Biases (CoreWeave board), Ansys (Synopsys), AI21 (Comeet API needs a private token;
 #   roles mostly in Israel), ASML (server-rendered only), Palantir / Anduril / Lockheed
-#   Martin (excluded by choice). Spotify's Lever board covers only part of its hiring.
+#   Martin (excluded by choice), Spring Health and Marqeta (no public board found). Spotify's Lever board covers only part of its hiring.
 # iCIMS classic portals use adapter icims; iCIMS Jibe sites (custom domains, *.jibeapply.com)
 # expose the same /api/jobs API as Phenom "get" sites.
 # Aurora posts on Ashby (aurora-operations-inc); Rippling on its own ATS board API;
@@ -3292,11 +3292,6 @@ companies:
     slug: lightmatter
     tier: "2"
 
-  - name: marqeta
-    adapter: greenhouse
-    slug: marqeta
-    tier: "2"
-
   - name: mozilla
     adapter: greenhouse
     slug: mozilla
@@ -3637,11 +3632,6 @@ companies:
     slug: "sesame"
     tier: "2"
 
-  - name: spring-health
-    adapter: ashby
-    slug: "spring-health"
-    tier: "2"
-
   - name: stytch
     adapter: ashby
     slug: "stytch"
@@ -3853,7 +3843,7 @@ companies:
     tier: "2"
 
   - name: amplitude
-    adapter: greenhouse
+    adapter: ashby
     slug: amplitude
     tier: "2"
 
@@ -4231,7 +4221,7 @@ companies:
     tier: "2"
 
   - name: world-labs
-    adapter: greenhouse
+    adapter: ashby
     slug: worldlabs
     tier: "2"
 

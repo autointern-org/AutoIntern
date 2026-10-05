@@ -1777,3 +1777,17 @@ def test_oracle_keeps_paging_past_a_short_page_when_total_is_known() -> None:
     jobs = adapter.fetch()
     assert len(jobs) == 59
     assert adapter.source_totals == {"honeywell": (59, 59)}
+
+
+def test_one_dead_lever_or_greenhouse_board_does_not_drop_the_others() -> None:
+    class S(FakeSession):
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if "dead" in url:
+                return FakeResponse({"error": "not found"}, status_code=404)
+            return FakeResponse(load_fixture("lever.json") if "lever" in url else load_fixture("greenhouse_anthropic.json"))
+
+    lever = LeverAdapter(["dead", "stripe"], company_names={"dead": "dead-co", "stripe": "stripe"}, session=S())
+    assert lever.fetch() and lever.board_errors[0][0] == "dead-co" and lever.listing_counts.get("stripe")
+    greenhouse = GreenhouseAdapter(["dead", "anthropic"], company_names={"dead": "dead-co", "anthropic": "anthropic"}, session=S())
+    assert greenhouse.fetch() and greenhouse.board_errors[0][0] == "dead-co"
