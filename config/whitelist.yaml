@@ -681,7 +681,2179 @@ companies:
     tier: "1"
     aliases: ["Goldman Sachs"]
 
+  - name: booz-allen
+    adapter: workday
+    host: "bah.wd1.myworkdayjobs.com"
+    tenant: "bah"
+    site: "bah_jobs"
+    tier: "1"
+    aliases: ["Booz Allen"]
+
+  - name: citizens-financial
+    adapter: oracle
+    host: "hcgn.fa.us2.oraclecloud.com"
+    site_number: "CX_1"
+    tier: "1"
+    aliases: ["Citizens Financial Group"]
+
+  - name: vertiv
+    adapter: oracle
+    host: "egup.fa.us2.oraclecloud.com"
+    site_number: "CX"
+    tier: "1"
+    aliases: ["Vertiv"]
+
+  - name: bny
+    adapter: oracle
+    host: "eofe.fa.us2.oraclecloud.com"
+    site_number: "CX_1001"
+    tier: "1"
+    aliases: ["BNY"]
+
+  - name: draftkings
+    adapter: workday
+    host: "draftkings.wd1.myworkdayjobs.com"
+    tenant: "draftkings"
+    site: "Campus_Career_Portal"
+    tier: "1"
+    aliases: ["DraftKings"]
+
+  - name: merck
+    adapter: workday
+    host: "msd.wd5.myworkdayjobs.com"
+    tenant: "msd"
+    site: "searchjobs"
+    tier: "1"
+    aliases: ["Merck"]
+
+  - name: vanguard
+    adapter: workday
+    host: "vanguard.wd5.myworkdayjobs.com"
+    tenant: "vanguard"
+    site: "vanguard_external"
+    tier: "1"
+    aliases: ["Vanguard"]
+
+  - name: freddie-mac
+    adapter: workday
+    host: "freddiemac.wd5.myworkdayjobs.com"
+    tenant: "freddiemac"
+    site: "External"
+    tier: "1"
+    aliases: ["Freddie Mac"]
+
+  - name: procter-and-gamble
+    adapter: workday
+    host: "pg.wd5.myworkdayjobs.com"
+    tenant: "pg"
+    site: "1000"
+    tier: "1"
+    aliases: ["Procter & Gamble"]
+
+  - name: amgen
+    adapter: workday
+    host: "amgen.wd1.myworkdayjobs.com"
+    tenant: "amgen"
+    site: "careers"
+    tier: "1"
+    aliases: ["Amgen"]
+
+  - name: blackrock
+    adapter: workday
+    host: "blackrock.wd1.myworkdayjobs.com"
+    tenant: "blackrock"
+    site: "BlackRock_Professional"
+    tier: "1"
+    aliases: ["BlackRock"]
+
+  - name: brevan-howard
+    adapter: workday
+    host: "wd3.myworkdaysite.com"
+    tenant: "brevanhoward"
+    site: "BH_ExternalCareers"
+    tier: "1"
+    aliases: ["Brevan Howard"]
+
+  - name: cigna
+    adapter: workday
+    host: "cigna.wd5.myworkdayjobs.com"
+    tenant: "cigna"
+    site: "cignacareers"
+    tier: "1"
+    aliases: ["Cigna Group"]
+
+  - name: ge-vernova
+    adapter: workday
+    host: "gevernova.wd5.myworkdayjobs.com"
+    tenant: "gevernova"
+    site: "vernova_externalsite"
+    tier: "1"
+    aliases: ["GE Vernova"]
+
+  - name: honeywell
+    adapter: oracle
+    host: "ibqbjb.fa.ocs.oraclecloud.com"
+    site_number: "Honeywell"
+    tier: "1"
+    aliases: ["Honeywell"]
+
+  - name: johnson-and-johnson
+    adapter: workday
+    host: "jj.wd5.myworkdayjobs.com"
+    tenant: "jj"
+    site: "JJ"
+    tier: "1"
+    aliases: ["Johnson & Johnson"]
+
+  - name: pimco
+    adapter: workday
+    host: "pimco.wd1.myworkdayjobs.com"
+    tenant: "pimco"
+    site: "pimco-careers"
+    tier: "1"
+    aliases: ["PIMCO"]
+
+  - name: royal-bank-of-canada
+    adapter: workday
+    host: "rbc.wd3.myworkdayjobs.com"
+    tenant: "rbc"
+    site: "RBCEARLYTALENT1"
+    tier: "1"
+    aliases: ["Royal Bank of Canada"]
+
+  - name: the-federal-reserve-system
+    adapter: workday
+    host: "rb.wd5.myworkdayjobs.com"
+    tenant: "rb"
+    site: "FRS"
+    tier: "1"
+    aliases: ["The Federal Reserve System"]
+
+  - name: clarios
+    adapter: workday
+    host: "clarios.wd5.myworkdayjobs.com"
+    tenant: "clarios"
+    site: "clarioscareers"
+    tier: "1"
+    aliases: ["Clarios"]
+
+  - name: elevance-health
+    adapter: workday
+    host: "elevancehealth.wd1.myworkdayjobs.com"
+    tenant: "elevancehealth"
+    site: "ELV-ET"
+    tier: "1"
+    aliases: ["Elevance Health"]
+
+  - name: invesco
+    adapter: workday
+    host: "invesco.wd1.myworkdayjobs.com"
+    tenant: "invesco"
+    site: "IVZ"
+    tier: "1"
+    aliases: ["Invesco"]
+
+  - name: lazard
+    adapter: oracle
+    host: "icbpjb.fa.ocs.oraclecloud.com"
+    site_number: "LazardProfessionalCareers"
+    tier: "1"
+    aliases: ["Lazard"]
+
+  - name: lowe-s
+    adapter: workday
+    host: "lowes.wd5.myworkdayjobs.com"
+    tenant: "lowes"
+    site: "LWS_External_CS"
+    tier: "1"
+    aliases: ["Lowe's"]
+
+  - name: mckesson
+    adapter: workday
+    host: "mckesson.wd3.myworkdayjobs.com"
+    tenant: "mckesson"
+    site: "External_Careers"
+    tier: "1"
+    aliases: ["McKesson"]
+
+  - name: rockwell-automation
+    adapter: workday
+    host: "rockwellautomation.wd1.myworkdayjobs.com"
+    tenant: "rockwellautomation"
+    site: "External-Rockwell-Automation-Early-Careers"
+    tier: "1"
+    aliases: ["Rockwell Automation"]
+
+  - name: costar
+    adapter: workday
+    host: "costar.wd1.myworkdayjobs.com"
+    tenant: "costar"
+    site: "Costar_Campus"
+    tier: "1"
+    aliases: ["CoStar Group"]
+
+  - name: dow-jones
+    adapter: workday
+    host: "dowjones.wd1.myworkdayjobs.com"
+    tenant: "dowjones"
+    site: "Dow_Jones_Career"
+    tier: "1"
+    aliases: ["Dow Jones"]
+
+  - name: dtcc
+    adapter: oracle
+    host: "ebxr.fa.us2.oraclecloud.com"
+    site_number: "CX_1"
+    tier: "1"
+    aliases: ["DTCC"]
+
+  - name: emerson-electric
+    adapter: oracle
+    host: "hdjq.fa.us2.oraclecloud.com"
+    site_number: "CX_1"
+    tier: "1"
+    aliases: ["Emerson Electric"]
+
+  - name: fannie-mae
+    adapter: workday
+    host: "fanniemae.wd1.myworkdayjobs.com"
+    tenant: "fanniemae"
+    site: "FannieMaeCareers"
+    tier: "1"
+    aliases: ["Fannie Mae"]
+
+  - name: fidelity-investments
+    adapter: workday
+    host: "fmr.wd1.myworkdayjobs.com"
+    tenant: "fmr"
+    site: "fidelitycareers"
+    tier: "1"
+    aliases: ["Fidelity Investments"]
+
+  - name: nationwide
+    adapter: workday
+    host: "nationwide.wd1.myworkdayjobs.com"
+    tenant: "nationwide"
+    site: "Nationwide_Career"
+    tier: "1"
+    aliases: ["Nationwide"]
+
+  - name: the-hartford
+    adapter: workday
+    host: "thehartford.wd5.myworkdayjobs.com"
+    tenant: "thehartford"
+    site: "Careers_External"
+    tier: "1"
+    aliases: ["The Hartford"]
+
+  - name: the-home-depot
+    adapter: workday
+    host: "homedepot.wd5.myworkdayjobs.com"
+    tenant: "homedepot"
+    site: "careerdepot"
+    tier: "1"
+    aliases: ["The Home Depot"]
+
+  - name: walmart
+    adapter: workday
+    host: "walmart.wd504.myworkdayjobs.com"
+    tenant: "walmart"
+    site: "WalmartExternal"
+    tier: "1"
+    aliases: ["Walmart"]
+
+  - name: arrowstreet-capital
+    adapter: workday
+    host: "arrowstreetcapital.wd5.myworkdayjobs.com"
+    tenant: "arrowstreetcapital"
+    site: "Campus_Careers"
+    tier: "1"
+    aliases: ["Arrowstreet Capital"]
+
+  - name: barclays
+    adapter: workday
+    host: "barclays.wd3.myworkdayjobs.com"
+    tenant: "barclays"
+    site: "External_Career_Site_Barclays"
+    tier: "1"
+    aliases: ["Barclays"]
+
+  - name: dimensional-fund-advisors
+    adapter: workday
+    host: "dimensional.wd5.myworkdayjobs.com"
+    tenant: "dimensional"
+    site: "dfa_careers"
+    tier: "1"
+    aliases: ["Dimensional Fund Advisors"]
+
+  - name: ge-healthcare
+    adapter: workday
+    host: "gehc.wd5.myworkdayjobs.com"
+    tenant: "gehc"
+    site: "GEHC_ExternalSite"
+    tier: "1"
+    aliases: ["GE Healthcare"]
+
+  - name: regeneron-pharmaceuticals
+    adapter: workday
+    host: "regeneron.wd1.myworkdayjobs.com"
+    tenant: "regeneron"
+    site: "Careers"
+    tier: "1"
+    aliases: ["Regeneron Pharmaceuticals"]
+
+  - name: td-bank
+    adapter: workday
+    host: "td.wd3.myworkdayjobs.com"
+    tenant: "td"
+    site: "TD_Bank_Careers"
+    tier: "1"
+    aliases: ["TD Bank"]
+
+  - name: travelers
+    adapter: workday
+    host: "travelers.wd5.myworkdayjobs.com"
+    tenant: "travelers"
+    site: "External"
+    tier: "1"
+    aliases: ["Travelers"]
+
+  - name: usaa
+    adapter: workday
+    host: "usaa.wd1.myworkdayjobs.com"
+    tenant: "usaa"
+    site: "USAAJOBSWD"
+    tier: "1"
+    aliases: ["USAA"]
+
+  - name: 3m
+    adapter: workday
+    host: "3m.wd1.myworkdayjobs.com"
+    tenant: "3m"
+    site: "Search"
+    tier: "1"
+    aliases: ["3M"]
+
+  - name: cardinal-health
+    adapter: workday
+    host: "cardinalhealth.wd1.myworkdayjobs.com"
+    tenant: "cardinalhealth"
+    site: "EXT"
+    tier: "1"
+    aliases: ["Cardinal Health"]
+
+  - name: caterpillar
+    adapter: workday
+    host: "cat.wd5.myworkdayjobs.com"
+    tenant: "cat"
+    site: "CaterpillarCareers"
+    tier: "1"
+    aliases: ["Caterpillar"]
+
+  - name: gartner
+    adapter: workday
+    host: "gartner.wd5.myworkdayjobs.com"
+    tenant: "gartner"
+    site: "EXT"
+    tier: "1"
+    aliases: ["Gartner"]
+
+  - name: humana
+    adapter: workday
+    host: "humana.wd5.myworkdayjobs.com"
+    tenant: "humana"
+    site: "humana_external_career_site"
+    tier: "1"
+    aliases: ["Humana"]
+
+  - name: medtronic
+    adapter: workday
+    host: "medtronic.wd1.myworkdayjobs.com"
+    tenant: "medtronic"
+    site: "redeploymentmedtroniccareers"
+    tier: "1"
+    aliases: ["Medtronic"]
+
+  - name: moderna
+    adapter: workday
+    host: "modernatx.wd1.myworkdayjobs.com"
+    tenant: "modernatx"
+    site: "M_tx"
+    tier: "1"
+    aliases: ["Moderna"]
+
+  - name: nasdaq
+    adapter: workday
+    host: "nasdaq.wd1.myworkdayjobs.com"
+    tenant: "nasdaq"
+    site: "Global_External_Site"
+    tier: "1"
+    aliases: ["Nasdaq"]
+
+  - name: neuberger-berman
+    adapter: workday
+    host: "nb.wd1.myworkdayjobs.com"
+    tenant: "nb"
+    site: "NBCareers"
+    tier: "1"
+    aliases: ["Neuberger Berman"]
+
+  - name: nike
+    adapter: workday
+    host: "nike.wd1.myworkdayjobs.com"
+    tenant: "nike"
+    site: "nke"
+    tier: "1"
+    aliases: ["Nike"]
+
+  - name: nokia
+    adapter: oracle
+    host: "fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com"
+    site_number: "CX_1"
+    tier: "1"
+    aliases: ["Nokia"]
+
+  - name: northwestern-mutual
+    adapter: workday
+    host: "northwesternmutual.wd5.myworkdayjobs.com"
+    tenant: "northwesternmutual"
+    site: "corporate-careers"
+    tier: "1"
+    aliases: ["Northwestern Mutual"]
+
+  - name: onsemi
+    adapter: oracle
+    host: "hctz.fa.us2.oraclecloud.com"
+    site_number: "CX_1001"
+    tier: "1"
+    aliases: ["onsemi"]
+
+  - name: raymond-james-financial
+    adapter: workday
+    host: "raymondjames.wd1.myworkdayjobs.com"
+    tenant: "raymondjames"
+    site: "RaymondJamesEarlyCareers"
+    tier: "1"
+    aliases: ["Raymond James Financial"]
+
+  - name: thermo-fisher-scientific
+    adapter: workday
+    host: "thermofisher.wd5.myworkdayjobs.com"
+    tenant: "thermofisher"
+    site: "ThermoFisherCareers"
+    tier: "1"
+    aliases: ["Thermo Fisher Scientific"]
+
+  - name: tradeweb
+    adapter: oracle
+    host: "ecnf.fa.us2.oraclecloud.com"
+    site_number: "CX"
+    tier: "1"
+    aliases: ["Tradeweb"]
+
+  - name: trimble
+    adapter: workday
+    host: "trimble.wd1.myworkdayjobs.com"
+    tenant: "trimble"
+    site: "TrimbleCareers"
+    tier: "1"
+    aliases: ["Trimble"]
+
+  - name: wells-fargo
+    adapter: workday
+    host: "wd1.myworkdaysite.com"
+    tenant: "wf"
+    site: "WellsFargoJobs"
+    tier: "1"
+    aliases: ["Wells Fargo"]
+
+  - name: dv-trading
+    adapter: greenhouse
+    slug: "dvtrading"
+    tier: "1"
+    aliases: ["DV Trading"]
+
+  - name: chicago-trading
+    adapter: greenhouse
+    slug: "chicagotradingcampus"
+    tier: "1"
+    aliases: ["Chicago Trading Company"]
+
+  - name: schonfeld
+    adapter: greenhouse
+    slug: "schonfeld"
+    tier: "1"
+    aliases: ["Schonfeld"]
+
+  - name: astranis
+    adapter: greenhouse
+    slug: "astranis"
+    tier: "1"
+    aliases: ["Astranis"]
+
+  - name: ibotta
+    adapter: ashby
+    slug: "ibotta"
+    tier: "1"
+    aliases: ["ibotta"]
+
+  - name: klaviyo
+    adapter: greenhouse
+    slug: "klaviyocampus"
+    tier: "1"
+    aliases: ["Klaviyo"]
+
+  - name: talos
+    adapter: ashby
+    slug: "talos-trading"
+    tier: "1"
+    aliases: ["Talos"]
+
+  - name: aquatic-capital-management
+    adapter: greenhouse
+    slug: "aquaticcapitalmanagement"
+    tier: "1"
+    aliases: ["Aquatic Capital Management"]
+
+  - name: garda-capital-partners
+    adapter: greenhouse
+    slug: "gardacp"
+    tier: "1"
+    aliases: ["Garda Capital Partners"]
+
+  - name: gecko-robotics
+    adapter: ashby
+    slug: "gecko-robotics"
+    tier: "1"
+    aliases: ["Gecko Robotics"]
+
+  - name: hadrian
+    adapter: ashby
+    slug: "hadrian-automation"
+    tier: "1"
+    aliases: ["Hadrian"]
+
+  - name: perchwell
+    adapter: ashby
+    slug: "perchwell"
+    tier: "1"
+    aliases: ["Perchwell"]
+
+  - name: riot-games
+    adapter: greenhouse
+    slug: "riotgamesup"
+    tier: "1"
+    aliases: ["Riot Games"]
+
+  - name: anthelion-capital
+    adapter: ashby
+    slug: "anthelioncap"
+    tier: "1"
+    aliases: ["Anthelion Capital"]
+
+  - name: axq-capital
+    adapter: greenhouse
+    slug: "axq"
+    tier: "1"
+    aliases: ["AXQ Capital"]
+
+  - name: eulerity
+    adapter: greenhouse
+    slug: "eulerity"
+    tier: "1"
+    aliases: ["Eulerity"]
+
+  - name: flint
+    adapter: ashby
+    slug: "flint"
+    tier: "1"
+    aliases: ["Flint"]
+
+  - name: geneva-trading
+    adapter: greenhouse
+    slug: "genevatrading"
+    tier: "1"
+    aliases: ["Geneva Trading"]
+
+  - name: glean
+    adapter: greenhouse
+    slug: "gleanwork"
+    tier: "1"
+    aliases: ["Glean"]
+
+  - name: helion-energy
+    adapter: ashby
+    slug: "helion"
+    tier: "1"
+    aliases: ["Helion Energy"]
+
+  - name: hpr-hyannis-port-research
+    adapter: greenhouse
+    slug: "hyannisportresearch"
+    tier: "1"
+    aliases: ["HPR (Hyannis Port Research)"]
+
+  - name: id-me
+    adapter: greenhouse
+    slug: "idmeuniversityrecruiting"
+    tier: "1"
+    aliases: ["ID.me"]
+
+  - name: k2-space
+    adapter: greenhouse
+    slug: "k2spacecorporation"
+    tier: "1"
+    aliases: ["K2 Space"]
+
+  - name: lawrence-livermore-national-laboratory-llnl
+    adapter: smartrecruiters
+    slug: "llnl"
+    tier: "1"
+    aliases: ["Lawrence Livermore National Laboratory (LLNL)"]
+
+  - name: marshall-wace
+    adapter: greenhouse
+    slug: "mwinternshipprogram"
+    tier: "1"
+    aliases: ["Marshall Wace"]
+
+  - name: maven-securities
+    adapter: greenhouse
+    slug: "mavensecuritiesholdingltd"
+    tier: "1"
+    aliases: ["Maven Securities"]
+
+  - name: northwood-space
+    adapter: ashby
+    slug: "northwoodspace"
+    tier: "1"
+    aliases: ["Northwood Space"]
+
+  - name: pacific-fusion
+    adapter: greenhouse
+    slug: "pacificfusion"
+    tier: "1"
+    aliases: ["Pacific Fusion"]
+
+  - name: persona-ai
+    adapter: ashby
+    slug: "persona.ai"
+    tier: "1"
+    aliases: ["Persona AI"]
+
+  - name: pylon
+    adapter: ashby
+    slug: "pylon-labs"
+    tier: "1"
+    aliases: ["Pylon"]
+
+  - name: qumulo
+    adapter: ashby
+    slug: "qumulo"
+    tier: "1"
+    aliases: ["Qumulo"]
+
+  - name: semgrep
+    adapter: ashby
+    slug: "semgrep"
+    tier: "1"
+    aliases: ["Semgrep"]
+
+  - name: superhuman
+    adapter: ashby
+    slug: "superhuman%20platform%20inc"
+    tier: "1"
+    aliases: ["Superhuman"]
+
+  - name: the-exploration
+    adapter: ashby
+    slug: "the-exploration-company"
+    tier: "1"
+    aliases: ["The Exploration Company"]
+
+  - name: the-voleon
+    adapter: ashby
+    slug: "voleon"
+    tier: "1"
+    aliases: ["The Voleon Group"]
+
+  - name: transmarket
+    adapter: greenhouse
+    slug: "transmarketgroup"
+    tier: "1"
+    aliases: ["TransMarket Group"]
+
+  - name: varda-space
+    adapter: greenhouse
+    slug: "vardaspace"
+    tier: "1"
+    aliases: ["Varda Space"]
+
+  - name: viam
+    adapter: greenhouse
+    slug: "viamrobotics"
+    tier: "1"
+    aliases: ["Viam"]
+
+  - name: viking-global
+    adapter: greenhouse
+    slug: "vikingglobalinvestors"
+    tier: "1"
+    aliases: ["Viking Global"]
+
+  - name: voloridge
+    adapter: greenhouse
+    slug: "voloridgeinvestmentmanagement"
+    tier: "1"
+    aliases: ["Voloridge"]
+
+  - name: xpeng-motors
+    adapter: greenhouse
+    slug: "xpengmotors"
+    tier: "1"
+    aliases: ["XPENG Motors"]
+
   # --- Tier 2 ---
+  - name: national-information-solutions-cooperative
+    adapter: greenhouse
+    slug: "nisc"
+    tier: "2"
+    aliases: ["National Information Solutions Cooperative"]
+
+  - name: veeam-software
+    adapter: greenhouse
+    slug: "veeamsoftware"
+    tier: "2"
+    aliases: ["Veeam Software"]
+
+  - name: bedrock-robotics
+    adapter: ashby
+    slug: "bedrock-robotics"
+    tier: "2"
+    aliases: ["Bedrock Robotics"]
+
+  - name: pilot
+    adapter: smartrecruiters
+    slug: "pilotcompany"
+    tier: "2"
+    aliases: ["Pilot Company"]
+
+  - name: wellmark
+    adapter: smartrecruiters
+    slug: "wellmarkinc"
+    tier: "2"
+    aliases: ["Wellmark"]
+
+  - name: apex-analytix
+    adapter: rippling
+    slug: "apexanalytix-careers"
+    tier: "2"
+    aliases: ["APEX Analytix"]
+
+  - name: compeer-financial
+    adapter: greenhouse
+    slug: "compeerfinancial"
+    tier: "2"
+    aliases: ["Compeer Financial"]
+
+  - name: gallup
+    adapter: greenhouse
+    slug: "gallup"
+    tier: "2"
+    aliases: ["Gallup"]
+
+  - name: hp-iq
+    adapter: greenhouse
+    slug: "hpiq"
+    tier: "2"
+    aliases: ["HP IQ"]
+
+  - name: perpay
+    adapter: greenhouse
+    slug: "perpay"
+    tier: "2"
+    aliases: ["Perpay"]
+
+  - name: the-nuclear
+    adapter: greenhouse
+    slug: "thenuclearcompany"
+    tier: "2"
+    aliases: ["The Nuclear Company"]
+
+  - name: abbvie
+    adapter: smartrecruiters
+    slug: "abbvie"
+    tier: "2"
+    aliases: ["AbbVie"]
+
+  - name: collier-aerospace
+    adapter: rippling
+    slug: "collieraerospace"
+    tier: "2"
+    aliases: ["Collier Aerospace"]
+
+  - name: cybernetic-labs
+    adapter: ashby
+    slug: "netic"
+    tier: "2"
+    aliases: ["Cybernetic Labs"]
+
+  - name: dev-technology
+    adapter: greenhouse
+    slug: "devtechnology"
+    tier: "2"
+    aliases: ["Dev Technology Group"]
+
+  - name: immuta
+    adapter: lever
+    slug: "immuta"
+    tier: "2"
+    aliases: ["Immuta"]
+
+  - name: resultant
+    adapter: smartrecruiters
+    slug: "resultant"
+    tier: "2"
+    aliases: ["Resultant"]
+
+  - name: twg-global
+    adapter: workable
+    slug: "twgai"
+    tier: "2"
+    aliases: ["TWG Global"]
+
+  - name: anavation
+    adapter: lever
+    slug: "anavationllc"
+    tier: "2"
+    aliases: ["AnaVation"]
+
+  - name: barnes-and-thornburg
+    adapter: ashby
+    slug: "barnes"
+    tier: "2"
+    aliases: ["Barnes & Thornburg"]
+
+  - name: bosch-home-comfort
+    adapter: smartrecruiters
+    slug: "boschgroup"
+    tier: "2"
+    aliases: ["Bosch Home Comfort"]
+
+  - name: hermeus
+    adapter: lever
+    slug: "hermeus"
+    tier: "2"
+    aliases: ["Hermeus"]
+
+  - name: infinitequant
+    adapter: smartrecruiters
+    slug: "infinitequant"
+    tier: "2"
+    aliases: ["InfiniteQuant"]
+
+  - name: national-life
+    adapter: greenhouse
+    slug: "nationallifeinsurancecompany"
+    tier: "2"
+    aliases: ["National Life"]
+
+  - name: neighbor
+    adapter: lever
+    slug: "neighbor"
+    tier: "2"
+    aliases: ["Neighbor"]
+
+  - name: one-finance
+    adapter: ashby
+    slug: "oneapp"
+    tier: "2"
+    aliases: ["ONE Finance"]
+
+  - name: perry-homes
+    adapter: workable
+    slug: "perryhomes"
+    tier: "2"
+    aliases: ["Perry Homes"]
+
+  - name: relay
+    adapter: greenhouse
+    slug: "relaypro"
+    tier: "2"
+    aliases: ["Relay"]
+
+  - name: revel
+    adapter: ashby
+    slug: "revel"
+    tier: "2"
+    aliases: ["Revel"]
+
+  - name: sage
+    adapter: greenhouse
+    slug: "sage49"
+    tier: "2"
+    aliases: ["Sage"]
+
+  - name: allen-control-systems
+    adapter: ashby
+    slug: "allen-control-systems"
+    tier: "2"
+    aliases: ["Allen Control Systems"]
+
+  - name: amca
+    adapter: greenhouse
+    slug: "amca"
+    tier: "2"
+    aliases: ["AMCA"]
+
+  - name: arc
+    adapter: greenhouse
+    slug: "arcboatcompany"
+    tier: "2"
+    aliases: ["Arc"]
+
+  - name: atoms
+    adapter: greenhouse
+    slug: "cssmerge"
+    tier: "2"
+    aliases: ["Atoms"]
+
+  - name: bti360
+    adapter: greenhouse
+    slug: "bti36021"
+    tier: "2"
+    aliases: ["BTI360"]
+
+  - name: covar
+    adapter: greenhouse
+    slug: "covar"
+    tier: "2"
+    aliases: ["CoVar"]
+
+  - name: cyvl
+    adapter: ashby
+    slug: "cyvl"
+    tier: "2"
+    aliases: ["Cyvl"]
+
+  - name: datacor
+    adapter: greenhouse
+    slug: "datacor"
+    tier: "2"
+    aliases: ["Datacor"]
+
+  - name: enfos
+    adapter: workable
+    slug: "enfos-inc"
+    tier: "2"
+    aliases: ["ENFOS"]
+
+  - name: enova
+    adapter: greenhouse
+    slug: "enova"
+    tier: "2"
+    aliases: ["Enova"]
+
+  - name: gas-south
+    adapter: greenhouse
+    slug: "gassouth"
+    tier: "2"
+    aliases: ["Gas South"]
+
+  - name: megazonecloud
+    adapter: ashby
+    slug: "megazone"
+    tier: "2"
+    aliases: ["MegazoneCloud"]
+
+  - name: mindex
+    adapter: workable
+    slug: "mindex"
+    tier: "2"
+    aliases: ["Mindex"]
+
+  - name: pace
+    adapter: ashby
+    slug: "withpace"
+    tier: "2"
+    aliases: ["Pace"]
+
+  - name: palomar
+    adapter: rippling
+    slug: "plmrcareers"
+    tier: "2"
+    aliases: ["Palomar Holdings"]
+
+  - name: pangram-labs
+    adapter: ashby
+    slug: "pangramlabs"
+    tier: "2"
+    aliases: ["Pangram Labs"]
+
+  - name: protective-life
+    adapter: lever
+    slug: "protective"
+    tier: "2"
+    aliases: ["Protective Life"]
+
+  - name: rave-aerospace
+    adapter: workable
+    slug: "raveaerospace"
+    tier: "2"
+    aliases: ["RAVE Aerospace"]
+
+  - name: rf-smart
+    adapter: greenhouse
+    slug: "rfsmart"
+    tier: "2"
+    aliases: ["RF-SMART"]
+
+  - name: scout-clean-energy
+    adapter: workable
+    slug: "scout-clean-energy"
+    tier: "2"
+    aliases: ["Scout Clean Energy"]
+
+  - name: sep
+    adapter: lever
+    slug: "sep"
+    tier: "2"
+    aliases: ["SEP"]
+
+  - name: skyward
+    adapter: smartrecruiters
+    slug: "skyward1"
+    tier: "2"
+    aliases: ["Skyward"]
+
+  - name: stand-together
+    adapter: lever
+    slug: "standtogether"
+    tier: "2"
+    aliases: ["Stand Together"]
+
+  - name: telus-digital
+    adapter: ashby
+    slug: "telus-digital"
+    tier: "2"
+    aliases: ["TELUS Digital"]
+
+  - name: the-brattle
+    adapter: greenhouse
+    slug: "thebrattlegroup"
+    tier: "2"
+    aliases: ["The Brattle Group"]
+
+  - name: the-mj-companies
+    adapter: greenhouse
+    slug: "themjcos"
+    tier: "2"
+    aliases: ["The MJ Companies"]
+
+  - name: thea-energy
+    adapter: lever
+    slug: "thea.energy"
+    tier: "2"
+    aliases: ["Thea Energy"]
+
+  - name: tive
+    adapter: rippling
+    slug: "tive-careers"
+    tier: "2"
+    aliases: ["Tive"]
+
+  - name: wabash-valley-power-alliance
+    adapter: smartrecruiters
+    slug: "wabashvalleypoweralliance"
+    tier: "2"
+    aliases: ["Wabash Valley Power Alliance"]
+
+  - name: whitewater-midstream
+    adapter: greenhouse
+    slug: "whitewatermidstream"
+    tier: "2"
+    aliases: ["WhiteWater Midstream"]
+
+  - name: workshop
+    adapter: greenhouse
+    slug: "workshop"
+    tier: "2"
+    aliases: ["Workshop"]
+
+  - name: xcimer-energy
+    adapter: lever
+    slug: "xcimer"
+    tier: "2"
+    aliases: ["Xcimer Energy"]
+
+  - name: navy-federal
+    adapter: oracle
+    host: "fa-etbx-saasfaprod1.fa.ocs.oraclecloud.com"
+    site_number: "nfcu"
+    tier: "2"
+    aliases: ["Navy Federal"]
+
+  - name: xcel-energy
+    adapter: workday
+    host: "xcelenergy.wd1.myworkdayjobs.com"
+    tenant: "xcelenergy"
+    site: "External"
+    tier: "2"
+    aliases: ["Xcel Energy"]
+
+  - name: first-national-bank
+    adapter: workday
+    host: "fnbcorp.wd501.myworkdayjobs.com"
+    tenant: "fnbcorp"
+    site: "FNBCORP"
+    tier: "2"
+    aliases: ["First National Bank"]
+
+  - name: gordon-food-service
+    adapter: workday
+    host: "gfs.wd5.myworkdayjobs.com"
+    tenant: "gfs"
+    site: "usjobs-gen-gfs"
+    tier: "2"
+    aliases: ["Gordon Food Service"]
+
+  - name: caci
+    adapter: workday
+    host: "caci.wd1.myworkdayjobs.com"
+    tenant: "caci"
+    site: "external"
+    tier: "2"
+    aliases: ["CACI"]
+
+  - name: excellus-bcbs
+    adapter: workday
+    host: "lthc.wd1.myworkdayjobs.com"
+    tenant: "lthc"
+    site: "ExcellusBCBSCareers"
+    tier: "2"
+    aliases: ["Excellus BCBS"]
+
+  - name: occ
+    adapter: workday
+    host: "theocc.wd5.myworkdayjobs.com"
+    tenant: "theocc"
+    site: "careers"
+    tier: "2"
+    aliases: ["OCC"]
+
+  - name: tokyo-electron
+    adapter: workday
+    host: "tel.wd3.myworkdayjobs.com"
+    tenant: "tel"
+    site: "tel-careers"
+    tier: "2"
+    aliases: ["Tokyo Electron"]
+
+  - name: auto-owners-insurance
+    adapter: workday
+    host: "aoins.wd5.myworkdayjobs.com"
+    tenant: "aoins"
+    site: "AutoOwners"
+    tier: "2"
+    aliases: ["Auto-Owners Insurance"]
+
+  - name: emc-insurance
+    adapter: workday
+    host: "emcins.wd5.myworkdayjobs.com"
+    tenant: "emcins"
+    site: "EMC_Careers"
+    tier: "2"
+    aliases: ["EMC Insurance"]
+
+  - name: q2
+    adapter: workday
+    host: "q2ebanking.wd5.myworkdayjobs.com"
+    tenant: "q2ebanking"
+    site: "Q2"
+    tier: "2"
+    aliases: ["Q2"]
+
+  - name: radiance-technologies
+    adapter: workday
+    host: "radiancetech.wd12.myworkdayjobs.com"
+    tenant: "radiancetech"
+    site: "Radiance_External"
+    tier: "2"
+    aliases: ["Radiance Technologies"]
+
+  - name: sierra-nevada
+    adapter: workday
+    host: "snc.wd1.myworkdayjobs.com"
+    tenant: "snc"
+    site: "snc_external_career_site"
+    tier: "2"
+    aliases: ["Sierra Nevada Corporation"]
+
+  - name: southwest-airlines
+    adapter: workday
+    host: "swa.wd1.myworkdayjobs.com"
+    tenant: "swa"
+    site: "external"
+    tier: "2"
+    aliases: ["Southwest Airlines"]
+
+  - name: stryker
+    adapter: workday
+    host: "stryker.wd1.myworkdayjobs.com"
+    tenant: "stryker"
+    site: "StrykerCareers"
+    tier: "2"
+    aliases: ["Stryker"]
+
+  - name: gm-financial
+    adapter: oracle
+    host: "fa-exvu-saasfaprod1.fa.ocs.oraclecloud.com"
+    site_number: "CX_1"
+    tier: "2"
+    aliases: ["GM financial"]
+
+  - name: uline
+    adapter: workday
+    host: "uline.wd1.myworkdayjobs.com"
+    tenant: "uline"
+    site: "Uline_Careers"
+    tier: "2"
+    aliases: ["Uline"]
+
+  - name: aerovironment
+    adapter: workday
+    host: "avav.wd1.myworkdayjobs.com"
+    tenant: "avav"
+    site: "avav"
+    tier: "2"
+    aliases: ["AeroVironment"]
+
+  - name: avis-budget
+    adapter: workday
+    host: "avisbudget.wd1.myworkdayjobs.com"
+    tenant: "avisbudget"
+    site: "abg_careers"
+    tier: "2"
+    aliases: ["Avis Budget Group"]
+
+  - name: baird
+    adapter: workday
+    host: "baird.wd1.myworkdayjobs.com"
+    tenant: "baird"
+    site: "careers"
+    tier: "2"
+    aliases: ["Baird"]
+
+  - name: capital
+    adapter: workday
+    host: "capgroup.wd1.myworkdayjobs.com"
+    tenant: "capgroup"
+    site: "capitalgroupcareers"
+    tier: "2"
+    aliases: ["Capital Group"]
+
+  - name: dallas-fort-worth-international-airport
+    adapter: workday
+    host: "dfwairport.wd5.myworkdayjobs.com"
+    tenant: "dfwairport"
+    site: "External"
+    tier: "2"
+    aliases: ["Dallas Fort Worth International Airport"]
+
+  - name: drivetime
+    adapter: workday
+    host: "drivetime.wd1.myworkdayjobs.com"
+    tenant: "drivetime"
+    site: "DriveTime"
+    tier: "2"
+    aliases: ["DriveTime"]
+
+  - name: hntb
+    adapter: workday
+    host: "hntb.wd5.myworkdayjobs.com"
+    tenant: "hntb"
+    site: "hntb_careers"
+    tier: "2"
+    aliases: ["HNTB"]
+
+  - name: mfs
+    adapter: workday
+    host: "mfs.wd1.myworkdayjobs.com"
+    tenant: "mfs"
+    site: "MFS-Careers"
+    tier: "2"
+    aliases: ["MFS"]
+
+  - name: saab
+    adapter: workday
+    host: "saabusa.wd1.myworkdayjobs.com"
+    tenant: "saabusa"
+    site: "saab_careers"
+    tier: "2"
+    aliases: ["Saab"]
+
+  - name: teledyne
+    adapter: workday
+    host: "flir.wd1.myworkdayjobs.com"
+    tenant: "flir"
+    site: "flircareers"
+    tier: "2"
+    aliases: ["Teledyne"]
+
+  - name: the-aerospace
+    adapter: workday
+    host: "aero.wd5.myworkdayjobs.com"
+    tenant: "aero"
+    site: "external"
+    tier: "2"
+    aliases: ["The Aerospace Corporation"]
+
+  - name: the-toro
+    adapter: workday
+    host: "ttc.wd1.myworkdayjobs.com"
+    tenant: "ttc"
+    site: "Toro_External_Careers"
+    tier: "2"
+    aliases: ["The Toro Company"]
+
+  - name: american-family-insurance
+    adapter: workday
+    host: "amfam.wd1.myworkdayjobs.com"
+    tenant: "amfam"
+    site: "AmFamGroupInternCareers"
+    tier: "2"
+    aliases: ["American Family Insurance Group"]
+
+  - name: bluecross-blueshield-of-nebraska
+    adapter: workday
+    host: "nebraskablue.wd1.myworkdayjobs.com"
+    tenant: "nebraskablue"
+    site: "BCBSNE"
+    tier: "2"
+    aliases: ["BlueCross BlueShield of Nebraska"]
+
+  - name: charter-manufacturing
+    adapter: workday
+    host: "chartermfg.wd5.myworkdayjobs.com"
+    tenant: "chartermfg"
+    site: "Charter_Careers"
+    tier: "2"
+    aliases: ["Charter Manufacturing"]
+
+  - name: commerce-bank
+    adapter: workday
+    host: "commercebank.wd1.myworkdayjobs.com"
+    tenant: "commercebank"
+    site: "CommerceJobs"
+    tier: "2"
+    aliases: ["Commerce Bank"]
+
+  - name: csx
+    adapter: oracle
+    host: "fa-eowa-saasfaprod1.fa.ocs.oraclecloud.com"
+    site_number: "CSXCareers"
+    tier: "2"
+    aliases: ["CSX"]
+
+  - name: directv
+    adapter: workday
+    host: "directv.wd1.myworkdayjobs.com"
+    tenant: "directv"
+    site: "careers"
+    tier: "2"
+    aliases: ["DIRECTV"]
+
+  - name: guardian-life
+    adapter: workday
+    host: "guardianlife.wd5.myworkdayjobs.com"
+    tenant: "guardianlife"
+    site: "guardian-life-careers"
+    tier: "2"
+    aliases: ["Guardian Life"]
+
+  - name: hy-vee
+    adapter: workday
+    host: "hyvee.wd1.myworkdayjobs.com"
+    tenant: "hyvee"
+    site: "HyVeeCareers"
+    tier: "2"
+    aliases: ["Hy-Vee"]
+
+  - name: meijer
+    adapter: workday
+    host: "meijer.wd5.myworkdayjobs.com"
+    tenant: "meijer"
+    site: "Meijer"
+    tier: "2"
+    aliases: ["Meijer"]
+
+  - name: momentive
+    adapter: workday
+    host: "momentive.wd1.myworkdayjobs.com"
+    tenant: "momentive"
+    site: "MC"
+    tier: "2"
+    aliases: ["Momentive"]
+
+  - name: oshkosh
+    adapter: workday
+    host: "oshkoshcorporation.wd5.myworkdayjobs.com"
+    tenant: "oshkoshcorporation"
+    site: "Oshkosh"
+    tier: "2"
+    aliases: ["Oshkosh"]
+
+  - name: philips
+    adapter: workday
+    host: "philips.wd3.myworkdayjobs.com"
+    tenant: "philips"
+    site: "jobs-and-careers"
+    tier: "2"
+    aliases: ["Philips"]
+
+  - name: united-parcel-service
+    adapter: workday
+    host: "hcmportal.wd5.myworkdayjobs.com"
+    tenant: "hcmportal"
+    site: "Search"
+    tier: "2"
+    aliases: ["United Parcel Service"]
+
+  - name: altar-d-state
+    adapter: workday
+    host: "standoutforgood.wd12.myworkdayjobs.com"
+    tenant: "standoutforgood"
+    site: "StandOutForGood"
+    tier: "2"
+    aliases: ["Altar'd State"]
+
+  - name: ameren
+    adapter: workday
+    host: "ameren.wd1.myworkdayjobs.com"
+    tenant: "ameren"
+    site: "External"
+    tier: "2"
+    aliases: ["Ameren"]
+
+  - name: american-century-investments
+    adapter: workday
+    host: "americancentury.wd5.myworkdayjobs.com"
+    tenant: "americancentury"
+    site: "AmericanCenturyInvestments"
+    tier: "2"
+    aliases: ["American Century Investments"]
+
+  - name: aspentech
+    adapter: workday
+    host: "aspentech.wd5.myworkdayjobs.com"
+    tenant: "aspentech"
+    site: "aspentech"
+    tier: "2"
+    aliases: ["AspenTech"]
+
+  - name: assurant
+    adapter: workday
+    host: "assurant.wd1.myworkdayjobs.com"
+    tenant: "assurant"
+    site: "External_Limited_Posting"
+    tier: "2"
+    aliases: ["Assurant"]
+
+  - name: autozone
+    adapter: oracle
+    host: "egud.fa.us2.oraclecloud.com"
+    site_number: "CX_1"
+    tier: "2"
+    aliases: ["AutoZone"]
+
+  - name: brunswick
+    adapter: workday
+    host: "brunswick.wd1.myworkdayjobs.com"
+    tenant: "brunswick"
+    site: "search"
+    tier: "2"
+    aliases: ["Brunswick"]
+
+  - name: centene
+    adapter: workday
+    host: "centene.wd5.myworkdayjobs.com"
+    tenant: "centene"
+    site: "Centene_External"
+    tier: "2"
+    aliases: ["Centene"]
+
+  - name: cerity-partners
+    adapter: workday
+    host: "ceritypartners.wd12.myworkdayjobs.com"
+    tenant: "ceritypartners"
+    site: "ceritypartnerscareers"
+    tier: "2"
+    aliases: ["Cerity Partners"]
+
+  - name: cibc
+    adapter: workday
+    host: "cibc.wd3.myworkdayjobs.com"
+    tenant: "cibc"
+    site: "search"
+    tier: "2"
+    aliases: ["CIBC"]
+
+  - name: cox
+    adapter: workday
+    host: "cox.wd1.myworkdayjobs.com"
+    tenant: "cox"
+    site: "Cox_External_Career_Site_1"
+    tier: "2"
+    aliases: ["Cox"]
+
+  - name: dick-s-sporting-goods
+    adapter: workday
+    host: "dickssportinggoods.wd1.myworkdayjobs.com"
+    tenant: "dickssportinggoods"
+    site: "DSG"
+    tier: "2"
+    aliases: ["Dick's Sporting Goods"]
+
+  - name: greenheck
+    adapter: workday
+    host: "greenheckgroup.wd5.myworkdayjobs.com"
+    tenant: "greenheckgroup"
+    site: "external"
+    tier: "2"
+    aliases: ["Greenheck Group"]
+
+  - name: hmh
+    adapter: workday
+    host: "hmhw.wd12.myworkdayjobs.com"
+    tenant: "hmhw"
+    site: "hmh_careers"
+    tier: "2"
+    aliases: ["HMH"]
+
+  - name: icf-international
+    adapter: workday
+    host: "icf.wd5.myworkdayjobs.com"
+    tenant: "icf"
+    site: "icfexternal_career_site"
+    tier: "2"
+    aliases: ["ICF International"]
+
+  - name: itron
+    adapter: workday
+    host: "itron.wd5.myworkdayjobs.com"
+    tenant: "itron"
+    site: "Itron"
+    tier: "2"
+    aliases: ["Itron"]
+
+  - name: jabil
+    adapter: workday
+    host: "jabil.wd5.myworkdayjobs.com"
+    tenant: "jabil"
+    site: "Jabil_Careers"
+    tier: "2"
+    aliases: ["Jabil"]
+
+  - name: leidos
+    adapter: workday
+    host: "leidos.wd5.myworkdayjobs.com"
+    tenant: "leidos"
+    site: "External"
+    tier: "2"
+    aliases: ["Leidos"]
+
+  - name: lseg
+    adapter: workday
+    host: "lseg.wd3.myworkdayjobs.com"
+    tenant: "lseg"
+    site: "Careers"
+    tier: "2"
+    aliases: ["LSEG"]
+
+  - name: marmon
+    adapter: workday
+    host: "marmon.wd501.myworkdayjobs.com"
+    tenant: "marmon"
+    site: "Marmon_MSIP_Internships"
+    tier: "2"
+    aliases: ["Marmon Holdings"]
+
+  - name: medline
+    adapter: workday
+    host: "medline.wd5.myworkdayjobs.com"
+    tenant: "medline"
+    site: "Medline"
+    tier: "2"
+    aliases: ["Medline"]
+
+  - name: montenson
+    adapter: oracle
+    host: "fa-esgu-saasfaprod1.fa.ocs.oraclecloud.com"
+    site_number: "CX_1"
+    tier: "2"
+    aliases: ["Montenson"]
+
+  - name: njm-insurance
+    adapter: workday
+    host: "njm.wd1.myworkdayjobs.com"
+    tenant: "njm"
+    site: "njm"
+    tier: "2"
+    aliases: ["NJM Insurance Group"]
+
+  - name: pacific-life
+    adapter: workday
+    host: "pacificlife.wd1.myworkdayjobs.com"
+    tenant: "pacificlife"
+    site: "PacificLifeCareers"
+    tier: "2"
+    aliases: ["Pacific Life"]
+
+  - name: pella
+    adapter: oracle
+    host: "ebgj.fa.us2.oraclecloud.com"
+    site_number: "CX_1"
+    tier: "2"
+    aliases: ["Pella"]
+
+  - name: poet
+    adapter: workday
+    host: "poet.wd1.myworkdayjobs.com"
+    tenant: "poet"
+    site: "POET"
+    tier: "2"
+    aliases: ["POET"]
+
+  - name: primient
+    adapter: workday
+    host: "primient.wd1.myworkdayjobs.com"
+    tenant: "primient"
+    site: "External_Careers"
+    tier: "2"
+    aliases: ["Primient"]
+
+  - name: repsol
+    adapter: workday
+    host: "repsol.wd3.myworkdayjobs.com"
+    tenant: "repsol"
+    site: "Repsol"
+    tier: "2"
+    aliases: ["Repsol"]
+
+  - name: republic-airways
+    adapter: workday
+    host: "rjet.wd108.myworkdayjobs.com"
+    tenant: "rjet"
+    site: "External_Career_Site"
+    tier: "2"
+    aliases: ["Republic Airways"]
+
+  - name: tc-energy
+    adapter: workday
+    host: "tcenergy.wd3.myworkdayjobs.com"
+    tenant: "tcenergy"
+    site: "CAREER_SITE_TC"
+    tier: "2"
+    aliases: ["TC Energy"]
+
+  - name: thrivent
+    adapter: workday
+    host: "thrivent.wd5.myworkdayjobs.com"
+    tenant: "thrivent"
+    site: "external"
+    tier: "2"
+    aliases: ["Thrivent"]
+
+  - name: vermeer
+    adapter: workday
+    host: "vermeer.wd5.myworkdayjobs.com"
+    tenant: "vermeer"
+    site: "externalcareersite"
+    tier: "2"
+    aliases: ["Vermeer"]
+
+  - name: abb
+    adapter: workday
+    host: "abb.wd3.myworkdayjobs.com"
+    tenant: "abb"
+    site: "external_career_page"
+    tier: "2"
+    aliases: ["ABB"]
+
+  - name: aes
+    adapter: workday
+    host: "aes.wd1.myworkdayjobs.com"
+    tenant: "aes"
+    site: "AES_US"
+    tier: "2"
+    aliases: ["AES"]
+
+  - name: american-bankers-association
+    adapter: workday
+    host: "aba.wd1.myworkdayjobs.com"
+    tenant: "aba"
+    site: "aba"
+    tier: "2"
+    aliases: ["American Bankers Association"]
+
+  - name: arconic
+    adapter: oracle
+    host: "hdnn.fa.us6.oraclecloud.com"
+    site_number: "CX"
+    tier: "2"
+    aliases: ["Arconic"]
+
+  - name: atc
+    adapter: workday
+    host: "atcllc.wd5.myworkdayjobs.com"
+    tenant: "atcllc"
+    site: "atcllc"
+    tier: "2"
+    aliases: ["ATC"]
+
+  - name: athene
+    adapter: workday
+    host: "athene.wd5.myworkdayjobs.com"
+    tenant: "athene"
+    site: "athene_careers"
+    tier: "2"
+    aliases: ["Athene"]
+
+  - name: barr
+    adapter: workday
+    host: "barr.wd1.myworkdayjobs.com"
+    tenant: "barr"
+    site: "barrcareers"
+    tier: "2"
+    aliases: ["Barr"]
+
+  - name: bass-pro-shops
+    adapter: workday
+    host: "basspro.wd1.myworkdayjobs.com"
+    tenant: "basspro"
+    site: "careers"
+    tier: "2"
+    aliases: ["Bass Pro Shops"]
+
+  - name: burlington-stores
+    adapter: workday
+    host: "burlington.wd5.myworkdayjobs.com"
+    tenant: "burlington"
+    site: "BurlingtonCareers"
+    tier: "2"
+    aliases: ["Burlington Stores"]
+
+  - name: c-h-robinson
+    adapter: workday
+    host: "chrobinson.wd5.myworkdayjobs.com"
+    tenant: "chrobinson"
+    site: "CHRobinson"
+    tier: "2"
+    aliases: ["C.H. Robinson"]
+
+  - name: cai
+    adapter: workday
+    host: "cai.wd5.myworkdayjobs.com"
+    tenant: "cai"
+    site: "computer_aid"
+    tier: "2"
+    aliases: ["CAI"]
+
+  - name: church-and-dwight
+    adapter: workday
+    host: "churchdwight.wd1.myworkdayjobs.com"
+    tenant: "churchdwight"
+    site: "chdcareers"
+    tier: "2"
+    aliases: ["Church & Dwight"]
+
+  - name: cleveland-cliffs
+    adapter: workday
+    host: "aksteel.wd1.myworkdayjobs.com"
+    tenant: "aksteel"
+    site: "careers"
+    tier: "2"
+    aliases: ["Cleveland-Cliffs"]
+
+  - name: cme
+    adapter: workday
+    host: "cmegroup.wd1.myworkdayjobs.com"
+    tenant: "cmegroup"
+    site: "cme_careers"
+    tier: "2"
+    aliases: ["CME Group"]
+
+  - name: conocophillips
+    adapter: workday
+    host: "conocophillips.wd1.myworkdayjobs.com"
+    tenant: "conocophillips"
+    site: "External"
+    tier: "2"
+    aliases: ["ConocoPhillips"]
+
+  - name: continental-resources
+    adapter: workday
+    host: "clr.wd5.myworkdayjobs.com"
+    tenant: "clr"
+    site: "CLR_Careers"
+    tier: "2"
+    aliases: ["Continental Resources"]
+
+  - name: corteva
+    adapter: workday
+    host: "corteva.wd5.myworkdayjobs.com"
+    tenant: "corteva"
+    site: "corteva"
+    tier: "2"
+    aliases: ["Corteva"]
+
+  - name: country-financial
+    adapter: workday
+    host: "countryfinancial.wd5.myworkdayjobs.com"
+    tenant: "countryfinancial"
+    site: "COUNTRYCorporateInternships"
+    tier: "2"
+    aliases: ["COUNTRY Financial"]
+
+  - name: covestro
+    adapter: workday
+    host: "covestro.wd3.myworkdayjobs.com"
+    tenant: "covestro"
+    site: "cov_external"
+    tier: "2"
+    aliases: ["Covestro"]
+
+  - name: danaher
+    adapter: workday
+    host: "danaher.wd1.myworkdayjobs.com"
+    tenant: "danaher"
+    site: "danaherjobs"
+    tier: "2"
+    aliases: ["Danaher"]
+
+  - name: dee-zee
+    adapter: workday
+    host: "deezee.wd108.myworkdayjobs.com"
+    tenant: "deezee"
+    site: "DeeZee_Careers"
+    tier: "2"
+    aliases: ["Dee Zee"]
+
+  - name: devon-energy
+    adapter: workday
+    host: "wd5.myworkdaysite.com"
+    tenant: "devonenergy"
+    site: "Careers"
+    tier: "2"
+    aliases: ["Devon Energy"]
+
+  - name: draper
+    adapter: workday
+    host: "draper.wd5.myworkdayjobs.com"
+    tenant: "draper"
+    site: "Draper_Careers"
+    tier: "2"
+    aliases: ["Draper"]
+
+  - name: ducharme-mcmillen-and-associates
+    adapter: workday
+    host: "dmainc.wd5.myworkdayjobs.com"
+    tenant: "dmainc"
+    site: "dma"
+    tier: "2"
+    aliases: ["DuCharme, McMillen & Associates"]
+
+  - name: ecolab
+    adapter: workday
+    host: "ecolab.wd1.myworkdayjobs.com"
+    tenant: "ecolab"
+    site: "ecolab_external"
+    tier: "2"
+    aliases: ["Ecolab"]
+
+  - name: ercot
+    adapter: workday
+    host: "ercot.wd1.myworkdayjobs.com"
+    tenant: "ercot"
+    site: "ercot_careers"
+    tier: "2"
+    aliases: ["Ercot"]
+
+  - name: flex
+    adapter: workday
+    host: "flextronics.wd1.myworkdayjobs.com"
+    tenant: "flextronics"
+    site: "Careers"
+    tier: "2"
+    aliases: ["Flex"]
+
+  - name: fnbo
+    adapter: workday
+    host: "firstnational.wd12.myworkdayjobs.com"
+    tenant: "firstnational"
+    site: "fnbocareers"
+    tier: "2"
+    aliases: ["FNBO"]
+
+  - name: ge-appliances
+    adapter: workday
+    host: "haier.wd3.myworkdayjobs.com"
+    tenant: "haier"
+    site: "ge_appliances"
+    tier: "2"
+    aliases: ["GE Appliances"]
+
+  - name: generac
+    adapter: workday
+    host: "generac.wd5.myworkdayjobs.com"
+    tenant: "generac"
+    site: "external"
+    tier: "2"
+    aliases: ["Generac"]
+
+  - name: great-american-insurance
+    adapter: workday
+    host: "gaig.wd1.myworkdayjobs.com"
+    tenant: "gaig"
+    site: "GAIG_External"
+    tier: "2"
+    aliases: ["Great American Insurance Company"]
+
+  - name: guidestone
+    adapter: workday
+    host: "guidestone.wd1.myworkdayjobs.com"
+    tenant: "guidestone"
+    site: "guidestone"
+    tier: "2"
+    aliases: ["GuideStone"]
+
+  - name: guidewell-mutual
+    adapter: oracle
+    host: "fa-etum-saasfaprod1.fa.ocs.oraclecloud.com"
+    site_number: "CX_1"
+    tier: "2"
+    aliases: ["GuideWell Mutual"]
+
+  - name: hormel-foods
+    adapter: oracle
+    host: "ekkh.fa.us2.oraclecloud.com"
+    site_number: "CX_2002"
+    tier: "2"
+    aliases: ["Hormel Foods"]
+
+  - name: houlihan-lokey
+    adapter: workday
+    host: "hl.wd1.myworkdayjobs.com"
+    tenant: "hl"
+    site: "Campus"
+    tier: "2"
+    aliases: ["Houlihan Lokey"]
+
+  - name: hunt-oil
+    adapter: oracle
+    host: "fa-eqcd-saasfaprod1.fa.ocs.oraclecloud.com"
+    site_number: "CX_1"
+    tier: "2"
+    aliases: ["Hunt Oil Company"]
+
+  - name: huntington-bancshares
+    adapter: workday
+    host: "huntington.wd12.myworkdayjobs.com"
+    tenant: "huntington"
+    site: "HNBcareers"
+    tier: "2"
+    aliases: ["Huntington Bancshares"]
+
+  - name: iat-insurance
+    adapter: workday
+    host: "iatinsurancegroup.wd1.myworkdayjobs.com"
+    tenant: "iatinsurancegroup"
+    site: "iat"
+    tier: "2"
+    aliases: ["IAT Insurance Group"]
+
+  - name: ingredion
+    adapter: workday
+    host: "ingredion.wd1.myworkdayjobs.com"
+    tenant: "ingredion"
+    site: "IngredionCareers"
+    tier: "2"
+    aliases: ["Ingredion"]
+
+  - name: ketjen
+    adapter: workday
+    host: "albemarle.wd5.myworkdayjobs.com"
+    tenant: "albemarle"
+    site: "ketjenexternal"
+    tier: "2"
+    aliases: ["Ketjen"]
+
+  - name: labcorp
+    adapter: workday
+    host: "labcorp.wd1.myworkdayjobs.com"
+    tenant: "labcorp"
+    site: "external"
+    tier: "2"
+    aliases: ["LabCorp"]
+
+  - name: land-o-lakes
+    adapter: workday
+    host: "landolakes.wd1.myworkdayjobs.com"
+    tenant: "landolakes"
+    site: "landolakes"
+    tier: "2"
+    aliases: ["Land O'Lakes"]
+
+  - name: life-fitness
+    adapter: workday
+    host: "lifefitness.wd1.myworkdayjobs.com"
+    tenant: "lifefitness"
+    site: "searchLFN"
+    tier: "2"
+    aliases: ["Life Fitness"]
+
+  - name: live-oak-bank
+    adapter: workday
+    host: "liveoakbancshares.wd1.myworkdayjobs.com"
+    tenant: "liveoakbancshares"
+    site: "Live_Oak"
+    tier: "2"
+    aliases: ["Live Oak Bank"]
+
+  - name: michelin
+    adapter: workday
+    host: "michelinhr.wd3.myworkdayjobs.com"
+    tenant: "michelinhr"
+    site: "Michelin"
+    tier: "2"
+    aliases: ["Michelin"]
+
+  - name: nelnet
+    adapter: workday
+    host: "nelnet.wd1.myworkdayjobs.com"
+    tenant: "nelnet"
+    site: "MyNelnet"
+    tier: "2"
+    aliases: ["Nelnet"]
+
+  - name: netsmart
+    adapter: workday
+    host: "ntst.wd1.myworkdayjobs.com"
+    tenant: "ntst"
+    site: "careers"
+    tier: "2"
+    aliases: ["Netsmart"]
+
+  - name: new-york-mets
+    adapter: workday
+    host: "sterlingmets.wd5.myworkdayjobs.com"
+    tenant: "sterlingmets"
+    site: "Mets"
+    tier: "2"
+    aliases: ["New York Mets"]
+
+  - name: newrez
+    adapter: workday
+    host: "newrez.wd1.myworkdayjobs.com"
+    tenant: "newrez"
+    site: "NRZ"
+    tier: "2"
+    aliases: ["Newrez"]
+
+  - name: nov
+    adapter: oracle
+    host: "egay.fa.us6.oraclecloud.com"
+    site_number: "CX_4001"
+    tier: "2"
+    aliases: ["NOV"]
+
+  - name: pennsylvania-state-university
+    adapter: workday
+    host: "psu.wd1.myworkdayjobs.com"
+    tenant: "psu"
+    site: "PSU_Staff"
+    tier: "2"
+    aliases: ["Pennsylvania State University"]
+
+  - name: polaris
+    adapter: workday
+    host: "polaris.wd5.myworkdayjobs.com"
+    tenant: "polaris"
+    site: "PolarisJobs"
+    tier: "2"
+    aliases: ["Polaris"]
+
+  - name: qts
+    adapter: workday
+    host: "qtsdatacenters.wd5.myworkdayjobs.com"
+    tenant: "qtsdatacenters"
+    site: "qts"
+    tier: "2"
+    aliases: ["QTS"]
+
+  - name: ralliant
+    adapter: oracle
+    host: "ibwujb.fa.ocs.oraclecloud.com"
+    site_number: "CX_1001"
+    tier: "2"
+    aliases: ["Ralliant"]
+
+  - name: ryan-companies
+    adapter: workday
+    host: "ryancompanies.wd5.myworkdayjobs.com"
+    tenant: "ryancompanies"
+    site: "ryancompanies"
+    tier: "2"
+    aliases: ["Ryan Companies"]
+
+  - name: securian-financial
+    adapter: workday
+    host: "hq.wd12.myworkdayjobs.com"
+    tenant: "hq"
+    site: "Securian_External"
+    tier: "2"
+    aliases: ["Securian Financial Group"]
+
+  - name: southstate-bank
+    adapter: workday
+    host: "southstatebank.wd5.myworkdayjobs.com"
+    tenant: "southstatebank"
+    site: "external"
+    tier: "2"
+    aliases: ["SouthState Bank"]
+
+  - name: sun-life
+    adapter: workday
+    host: "sunlife.wd3.myworkdayjobs.com"
+    tenant: "sunlife"
+    site: "Campus"
+    tier: "2"
+    aliases: ["Sun Life"]
+
+  - name: tarrant-regional-water-district
+    adapter: workday
+    host: "trwd.wd1.myworkdayjobs.com"
+    tenant: "trwd"
+    site: "TRWDCareers"
+    tier: "2"
+    aliases: ["Tarrant Regional Water District"]
+
+  - name: watts-water
+    adapter: workday
+    host: "wattswater.wd5.myworkdayjobs.com"
+    tenant: "wattswater"
+    site: "Intern-External"
+    tier: "2"
+    aliases: ["Watts Water"]
+
+  - name: zekelman-industries
+    adapter: workday
+    host: "zekelman.wd12.myworkdayjobs.com"
+    tenant: "zekelman"
+    site: "Careers"
+    tier: "2"
+    aliases: ["Zekelman Industries"]
+
   - name: synopsys
     adapter: avature
     host: synopsys.avature.net

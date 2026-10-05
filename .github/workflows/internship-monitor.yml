@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     concurrency:
@@ -60,7 +60,7 @@ jobs:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           SCAN_SKIP_COMPANIES: tesla,linkedin,citadel,citadel-securities,palo-alto-networks
-          SCAN_SHARD: ${{ matrix.shard }}/4
+          SCAN_SHARD: ${{ matrix.shard }}/6
         run: PYTHONPATH=. python -m scripts.scan
 
       # Runs even when the laptop is asleep (hourly schedule), and alerts only
