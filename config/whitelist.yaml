@@ -676,6 +676,11 @@ companies:
     slug: groq
     tier: "1"
 
+  - name: goldman-sachs
+    adapter: goldman
+    tier: "1"
+    aliases: ["Goldman Sachs"]
+
   # --- Tier 2 ---
   - name: synopsys
     adapter: avature

@@ -166,7 +166,7 @@ class WorkdayAdapter:
                 "Accept": "application/json",
                 "Content-Type": "application/json",
                 "Origin": f"https://{host}",
-                "Referer": f"https://{host}/{site}",
+                "Referer": site_base(host, "", site) if "myworkdaysite" not in host else f"https://{host}/",
             },
             timeout=self.timeout,
         )
@@ -176,7 +176,7 @@ class WorkdayAdapter:
     def _warmup(self, host: str, site: str) -> None:
         try:
             self.session.get(
-                f"https://{host}/{site}",
+                f"https://{host}/{site}" if "myworkdaysite" not in host else f"https://{host}/",
                 headers={
                     "Accept": "text/html,application/xhtml+xml",
                     "Referer": f"https://{host}/",
@@ -195,8 +195,9 @@ class WorkdayAdapter:
             # externalPath is relative to the career site ("/job/..."); the
             # public link Workday itself uses is https://{host}/{site}/job/...
             path = str(external_path)
-            if not path.startswith(f"/{site}/"):
-                path = f"/{site}{path}"
+            base = site_base(host, tenant, site)
+            if not path.startswith(base.split(host, 1)[1] + "/"):
+                path = base.split(host, 1)[1] + path
             url = f"https://{host}{path}"
         else:
             url = str(external_path or f"https://{host}/wday/cxs/{tenant}/{site}/job/{job_id}")
@@ -234,6 +235,14 @@ def _response_json(response: Any, *, host: str) -> Any:
     if not isinstance(payload, dict):
         raise RuntimeError(f"workday {host} expected object, got {type(payload).__name__}")
     return payload
+
+
+def site_base(host: str, tenant: str, site: str) -> str:
+    """Public career-site root. *.myworkdayjobs.com serves /<site>; the
+    shared wdN.myworkdaysite.com hosts serve /recruiting/<tenant>/<site>."""
+    if host.endswith("myworkdaysite.com"):
+        return f"https://{host}/recruiting/{tenant}/{site}"
+    return f"https://{host}/{site}"
 
 
 def intern_facet(payload: Any) -> tuple[str, list[str]] | None:

@@ -1726,3 +1726,39 @@ def test_avature_template_variants() -> None:
         ("194752", "Intern, Sourcing", "Wichita, Kansas", ""),
         ("18887", "Software Intern", "", "21-Sep-2026"),
     ]
+
+
+def test_goldman_graphql_pages_and_engineering_tag() -> None:
+    from adapters.goldman import GoldmanAdapter, normalize
+
+    def item(i: int, title: str, division: str, country: str = "United States") -> dict:
+        return {"roleId": f"{i}_GS_CAMPUS", "jobTitle": title, "division": division, "locations": [{"primary": True, "city": "New York", "state": "NY", "country": country}], "externalSource": {"sourceId": str(i)}}
+
+    class S(FakeSession):
+        def post(self, url: str, **kwargs: Any) -> FakeResponse:
+            body = kwargs["json"]
+            self.calls.append({"url": url, "json": body})
+            page = body["variables"]["searchQueryInput"]["page"]["pageNumber"]
+            assert body["variables"]["searchQueryInput"]["experiences"] == ["CAMPUS"]
+            items = [item(page * 20 + i, "2027 | Americas | New York City Area | Engineering | Summer Analyst", "Engineering Division") for i in range(20 if page == 0 else 3)]
+            return FakeResponse({"data": {"roleSearch": {"totalCount": 23, "items": items}}})
+
+    session = S()
+    adapter = GoldmanAdapter(session=session)
+    jobs = adapter.fetch()
+    assert len(jobs) == 23 and len(session.calls) == 2
+    assert adapter.source_totals == {"goldman-sachs": (23, 23)}
+    assert jobs[0].title.endswith("(Engineering division: software & strats)")
+    assert jobs[0].url == "https://higher.gs.com/roles/0?type=students"
+    assert jobs[0].country_names == ("United States",)
+    banking = normalize(item(9, "2027 | Americas | NYC | Investment Banking | Summer Analyst", "Global Banking & Markets"))
+    assert "Engineering division" not in banking.title
+
+
+def test_workday_links_on_myworkdaysite_hosts_include_recruiting_tenant() -> None:
+    adapter = WorkdayAdapter([], session=FakeSession({}))
+    board = ("wd1.myworkdaysite.com", "wf", "WellsFargoJobs")
+    job = adapter._normalize(board, {"title": "Software Engineering Intern", "externalPath": "/job/CHARLOTTE-NC/Intern_R-574285"})
+    assert job.url == "https://wd1.myworkdaysite.com/recruiting/wf/WellsFargoJobs/job/CHARLOTTE-NC/Intern_R-574285"
+    regular = adapter._normalize(("hpe.wd5.myworkdayjobs.com", "hpe", "Jobsathpe"), {"title": "x", "externalPath": "/job/a_1"})
+    assert regular.url == "https://hpe.wd5.myworkdayjobs.com/Jobsathpe/job/a_1"

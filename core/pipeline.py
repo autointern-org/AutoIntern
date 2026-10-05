@@ -18,6 +18,7 @@ from adapters.deshaw import DEShawAdapter
 from adapters.base import Adapter, Job
 from adapters.eightfold import EightfoldAdapter, EightfoldBoard, infer_host
 from adapters.gem import GemAdapter
+from adapters.goldman import GoldmanAdapter
 from adapters.google import GoogleAdapter
 from adapters.greenhouse import GreenhouseAdapter
 from adapters.ibm import IBMAdapter
@@ -679,6 +680,7 @@ SIMPLE_ADAPTERS = {
     "optiver": OptiverAdapter,
     "atlassian": AtlassianAdapter,
     "meta": MetaAdapter,
+    "goldman": GoldmanAdapter,
 }
 KNOWN_ADAPTERS = frozenset(
     {
