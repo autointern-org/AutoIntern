@@ -1,131 +1,102 @@
 # AutoIntern
 
-Internship monitor. While this Mac is awake, a LaunchAgent starts a GitHub Actions run every 15 minutes. GitHub also runs an hourly backup if the laptop is asleep. Tesla is scanned on the laptop through Chrome; every other company scans on GitHub-hosted Ubuntu.
+Internship monitor for ~680 companies. Every 15 minutes it fetches each company's job board, keeps US software / data / ML / quant internships, and posts the ones it has not seen before to Discord. Top-priority postings also go to your phone. There is no persistent server: GitHub Actions runs the scans and Cloudflare KV remembers what was already sent.
 
-It posts new intern roles to Discord. There is no persistent server.
+## How it works
 
-## How It Works
+1. **Timer.** A LaunchAgent on the Mac runs `gh workflow run internship-monitor.yml` every 15 minutes while the Mac is awake. GitHub's own hourly `schedule` (`17 * * * *`) is the backup when the laptop sleeps; it can run late.
+2. **Cloud scan, six shards.** The `scan` job runs as a matrix of six parallel GitHub runners (`SCAN_SHARD=i/6`). Workday boards are split round-robin across the shards because Workday blocks bursts from one IP, so each shard fetches its Workday tenants one at a time. Shard 0 also scans every non-Workday board; within it, adapters run in parallel and multi-company adapters fetch four boards at a time. A tick takes about five minutes.
+3. **Laptop scan.** The `tesla` job runs on this Mac's self-hosted runner for companies whose sites block GitHub's IPs: Tesla (read from the open Chrome tab), LinkedIn, Citadel, Citadel Securities, and Palo Alto Networks.
+4. **Adapters** in `adapters/` turn each board into `Job`s, including structured country codes when the board provides them.
+5. **Filters** (`core/filters.py`) keep internships with a tech title in the US, Summer 2027 or unstated term, not PhD-only. Ambiguous locations are kept and flagged rather than dropped.
+6. **State** (`core/kv.py`) lives in Cloudflare KV: one `seen:<company>` doc per company, one health doc per scan scope, and small bookkeeping docs. It is designed for the free tier (1,000 writes and 100,000 reads a day).
+7. **Discord** (`core/discord.py`) gets one embed per new posting; companies with more than 5 new postings get a summary plus a forum thread. A company's first scan posts a one-time "first look" recap of everything currently open.
 
-1. The laptop timer runs `gh workflow run internship-monitor.yml` every 15 minutes. GitHub's own `schedule` is an hourly backup (`17 * * * *`).
-2. The **scan** job (Ubuntu) fetches every whitelisted company except Tesla. The **tesla** job (this Mac's self-hosted runner) fetches Tesla from the open Chrome tab.
-3. Adapters in `adapters/` normalize postings into `Job`.
-4. `core.filters` applies the whitelist rules from `config/whitelist.yaml`.
-5. `core.kv` stores seen jobs, Discord message IDs, and dismissals in Cloudflare KV.
-6. `core.discord` posts a Discord embed with `?wait=true` and stores the returned message ID.
-7. Optional: with `CHECK_DISMISS_REACTIONS=1`, the next tick checks stored messages for a ✅ reaction and marks those jobs dismissed. Off by default — it costs one Discord request per message and rate-limits after ~30.
+### What each ping shows
+
+- 🚨 a posting that is new, or 🕓 a **catch-up**: first seen 7+ days after its posted date (a newly added board or a filter change made it visible, so it is not newly posted).
+- **Typically open:** the company's median posting lifetime once 3+ of its postings have closed, with a warning when it is a week or less.
+- Flags: `location_unknown`, degree hints, term hints.
+
+### Alerts in `#issues`
+
+- A board that fails to fetch (one message per board per 6 hours; a provider outage across 5+ boards is one message).
+- **Possible missed postings:** a board parsed fewer postings than its own API reports (3+ missing and under 90%).
+- **Laptop runner looks offline:** the laptop timer is dispatching runs but none of their laptop jobs ran.
+- **Cloudflare KV writes blocked:** if the daily write quota is ever hit, the run stops posting (so nothing repeats) and the postings ping after the reset.
+
+### Weekly coverage audit
+
+`.github/workflows/coverage-audit.yml` runs Mondays 15:00 UTC and compares against the community [SimplifyJobs Summer 2027 list](https://github.com/SimplifyJobs/Summer2027-Internships): companies with relevant listings that are not scanned (with the job board each uses), listings that pass the filters but were never pinged, and the fastest-closing companies. The summary goes to `#issues`; the full table is on the run page.
+
+### Phone push
+
+Tier-1 companies' Summer 2027, non-PhD postings are also published to an [ntfy](https://ntfy.sh) topic stored in the `NTFY_TOPIC` secret (at most 8 a run, the rest summarized). Install the ntfy app and subscribe to that topic name. Catch-up postings push at lower priority.
 
 ## Setup
 
-### 1. Create a Discord webhook
+### 1. Discord webhooks
 
-Create a webhook in the target Discord channel and copy its URL. The scanner posts with `?wait=true` so Discord returns the message ID for KV state.
+Create webhooks for the alerts channel, a forum channel (full lists for large batches), and an `#issues` channel. Posts use `?wait=true` so Discord returns message IDs for KV.
 
-Dismissals use the webhook message endpoint first:
+### 2. Cloudflare KV
 
-`GET /webhooks/{webhook.id}/{webhook.token}/messages/{message.id}`
+Create a Workers KV namespace and an API token with Workers KV Storage read/write.
 
-If that cannot read reactions in your server setup, create a Discord bot with access to the channel and set `DISCORD_BOT_TOKEN` plus `DISCORD_CHANNEL_ID`. The fallback uses:
+### 3. GitHub secrets
 
-`GET /channels/{channel.id}/messages/{message.id}`
-
-### 2. Create Cloudflare KV
-
-Create a Workers KV namespace and note:
-
-- Cloudflare account ID
-- KV namespace ID
-- API token with Workers KV Storage edit/read access
-
-The script stores:
-
-- `job:{job_id}` for seen notifications and Discord message metadata
-- `dismissed:{job_id}` for dismissed postings
-
-### 3. Set GitHub Secrets (minimum viable)
-
-**Required** (repo → Settings → Secrets and variables → Actions → Secrets):
-
-| Secret | Where to get it |
+| Secret | Purpose |
 | --- | --- |
-| `DISCORD_WEBHOOK_URL` | Main alerts channel webhook |
-| `DISCORD_FORUM_WEBHOOK_URL` | Forum channel webhook (full list when a company has more than 5 new roles) |
-| `DISCORD_ISSUES_WEBHOOK_URL` | `#issues` channel webhook (broken fetches) |
-| `CF_ACCOUNT_ID` | Cloudflare dashboard → account ID in URL/sidebar |
-| `CF_KV_NAMESPACE_ID` | Workers → KV → your namespace → ID |
-| `CF_API_TOKEN` | Cloudflare API token with Workers KV Storage read/write |
+| `DISCORD_WEBHOOK_URL` | Main alerts channel |
+| `DISCORD_FORUM_WEBHOOK_URL` | Forum channel for companies with more than 5 new roles |
+| `DISCORD_ISSUES_WEBHOOK_URL` | `#issues` channel |
+| `CF_ACCOUNT_ID`, `CF_KV_NAMESPACE_ID`, `CF_API_TOKEN` | Cloudflare KV |
+| `NTFY_TOPIC` | Phone push topic (long random name; anyone who knows it can read it) |
+| `DISCORD_BOT_TOKEN`, `DISCORD_CHANNEL_ID` | Optional: reading ✅ reactions (off unless `CHECK_DISMISS_REACTIONS=1`) |
 
-**Optional secrets:**
+### 4. Laptop runner
 
-- `DISCORD_BOT_TOKEN` — reaction fallback if webhook cannot read ✅
-- `DISCORD_CHANNEL_ID` — required with bot-token fallback
+1. Keep `~/Desktop/actions-runner/run.sh` running (or install it as a service: `./svc.sh install && ./svc.sh start`).
+2. Keep Chrome open with a Tesla Careers tab, and enable **View → Developer → Allow JavaScript from Apple Events** for that window's profile.
+3. Install the 15-minute dispatcher once: `./scripts/install_scan_timer.sh`.
 
-### 4. Customize the whitelist
+## The whitelist
 
-Edit `config/whitelist.yaml`.
+`config/whitelist.yaml` lists every company with its adapter and board identifiers. Useful fields:
 
-Example:
+- `tier`: `"1"` (red embeds, phone push) or `"2"`.
+- `aliases`: other names the company goes by, used by the coverage audit.
+- `dedupe_group`: boards that list the same postings (Amazon/AWS, Kensho/SPGI) ping each posting once.
+- `include_keywords` / `exclude_keywords`, `include_phd`, `include_intl`: per-company filter overrides.
 
-```yaml
-companies:
-  - name: anthropic
-    adapter: greenhouse
-    slug: anthropic
-    tier: S
-    include_keywords: []
-    exclude_keywords: ["new grad"]
+Laptop-only companies must be named in both `SCAN_ONLY_COMPANIES` (tesla job) and `SCAN_SKIP_COMPANIES` (scan job) in the workflow.
 
-  - name: google
-    adapter: google
-    tier: S
-    include_keywords: ["software", "research", "machine learning", "STEP"]
-```
+### Adapters
 
-Filtering rules:
+| Adapter | Source |
+| --- | --- |
+| `greenhouse`, `ashby`, `lever`, `workable`, `smartrecruiters`, `rippling`, `gem` | Public job-board APIs by slug |
+| `workday` | `https://{host}/wday/cxs/{tenant}/{site}/jobs`: text search plus the tenant's own intern facet; also `wdN.myworkdaysite.com` hosts |
+| `oracle` | Oracle Recruiting Cloud requisitions API (newest first) |
+| `eightfold` | Eightfold `pcsx` / `apply` APIs |
+| `phenom` | Phenom `widgets` and `get` (`/api/jobs`); iCIMS Jibe sites use `get` |
+| `icims` | Classic iCIMS portals (`/jobs/search` HTML) |
+| `avature` | Avature portals (Bloomberg, Two Sigma, EA, Synopsys, Deloitte, ...) |
+| `successfactors` | SAP SuccessFactors career sites (table and tile layouts) |
+| `radancy` | Radancy / TalentBrew sites |
+| `citadel` | Citadel's careers search, falling back to its career sitemap when challenged |
+| `sitemap` | Career sitemaps of job pages (Shopify) |
+| `goldman` | higher.gs.com campus GraphQL |
+| `google`, `apple`, `amazon`, `meta`, `tiktok`, `bytedance`, `ibm`, `snap`, `optiver`, `atlassian`, `deshaw`, `linkedin`, `tesla` | Company-specific |
 
-- Requires an intern-like title (`intern`, `campus`, `student`, `co-op`, …) **and** a tech function (SWE/ML/research/quant/SRE/data). Recruiter/ambassador titles are dropped. `new grad` is not enough.
-- Drops PhD-only internships unless the JD opens to undergrads. Drops winter/spring/fall internships unless they are part-time; Summer 2027 and unstated terms are kept.
-- Drops clearly non-US locations using the title plus location field (US state wins; empty location is kept). Does not read the JD for country.
-- Applies per-company `include_keywords` and `exclude_keywords`.
-
-Tiers control Discord embed color:
-
-- `S`: red
-- `A`: blue
-- `B`: gray
-
-### 5. Laptop runner (Tesla + 15-minute timer)
-
-Tesla cannot be fetched from GitHub-hosted Ubuntu (Akamai). The **tesla** job runs on a self-hosted runner on this Mac and reads listings from Chrome.
-
-1. Keep `~/Desktop/actions-runner/run.sh` running.
-2. Keep Chrome open with a Tesla Careers tab. Enable **View → Developer → Allow JavaScript from Apple Events**.
-3. Install the 15-minute dispatcher once:
-
-```bash
-./scripts/install_scan_timer.sh
-```
-
-That LaunchAgent calls `gh workflow run internship-monitor.yml` every 15 minutes while the Mac is awake. The Ubuntu scan still runs from GitHub's hourly schedule if the laptop is asleep. Tesla ticks while commuting are dropped.
-
-## Local Debugging
-
-Install dependencies:
+## Local debugging
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-```
-
-Run one dry scan without posting to Discord:
-
-```bash
-make scan-local
-```
-
-Run the real scanner locally:
-
-```bash
-PYTHONPATH=. python -m scripts.scan
+make scan-local                       # dry run of everything, no Discord, no KV
+SCAN_SHARD=1/6 make scan-local        # one shard
+SCAN_ONLY_COMPANIES=google make scan-local
 ```
 
 ## Tests
@@ -134,13 +105,4 @@ PYTHONPATH=. python -m scripts.scan
 make test
 ```
 
-Adapter tests use saved JSON fixtures in `tests/fixtures/` and do not hit the network. The pipeline test mocks Discord.
-
-## Adapter Notes
-
-- Greenhouse: `https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true`
-- Ashby: `https://api.ashbyhq.com/posting-api/job-board/{slug}?includeCompensation=true`
-- Workday: `https://{host}/wday/cxs/{tenant}/{site}/jobs`
-- Google, Microsoft, Amazon, and Apple use their public JSON endpoints with defensive parsing.
-
-Some company board slugs change over time. The Greenhouse adapter logs a failed slug and continues scanning the rest of the whitelist. OpenAI and Perplexity are configured for Ashby because their Greenhouse slugs returned 404 during the live dry-run verification.
+Adapter tests use saved fixtures in `tests/fixtures/` and never hit the network.
