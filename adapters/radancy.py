@@ -11,7 +11,7 @@ from urllib.parse import urlencode
 import requests
 
 from adapters.base import Job, compact_text, html_to_text, normalize_country_code
-from core.http import new_session
+from core.http import fetch_boards, new_session
 
 
 RECORDS_PER_PAGE = 40  # some tenants (Arm) cap pages at ~43 regardless of the request
@@ -65,12 +65,12 @@ class RadancyAdapter:
         self.listing_counts = {}
         self.source_totals: dict[str, tuple[int, int]] = {}
         jobs: list[Job] = []
-        for board in self.boards:
-            try:
-                jobs.extend(self._fetch_board(board))
-            except Exception as exc:
-                print(f"[radancy] {board.company} fetch failed: {exc}")
-                self.board_errors.append((board.company, str(exc)))
+        for board, outcome in fetch_boards(self.boards, self._fetch_board):
+            if isinstance(outcome, Exception):
+                print(f"[radancy] {board.company} fetch failed: {outcome}")
+                self.board_errors.append((board.company, str(outcome)))
+            else:
+                jobs.extend(outcome)
         return jobs
 
     def _fetch_board(self, board: RadancyBoard) -> list[Job]:

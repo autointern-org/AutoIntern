@@ -8,7 +8,7 @@ from typing import Any
 import requests
 
 from adapters.base import Job, compact_text, html_to_text, normalize_country_code
-from core.http import new_session, retry_once
+from core.http import fetch_boards, new_session, retry_once
 
 
 LIMIT = 25
@@ -43,12 +43,12 @@ class OracleAdapter:
         self.board_errors = []
         self.source_totals = {}
         jobs: list[Job] = []
-        for board in self.boards:
-            try:
-                jobs.extend(self._fetch_board(board))
-            except Exception as exc:
-                print(f"[oracle] {board.company} fetch failed: {exc}")
-                self.board_errors.append((board.company, str(exc)))
+        for board, outcome in fetch_boards(self.boards, self._fetch_board):
+            if isinstance(outcome, Exception):
+                print(f"[oracle] {board.company} fetch failed: {outcome}")
+                self.board_errors.append((board.company, str(outcome)))
+            else:
+                jobs.extend(outcome)
         return jobs
 
     def _fetch_board(self, board: OracleBoard) -> list[Job]:

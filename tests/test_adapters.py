@@ -1084,8 +1084,9 @@ def test_smartrecruiters_lists_then_fetches_intern_details() -> None:
 
     jobs = adapter.fetch()
 
-    # One list page (totalFound=3 reached) + one detail per intern-titled posting; the staff role is skipped.
-    assert session.urls == [f"{base}?limit=100&offset=0", f"{base}/744000001", f"{base}/744000002"]
+    # One list page (totalFound=3 reached) + a detail fetch for the US intern posting; the
+    # staff role and the Australian row (structured country) need no detail page.
+    assert session.urls == [f"{base}?limit=100&offset=0", f"{base}/744000001"]
     assert [job.id for job in jobs] == ["smartrecruiters:ServiceNow:744000001", "smartrecruiters:ServiceNow:744000002"]
     intern = jobs[0]
     assert intern.company == "servicenow"
@@ -1833,3 +1834,33 @@ def test_successfactors_table_and_tile_templates() -> None:
     assert [j.id for j in jobs] == ["successfactors:united-launch-alliance:1427396900"]
     assert jobs[0].posted_at == "2026-09-08" and "Pursuing a BS in CS." in jobs[0].jd_text
     assert adapter.source_totals == {"united-launch-alliance": (2, 2)}
+
+
+def test_fetch_boards_runs_in_parallel_and_keeps_order() -> None:
+    import time as _time
+
+    from core.http import fetch_boards
+
+    def slow(board: int) -> list[int]:
+        _time.sleep(0.2)
+        if board == 2:
+            raise RuntimeError("down")
+        return [board]
+
+    started = _time.perf_counter()
+    outcomes = fetch_boards([1, 2, 3, 4], slow)
+    assert _time.perf_counter() - started < 0.6
+    assert [b for b, _ in outcomes] == [1, 2, 3, 4]
+    assert outcomes[0][1] == [1] and isinstance(outcomes[1][1], RuntimeError)
+
+
+def test_smartrecruiters_skips_detail_pages_for_non_us_rows() -> None:
+    base = "https://api.smartrecruiters.com/v1/companies/Bosch/postings"
+    listing = {"totalFound": 2, "content": [
+        {"id": "1", "name": "Software Intern", "location": {"country": "de", "city": "Stuttgart"}},
+        {"id": "2", "name": "Software Intern", "location": {"country": "us", "city": "Detroit"}},
+    ]}
+    session = FakeSession(by_url={f"{base}?limit=100&offset=0": listing, f"{base}/2": {"postingUrl": "u2", "jobAd": {"sections": {}}}})
+    jobs = SmartRecruitersAdapter(["Bosch"], session=session).fetch()
+    assert len(jobs) == 2
+    assert [u for u in session.urls if u.endswith("/1")] == []

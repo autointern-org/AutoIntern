@@ -7,7 +7,7 @@ from typing import Any
 import requests
 
 from adapters.base import Job, compact_text, html_to_text, normalize_country_code
-from core.http import new_session
+from core.http import fetch_boards, new_session
 
 
 LIMIT = 100
@@ -41,13 +41,13 @@ class SmartRecruitersAdapter:
         self.board_errors = []
         self.source_totals: dict[str, tuple[int, int]] = {}
         jobs: list[Job] = []
-        for slug in self.company_slugs:
+        for slug, outcome in fetch_boards(self.company_slugs, self._fetch_company):
             name = self.company_names.get(slug, slug)
-            try:
-                jobs.extend(self._fetch_company(slug))
-            except Exception as exc:
-                print(f"[smartrecruiters] {name} fetch failed: {exc}")
-                self.board_errors.append((name, str(exc)))
+            if isinstance(outcome, Exception):
+                print(f"[smartrecruiters] {name} fetch failed: {outcome}")
+                self.board_errors.append((name, str(outcome)))
+            else:
+                jobs.extend(outcome)
         return jobs
 
     def _fetch_company(self, slug: str) -> list[Job]:
@@ -75,6 +75,11 @@ class SmartRecruitersAdapter:
         jobs: list[Job] = []
         for raw in candidates:
             detail: dict[str, Any] = {}
+            country = normalize_country_code(((raw.get("location") or {}) if isinstance(raw.get("location"), dict) else {}).get("country"))
+            if country and country != "US":
+                # The structured country already rules the posting out.
+                jobs.append(self._normalize(slug, raw, detail))
+                continue
             try:
                 response = self.session.get(f"{base}/{raw.get('id')}", timeout=self.timeout)
                 response.raise_for_status()

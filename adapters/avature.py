@@ -9,7 +9,7 @@ from typing import Any
 import requests
 
 from adapters.base import Job, compact_text, html_to_text
-from core.http import new_session
+from core.http import fetch_boards, new_session
 
 
 MAX_PAGES = 60
@@ -68,12 +68,12 @@ class AvatureAdapter:
         self.board_errors = []
         self.listing_counts = {}
         jobs: list[Job] = []
-        for board in self.boards:
-            try:
-                jobs.extend(self._fetch_board(board))
-            except Exception as exc:
-                print(f"[avature] {board.company} fetch failed: {exc}")
-                self.board_errors.append((board.company, str(exc)))
+        for board, outcome in fetch_boards(self.boards, self._fetch_board):
+            if isinstance(outcome, Exception):
+                print(f"[avature] {board.company} fetch failed: {outcome}")
+                self.board_errors.append((board.company, str(outcome)))
+            else:
+                jobs.extend(outcome)
         return jobs
 
     def _fetch_board(self, board: AvatureBoard) -> list[Job]:

@@ -11,7 +11,7 @@ from urllib.parse import quote_plus
 import requests
 
 from adapters.base import Job, compact_text, html_to_text, normalize_country_code
-from core.http import new_session
+from core.http import fetch_boards, new_session
 
 
 MAX_PAGES = 30
@@ -62,12 +62,12 @@ class ICIMSAdapter:
         self.board_errors = []
         self.listing_counts = {}
         jobs: list[Job] = []
-        for board in self.boards:
-            try:
-                jobs.extend(self._fetch_board(board))
-            except Exception as exc:
-                print(f"[icims] {board.company} fetch failed: {exc}")
-                self.board_errors.append((board.company, str(exc)))
+        for board, outcome in fetch_boards(self.boards, self._fetch_board):
+            if isinstance(outcome, Exception):
+                print(f"[icims] {board.company} fetch failed: {outcome}")
+                self.board_errors.append((board.company, str(outcome)))
+            else:
+                jobs.extend(outcome)
         return jobs
 
     def _fetch_board(self, board: ICIMSBoard) -> list[Job]:
@@ -84,11 +84,13 @@ class ICIMSAdapter:
                 continue
             if card["id"] in known_ids and card["id"] not in intern_ids:
                 continue
-            if card["id"] not in intern_ids:
+            non_us = bool(card["country_codes"]) and "US" not in card["country_codes"]
+            if card["id"] not in intern_ids and not non_us:
                 if budget <= 0:
                     continue
                 budget -= 1
-            detail = self._detail(card["url"])
+            # Rows whose structured country rules out the US skip the job page.
+            detail = {} if non_us else self._detail(card["url"])
             checked.add(card["id"])
             jobs.append(
                 Job(
