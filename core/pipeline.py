@@ -148,6 +148,7 @@ def scan(
     fetched_by_company: dict[str, int] = defaultdict(int)
     matched_jobs: dict[str, list[Job]] = defaultdict(list)
     health_rows: list[CompanyHealth] = []
+    recall_gaps: list[tuple[str, int, int]] = []
 
     for adapter, outcome, duration_ms in _fetch_all(list(adapters)):
         if isinstance(outcome, Exception):
@@ -175,6 +176,10 @@ def scan(
                 )
             except Exception as exc:
                 print(f"[scan] checked-id write failed for {adapter.__class__.__name__}: {exc}")
+        for company_name, totals in (getattr(adapter, "source_totals", None) or {}).items():
+            gap = recall_gap(totals)
+            if gap is not None:
+                recall_gaps.append((str(company_name).lower(), *gap))
         board_errors = list(getattr(adapter, "board_errors", []) or [])
         for company_key, error in board_errors:
             print(f"[scan] {company_key} fetch failed: {error}")
@@ -245,6 +250,18 @@ def scan(
             )
 
     print(format_health(health_rows))
+    if recall_gaps:
+        lines = [f"{company}: parsed {parsed} of {reported} the board reports" for company, reported, parsed in recall_gaps]
+        for line in lines:
+            print(f"[recall] {line}")
+        _report_issue(
+            discord,
+            result,
+            "Possible missed postings (parsed fewer than the board reports)",
+            "\n".join(lines)[:1800],
+            dry_run=dry_run,
+            state=state,
+        )
     previous: dict[str, int] = {}
     for row in health_rows:
         if row.status != "ok":
@@ -388,6 +405,24 @@ def scan(
 
 
 FETCH_WORKERS = 8
+RECALL_MIN_MISSING = 3
+RECALL_MIN_SHARE = 0.9
+
+
+def recall_gap(totals: tuple[int, int] | None) -> tuple[int, int] | None:
+    """(reported, parsed) when an adapter parsed noticeably fewer rows than the
+    source says exist for the same query; small differences are boards
+    changing between page requests."""
+    if not totals:
+        return None
+    reported, parsed = int(totals[0] or 0), int(totals[1] or 0)
+    if reported <= 0:
+        return None
+    if reported - parsed >= RECALL_MIN_MISSING and parsed < RECALL_MIN_SHARE * reported:
+        return reported, parsed
+    return None
+
+
 
 
 def _fetch_all(adapters: list[Adapter]) -> list[tuple[Adapter, list[Job] | Exception, int]]:

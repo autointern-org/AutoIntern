@@ -12,7 +12,7 @@ from core.http import new_session, retry_once
 SEARCH_URL = "https://jobs.apple.com/api/v1/search"
 CSRF_URL = "https://jobs.apple.com/api/v1/csrfToken"
 PAGE_SIZE = 20
-MAX_PAGES = 30
+MAX_PAGES = 80
 
 _FORMAT = {"longDate": "MMMM D, YYYY", "mediumDate": "MMM D, YYYY"}
 _COVERAGE_FILTERS: dict[str, Any] = {"locations": ["postLocation-USA"]}
@@ -30,6 +30,8 @@ class AppleAdapter:
         self.session = session or new_session()
 
     def fetch(self) -> list[Job]:
+        self.source_totals: dict[str, tuple[int, int]] = {}
+        self._coverage_total = 0
         headers = self._post_headers()
         jobs: list[Job] = []
         seen: set[str] = set()
@@ -78,12 +80,16 @@ class AppleAdapter:
             if page == 1:
                 total_records = _as_int(envelope.get("totalRecords"))
                 total_pages = min(MAX_PAGES, max(1, ceil(total_records / PAGE_SIZE))) if total_records else 1
+                if filters is _COVERAGE_FILTERS and total_records:
+                    self._coverage_total = total_records
             for raw in results:
                 if isinstance(raw, dict):
                     rows.append(raw)
             if not results:
                 break
             page += 1
+        if filters is _COVERAGE_FILTERS and getattr(self, "_coverage_total", 0):
+            self.source_totals["apple"] = (self._coverage_total, len(rows))
         return rows
 
     def _normalize(self, raw: dict[str, Any]) -> Job:

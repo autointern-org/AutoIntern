@@ -28,6 +28,7 @@ class IBMAdapter:
         self.session = session or new_session()
 
     def fetch(self) -> list[Job]:
+        self.source_totals: dict[str, tuple[int, int]] = {}
         jobs: list[Job] = []
         seen: set[str] = set()
         offset = 0
@@ -49,6 +50,8 @@ class IBMAdapter:
                 jobs.append(job)
             offset += len(hits)
             total = _hit_total(payload)
+            if total:
+                self.source_totals["ibm"] = (total, offset)
             if len(hits) < PAGE_SIZE:
                 break
             if total is not None and offset >= total:

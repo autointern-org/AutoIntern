@@ -34,8 +34,10 @@ class AmazonAdapter:
         self.session = session or new_session()
 
     def fetch(self) -> list[Job]:
+        self.source_totals: dict[str, tuple[int, int]] = {}
         jobs: list[Job] = []
         for company in self.companies:
+            parsed = 0
             url = BASE_API
             if _is_aws(company, self.slugs.get(company)):
                 url = f"{BASE_API}&business_category[]=aws"
@@ -51,7 +53,10 @@ class AmazonAdapter:
                     if isinstance(raw, dict):
                         jobs.append(self._normalize(company, raw))
                 offset += len(rows)
+                parsed += len(rows)
                 hits = payload.get("hits")
+                if isinstance(hits, int) and hits:
+                    self.source_totals[company] = (hits, parsed)
                 if len(rows) < PAGE_SIZE or (isinstance(hits, int) and offset >= hits):
                     break
         return jobs

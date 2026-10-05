@@ -41,6 +41,7 @@ class RipplingAdapter:
 
     def fetch(self) -> list[Job]:
         self.board_errors = []
+        self.source_totals: dict[str, tuple[int, int]] = {}
         jobs: list[Job] = []
         for board in self.boards:
             name = self.company_names.get(board, board)
@@ -54,6 +55,7 @@ class RipplingAdapter:
     def _fetch_board(self, board: str) -> list[Job]:
         base = self.LIST_API.format(board=board)
         candidates: dict[str, dict[str, Any]] = {}
+        parsed = 0
         for page in range(MAX_PAGES):
             response = self.session.get(f"{base}?page={page}&pageSize={PAGE_SIZE}", timeout=self.timeout)
             response.raise_for_status()
@@ -61,6 +63,10 @@ class RipplingAdapter:
             items = payload.get("items") if isinstance(payload, dict) else None
             if not isinstance(items, list) or not items:
                 break
+            parsed += len(items)
+            total_items = payload.get("totalItems")
+            if isinstance(total_items, int) and total_items:
+                self.source_totals[self.company_names.get(board, board)] = (total_items, parsed)
             for raw in items:
                 if not isinstance(raw, dict):
                     continue

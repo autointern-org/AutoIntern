@@ -1208,3 +1208,32 @@ def test_scan_pushes_only_priority_fresh_jobs() -> None:
     )
     assert push.batches == [["Software Engineer Intern, Summer 2027"]]
     assert result.pushed == 1
+
+
+def test_recall_gap_threshold() -> None:
+    from core.pipeline import recall_gap
+
+    assert recall_gap((61, 30)) == (61, 30)
+    assert recall_gap((1109, 500)) == (1109, 500)
+    assert recall_gap((100, 98)) is None  # board changed between pages
+    assert recall_gap((10, 8)) is None  # fewer than 3 missing
+    assert recall_gap((0, 0)) is None and recall_gap(None) is None
+
+
+def test_scan_reports_parse_gaps_in_one_issue() -> None:
+    class Gappy(FakeAdapter):
+        source_totals = {"google": (61, 30), "intel": (61, 61), "apple": (900, 600)}
+
+    discord = FakeDiscord()
+    scan(
+        adapters=[Gappy([])],
+        configs={"google": CompanyConfig(name="google", adapter="google")},
+        state=StateStore(FakeKV()),
+        discord=discord,
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+    assert len(discord.issues) == 1
+    title, body = discord.issues[0]
+    assert "Possible missed postings" in title
+    assert "google: parsed 30 of 61" in body and "apple: parsed 600 of 900" in body and "intel" not in body

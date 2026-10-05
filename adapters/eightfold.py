@@ -22,7 +22,7 @@ KNOWN_HOSTS = {
     "lamresearch": "careers.lamresearch.com",
 }
 
-MAX_PAGES = 20
+MAX_PAGES = 60
 
 
 @dataclass
@@ -51,9 +51,11 @@ class EightfoldAdapter:
         self.timeout = timeout
         self.session = session or new_session()
         self.board_errors: list[tuple[str, str]] = []
+        self.source_totals: dict[str, tuple[int, int]] = {}
 
     def fetch(self) -> list[Job]:
         self.board_errors = []
+        self.source_totals = {}
         jobs: list[Job] = []
         seen: set[str] = set()
         for board in self.boards:
@@ -73,6 +75,7 @@ class EightfoldAdapter:
         seen_pages: set[str] = set()
         start = 0
         page_size = 10 if board.api == "apply" else 50
+        reported = 0
         for _ in range(MAX_PAGES):
             payload = self._get_json(board, start, page_size, extra)
             positions = _positions(board.api, payload)
@@ -89,6 +92,9 @@ class EightfoldAdapter:
                     jobs.append(self._normalize(board, raw))
             start += len(positions)
             total = _count(board.api, payload)
+            if total:
+                reported = max(reported, total)
+                self.source_totals[board.company] = (reported, len(jobs))
             if total is not None:
                 if start >= total:
                     break

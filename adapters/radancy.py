@@ -15,7 +15,7 @@ from core.http import new_session
 
 
 RECORDS_PER_PAGE = 40  # some tenants (Arm) cap pages at ~43 regardless of the request
-MAX_PAGES = 40
+MAX_PAGES = 80
 CANDIDATE_TITLE_RE = re.compile(
     r"\b(intern|interns|internship|internships|co-?ops?|student|campus|apprentice)\b",
     re.IGNORECASE,
@@ -27,6 +27,7 @@ H2_RE = re.compile(r"<h2[^>]*>(.*?)</h2>", re.S)
 LOCATION_RE = re.compile(r'class="(?:job-location|location)"[^>]*>(.*?)</span>', re.S)
 DATE_RE = re.compile(r'class="(?:job-date-posted|content-date)"[^>]*>(.*?)</span>', re.S)
 TOTAL_PAGES_RE = re.compile(r'data-total-pages="(\d+)"')
+TOTAL_RESULTS_RE = re.compile(r'data-total-results="(\d+)"')
 LDJSON_RE = re.compile(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S)
 
 
@@ -62,6 +63,7 @@ class RadancyAdapter:
     def fetch(self) -> list[Job]:
         self.board_errors = []
         self.listing_counts = {}
+        self.source_totals: dict[str, tuple[int, int]] = {}
         jobs: list[Job] = []
         for board in self.boards:
             try:
@@ -113,6 +115,7 @@ class RadancyAdapter:
     def _list(self, board: RadancyBoard) -> list[dict[str, str]]:
         cards: list[dict[str, str]] = []
         seen: set[str] = set()
+        reported = 0
         total_pages = 1
         page = 1
         while page <= min(total_pages, MAX_PAGES):
@@ -142,6 +145,9 @@ class RadancyAdapter:
             match = TOTAL_PAGES_RE.search(results)
             if match:
                 total_pages = int(match.group(1))
+            total_match = TOTAL_RESULTS_RE.search(results)
+            if total_match:
+                reported = int(total_match.group(1))
             page_cards = parse_results(results, host=board.host)
             fresh = [c for c in page_cards if c["id"] not in seen]
             if not fresh:
@@ -150,6 +156,10 @@ class RadancyAdapter:
                 seen.add(card["id"])
                 cards.append(card)
             page += 1
+        if reported:
+            # data-total-results counts a job once per location, so it can
+            # exceed what the pages hold; total-pages x page size bounds it.
+            self.source_totals[board.company] = (min(reported, total_pages * RECORDS_PER_PAGE), len(cards))
         return cards
 
     def _detail(self, url: str) -> dict[str, Any]:

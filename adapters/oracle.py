@@ -12,7 +12,9 @@ from core.http import new_session, retry_once
 
 
 LIMIT = 25
-MAX_PAGES = 20
+# Results are sorted newest-first, so anything past this window is old;
+# new postings always land on the first pages.
+MAX_PAGES = 40
 
 
 @dataclass
@@ -34,10 +36,12 @@ class OracleAdapter:
         self.timeout = timeout
         self.session = session or new_session()
         self.board_errors: list[tuple[str, str]] = []
+        self.source_totals: dict[str, tuple[int, int]] = {}
 
     def fetch(self) -> list[Job]:
         # One tenant's 503 must not drop the other Oracle boards for the run.
         self.board_errors = []
+        self.source_totals = {}
         jobs: list[Job] = []
         for board in self.boards:
             try:
@@ -67,6 +71,8 @@ class OracleAdapter:
             for raw in rows:
                 if isinstance(raw, dict):
                     jobs.append(self._normalize(board, raw))
+            if total:
+                self.source_totals[board.company] = (min(total, MAX_PAGES * LIMIT), len(jobs))
             offset += LIMIT
             if len(rows) < LIMIT or (total and offset >= total):
                 break

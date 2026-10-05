@@ -66,6 +66,7 @@ class GoogleAdapter:
                 break
         if not parsed_any:
             raise RuntimeError("Google careers returned HTTP 200 but no job records were parsed")
+        self.source_totals = {"google": (total, len(jobs_by_id))} if total else {}
         return list(jobs_by_id.values())
 
     def _get_page(self, page: int) -> tuple[str, int]:

@@ -39,6 +39,7 @@ class SmartRecruitersAdapter:
 
     def fetch(self) -> list[Job]:
         self.board_errors = []
+        self.source_totals: dict[str, tuple[int, int]] = {}
         jobs: list[Job] = []
         for slug in self.company_slugs:
             name = self.company_names.get(slug, slug)
@@ -65,6 +66,8 @@ class SmartRecruitersAdapter:
                     candidates.append(raw)
             offset += len(rows)
             total = payload.get("totalFound")
+            if isinstance(total, int) and total:
+                self.source_totals[self.company_names.get(slug, slug)] = (total, offset)
             if isinstance(total, int) and offset >= total:
                 break
             if len(rows) < LIMIT:
