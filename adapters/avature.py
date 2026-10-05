@@ -17,7 +17,7 @@ CANDIDATE_TITLE_RE = re.compile(
     r"\b(intern|interns|internship|internships|co-?ops?|student|campus|apprentice|placement)\b",
     re.IGNORECASE,
 )
-ARTICLE_RE = re.compile(r'<article class="article article--result[^"]*"(.*?)</article>', re.S)
+ARTICLE_RE = re.compile(r'<article class="[^"]*\barticle--result\b[^"]*"(.*?)</article>', re.S)
 # Templates differ (link classes, extra article classes); the job link is the
 # anchor inside the result's title heading.
 TITLE_LINK_RE = re.compile(

@@ -1413,7 +1413,215 @@ companies:
     tier: "1"
     aliases: ["XPENG Motors"]
 
+  - name: aqr
+    adapter: greenhouse
+    slug: aqr
+    tier: "1"
+    aliases: ["AQR Capital Management"]
+
+  - name: zipline
+    adapter: greenhouse
+    slug: flyzipline
+    tier: "1"
+    aliases: ["Zipline"]
+
+  - name: old-mission
+    adapter: greenhouse
+    slug: oldmissioncapital
+    tier: "1"
+    aliases: ["Old Mission"]
+
+  - name: seatgeek
+    adapter: greenhouse
+    slug: seatgeek
+    tier: "1"
+    aliases: ["SeatGeek"]
+
+  - name: stoke-space
+    adapter: greenhouse
+    slug: stokespacetechnologies
+    tier: "1"
+    aliases: ["Stoke Space"]
+
   # --- Tier 2 ---
+  - name: medpace
+    adapter: phenom
+    host: careers.medpace.com
+    variant: get
+    tier: "2"
+    aliases: ["Medpace"]
+
+  - name: kinder-morgan
+    adapter: phenom
+    host: careers.kindermorgan.com
+    variant: get
+    tier: "2"
+    aliases: ["Kinder Morgan"]
+
+  - name: spirit-aerosystems
+    adapter: phenom
+    host: careers.spiritaero.com
+    variant: get
+    tier: "2"
+    aliases: ["Spirit AeroSystems"]
+
+  - name: cvent
+    adapter: phenom
+    host: careers.cvent.com
+    variant: get
+    tier: "2"
+    aliases: ["Cvent"]
+
+  - name: arthur-j-gallagher
+    adapter: phenom
+    host: jobs.ajg.com
+    variant: get
+    tier: "2"
+    aliases: ["Arthur J. Gallagher & Co."]
+
+  - name: diversified-energy
+    adapter: phenom
+    host: careers.div.energy
+    variant: get
+    tier: "2"
+    aliases: ["Diversified Energy"]
+
+  - name: exelon
+    adapter: phenom
+    host: careers.comed.com
+    variant: get
+    tier: "2"
+    aliases: ["Exelon"]
+
+  - name: noblis
+    adapter: phenom
+    host: careers.noblis.org
+    variant: get
+    tier: "2"
+    aliases: ["Noblis"]
+
+  - name: post-holdings
+    adapter: phenom
+    host: jobs.postholdings.com
+    variant: get
+    tier: "2"
+    aliases: ["Post Holdings"]
+
+  - name: principal-financial-group
+    adapter: phenom
+    host: careers.principal.com
+    variant: get
+    tier: "2"
+    aliases: ["Principal Financial Group"]
+
+  - name: publicis-groupe
+    adapter: phenom
+    host: careers.publicisgroupe.com
+    variant: get
+    tier: "2"
+    aliases: ["Publicis Groupe"]
+
+  - name: trc-companies
+    adapter: phenom
+    host: careers.trccompanies.com
+    variant: get
+    tier: "2"
+    aliases: ["TRC Companies"]
+
+  - name: universal-health-services
+    adapter: phenom
+    host: jobs.uhsinc.com
+    variant: get
+    tier: "2"
+    aliases: ["Universal Health Services"]
+
+  - name: v2x
+    adapter: phenom
+    host: careers.gov2x.com
+    variant: get
+    tier: "2"
+    aliases: ["V2X"]
+
+  - name: red-ventures
+    adapter: greenhouse
+    slug: redventures
+    tier: "2"
+    aliases: ["Red Ventures"]
+
+  - name: udig
+    adapter: greenhouse
+    slug: udig
+    tier: "2"
+    aliases: ["Udig"]
+
+  - name: equipmentshare
+    adapter: greenhouse
+    slug: equipmentsharecom
+    tier: "2"
+    aliases: ["EquipmentShare"]
+
+  - name: awardco
+    adapter: greenhouse
+    slug: awardco
+    tier: "2"
+    aliases: ["Awardco"]
+
+  - name: domino-data-lab
+    adapter: greenhouse
+    slug: dominodatalab
+    tier: "2"
+    aliases: ["Domino Data Lab"]
+
+  - name: stepstone-group
+    adapter: greenhouse
+    slug: stepstone
+    tier: "2"
+    aliases: ["StepStone Group"]
+
+  - name: itw
+    adapter: phenom
+    host: careers.itw.com
+    variant: widgets
+    tier: "2"
+    aliases: ["Illinois Tool Works"]
+
+  - name: trane-technologies
+    adapter: phenom
+    host: careers.tranetechnologies.com
+    variant: widgets
+    tier: "2"
+    aliases: ["Trane Technologies"]
+
+  - name: zimmer-biomet
+    adapter: phenom
+    host: careers.zimmerbiomet.com
+    variant: widgets
+    tier: "2"
+    aliases: ["Zimmer Biomet Holdings"]
+
+  - name: john-deere
+    adapter: eightfold
+    host: johndeere.eightfold.ai
+    domain: johndeere.com
+    api: pcsx
+    tier: "2"
+    aliases: ["John Deere"]
+
+  - name: boston-scientific
+    adapter: eightfold
+    host: bostonscientific.eightfold.ai
+    domain: bostonscientific.com
+    api: pcsx
+    tier: "2"
+    aliases: ["Boston Scientific"]
+
+  - name: deloitte
+    adapter: avature
+    host: apply.deloitte.com
+    site: en_US/careers/SearchJobs/intern
+    tier: "2"
+    aliases: ["Deloitte"]
+
   - name: national-information-solutions-cooperative
     adapter: greenhouse
     slug: "nisc"
