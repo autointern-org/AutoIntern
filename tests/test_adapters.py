@@ -1612,3 +1612,43 @@ def test_icims_rejects_pages_without_a_job_table() -> None:
     session = FakeSession(FakeResponse("<html>Access denied</html>", status_code=200))
     adapter = ICIMSAdapter([ICIMSBoard("x", "careers-x.icims.com")], session=session)
     assert adapter.fetch() == [] and adapter.board_errors and "no job table" in adapter.board_errors[0][1]
+
+
+def test_citadel_falls_back_to_career_sitemap_when_challenged() -> None:
+    from adapters.citadel import sitemap_cards
+
+    xml = """<urlset>
+<url><loc>https://www.citadel.com/careers/details/software-engineer-intern-us/</loc><lastmod>2026-10-05</lastmod></url>
+<url><loc>https://www.citadel.com/careers/details/quantitative-research-analyst-intern-bs-ms-europe-2/</loc></url>
+<url><loc>https://www.citadel.com/careers/details/machine-learning-researcher-phd-intern-asia/</loc></url>
+<url><loc>https://www.citadel.com/careers/details/fpga-engineer-intern-australia/</loc></url>
+</urlset>"""
+    cards = sitemap_cards(xml)
+    assert [c["title"] for c in cards] == [
+        "Software Engineer Intern (US)",
+        "Quantitative Research Analyst Intern BS MS (Europe)",
+        "Machine Learning Researcher PhD Intern (Asia)",
+        "FPGA Engineer Intern (Australia)",
+    ]
+    assert cards[0]["country_codes"] == ("US",) and cards[1]["country_names"] == ("Europe",)
+
+    class S(FakeSession):
+        def post(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            return FakeResponse("Just a moment...", status_code=403)
+
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if url.endswith("career-sitemap.xml"):
+                return FakeResponse(xml, status_code=200)
+            raise AssertionError(f"detail page fetched in sitemap mode: {url}")
+
+    from core.filters import classify_job_location
+
+    adapter = CitadelAdapter([CitadelBoard("citadel", "www.citadel.com")], session=S(), sleep=lambda s: None, max_details=1)
+    jobs = adapter.fetch()
+    assert len(jobs) == 4  # no detail fetches in sitemap mode, so the detail budget does not apply
+    assert adapter.board_errors == []
+    assert [j.title for j in jobs][0] == "Software Engineer Intern (US)"
+    assert classify_job_location(jobs[0]) == "us"
+    assert classify_job_location(jobs[1]) == "non_us" and classify_job_location(jobs[3]) == "non_us"

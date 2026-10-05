@@ -75,7 +75,15 @@ class CitadelAdapter:
         return jobs
 
     def _fetch_board(self, board: CitadelBoard) -> list[Job]:
-        cards = self._list(board)
+        from_sitemap = False
+        try:
+            cards = self._list(board)
+        except RuntimeError as exc:
+            # The search endpoint and job pages sit behind a Cloudflare
+            # challenge; the career sitemap published for crawlers does not.
+            print(f"[citadel] {board.company} listing unavailable ({exc}); using career sitemap")
+            cards = self._sitemap_cards(board)
+            from_sitemap = True
         if not cards:
             raise RuntimeError(f"citadel {board.host}: listing returned no jobs")
         self.listing_counts[board.company] = len(cards)
@@ -90,11 +98,11 @@ class CitadelAdapter:
                 continue
             if card["id"] in known_ids and card["id"] not in intern_ids:
                 continue
-            if card["id"] not in intern_ids:
+            if card["id"] not in intern_ids and not from_sitemap:
                 if budget <= 0:
                     continue
                 budget -= 1
-            detail = self._detail(card["url"])
+            detail = {} if from_sitemap else self._detail(card["url"])
             checked.add(card["id"])
             jobs.append(
                 Job(
@@ -105,13 +113,18 @@ class CitadelAdapter:
                     url=card["url"],
                     jd_text=detail.get("description", ""),
                     posted_at=detail.get("posted_at"),
-                    country_codes=tuple(detail.get("country_codes") or ()),
-                    country_names=tuple(detail.get("country_names") or ()),
+                    country_codes=tuple(detail.get("country_codes") or card.get("country_codes") or ()),
+                    country_names=tuple(detail.get("country_names") or card.get("country_names") or ()),
                     location_names=tuple(x for x in (card["location"], detail.get("location") or "") if x),
                 )
             )
         self.checked_by_company[board.company] = (checked, {j.id.rsplit(":", 1)[1] for j in jobs})
         return jobs
+
+    def _sitemap_cards(self, board: CitadelBoard) -> list[dict[str, Any]]:
+        response = self.session.get(f"https://{board.host}/career-sitemap.xml", timeout=self.timeout)
+        response.raise_for_status()
+        return sitemap_cards(response.text or "")
 
     def _list(self, board: CitadelBoard) -> list[dict[str, str]]:
         cards: list[dict[str, str]] = []
@@ -205,3 +218,47 @@ def parse_detail(html: str) -> dict[str, Any]:
                 }
     desc = re.search(r'class="single-job-application__description"[^>]*>(.*?)</div>\s*</div>', html, re.S)
     return {"description": html_to_text(desc.group(1)) if desc else ""}
+
+
+SITEMAP_LOC_RE = re.compile(r"<loc>\s*([^<]+?/careers/details/([a-z0-9-]+)/?)\s*</loc>")
+_REGIONS = {
+    "us": ("United States", ("US",), ()),
+    "europe": ("Europe", (), ("Europe",)),
+    "asia": ("Asia", (), ("Asia",)),
+    "australia": ("Australia", ("AU",), ()),
+    "canada": ("Canada", ("CA",), ()),
+}
+_UPPER = {"us": "US", "bs": "BS", "ms": "MS", "phd": "PhD", "fpga": "FPGA", "dmm": "DMM", "ai": "AI", "ml": "ML", "it": "IT", "etf": "ETF", "otc": "OTC"}
+
+
+def sitemap_cards(xml: str) -> list[dict[str, Any]]:
+    """Cards from career-sitemap.xml URLs such as
+    /careers/details/quantitative-research-analyst-intern-us/ -> title
+    "Quantitative Research Analyst Intern (US)", region United States."""
+    cards: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for url, slug in SITEMAP_LOC_RE.findall(xml):
+        if slug in seen:
+            continue
+        seen.add(slug)
+        words = slug.split("-")
+        if words and words[-1].isdigit():
+            words = words[:-1]
+        region = words[-1] if words and words[-1] in _REGIONS else None
+        if region:
+            words = words[:-1]
+        title = " ".join(_UPPER.get(w, w.capitalize()) for w in words)
+        location, codes, names = _REGIONS.get(region, ("", (), ())) if region else ("", (), ())
+        if region:
+            title = f"{title} ({location if region != 'us' else 'US'})"
+        cards.append(
+            {
+                "id": slug,
+                "title": title,
+                "url": url.strip(),
+                "location": location,
+                "country_codes": codes,
+                "country_names": names,
+            }
+        )
+    return cards
