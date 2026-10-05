@@ -1147,3 +1147,33 @@ def test_dedupe_matches_workday_req_suffix_variants_but_not_other_reqs() -> None
     assert twin.id in kv.values.get("seen:kensho-spgi", {}).get("jobs", {}) or twin.id in state.seen_entries("kensho-spgi")
     assert not _pinged_on_group_mate(state, ["kensho"], different_req, dry_run=False)
     assert not _pinged_on_group_mate(state, [], twin, dry_run=False)
+
+
+def test_lifetime_notes_need_three_closed_postings() -> None:
+    from core.lifetimes import company_notes, fastest_closers
+
+    stats = {"companies": {"cisco": [2.0, 3.0, 4.0], "ibm": [40.0, 50.0], "google": [20.0, 30.0, 25.0]}}
+    notes = company_notes(stats)
+    assert set(notes) == {"cisco", "google"}
+    assert "~3 days at cisco" in notes["cisco"] and "closes fast" in notes["cisco"]
+    assert "closes fast" not in notes["google"]
+    assert [name for name, _ in fastest_closers(stats)] == ["cisco", "google"]
+
+
+def test_scan_attaches_lifetime_notes_to_job_embeds() -> None:
+    kv = FakeKV()
+    kv.values["stats:lifetimes"] = {"companies": {"anthropic": [1.0, 2.0, 3.0]}}
+    state = StateStore(kv)
+    state.mark_bootstrapped("anthropic")
+    discord = FakeDiscord()
+    scan(
+        adapters=[FakeAdapter([make_job(id="new-1")])],
+        configs={"anthropic": CompanyConfig(name="anthropic", adapter="greenhouse")},
+        state=state,
+        discord=discord,
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+    assert "**Typically open:** ~2 days at anthropic" in discord.company_notes["anthropic"]
+    # No prune pass ran for lifetimes on this tick unless due; stats are only written when dirty.
+    assert all(key != "stats:lifetimes" for key, _ in kv.puts)

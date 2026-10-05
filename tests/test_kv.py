@@ -277,3 +277,29 @@ def test_cloudflare_kv_retries_read_timeout(monkeypatch: Any) -> None:
     kv = CloudflareKV(account_id="a", namespace_id="n", api_token="t", session=session)
     assert kv.get_json("health:x") == {"fetched": 4}
     assert session.gets == 3
+
+
+def test_forgotten_posting_records_its_lifetime_once() -> None:
+    from core.kv import STATS_KEY
+
+    kv = FakeKV()
+    state = StateStore(kv)
+    state.record_notification(job_id="j1", company="cisco", title="ML Intern", url="u1", message_id="m1", channel_id="c")
+    entry = state.seen_entries("cisco")["j1"]
+    first_seen = entry["first_seen"]
+    # A later re-record (new message id) keeps the original first_seen.
+    state.record_notification(job_id="j1", company="cisco", title="ML Intern", url="u1", message_id="m2", channel_id="c")
+    assert state.seen_entries("cisco")["j1"]["first_seen"] == first_seen
+    t0 = datetime.fromisoformat(first_seen) + timedelta(days=3)
+    state.prune_seen("cisco", set(), now=t0)  # stamps missing_since = first_seen + 3 days
+    state.prune_seen("cisco", set(), now=t0 + timedelta(seconds=PRUNE_AFTER_MISSING_SECONDS))
+    assert "j1" not in state.seen_entries("cisco")
+    samples = state.lifetime_stats()["companies"]["cisco"]
+    assert len(samples) == 1 and 2.9 < samples[0] < 3.1
+    kv.clear_io()
+    state.flush_stats()
+    assert kv.puts == [(STATS_KEY, kv.puts[0][1])]
+    kv.clear_io()
+    state.flush_stats()
+    assert kv.puts == []
+    assert StateStore(kv).lifetime_stats()["companies"]["cisco"] == samples

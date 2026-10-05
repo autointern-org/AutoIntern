@@ -23,6 +23,9 @@ HEALTH_TTL_SECONDS = 60 * 60 * 24 * 90
 # and the seen-list prune pass runs at most once per PRUNE_INTERVAL_SECONDS,
 # so a 15-minute cadence stays far under the quota.
 PRUNE_INTERVAL_SECONDS = 60 * 60 * 24
+STATS_KEY = "stats:lifetimes"
+STATS_TTL_SECONDS = 60 * 60 * 24 * 400
+LIFETIME_SAMPLES_PER_COMPANY = 50
 # A job must be absent from a *successful* fetch for this long before it is
 # forgotten. Search-backed boards (IBM, Eightfold) drop listings in and out
 # between ticks, so a miss-count at a 15-minute cadence re-pinged live roles.
@@ -155,6 +158,8 @@ class StateStore:
         self._health_doc: dict[str, Any] | None = None
         self._health_dirty = False
         self._health_read_failed = False
+        self._stats_doc: dict[str, Any] | None = None
+        self._stats_dirty = False
 
     @property
     def persistent(self) -> bool:
@@ -264,6 +269,40 @@ class StateStore:
         doc.setdefault("issues", {})[title] = (now or datetime.now(UTC)).isoformat()
         self._health_dirty = True
 
+    def record_lifetime(self, company: str, days: float) -> None:
+        """Remember how long one posting stayed open (first seen until it
+        disappeared), keeping the newest samples per company."""
+        doc = self.lifetime_stats()
+        samples = doc["companies"].setdefault(company.lower(), [])
+        samples.append(round(max(0.0, days), 2))
+        del samples[:-LIFETIME_SAMPLES_PER_COMPANY]
+        doc["updated"] = now_iso()
+        self._stats_dirty = True
+
+    def lifetime_stats(self) -> dict[str, Any]:
+        if self._stats_doc is None:
+            try:
+                raw = self._get(STATS_KEY) or {}
+            except Exception as exc:
+                print(f"[scan] lifetime stats read failed: {exc}")
+                raw = {}
+            companies = raw.get("companies") if isinstance(raw.get("companies"), dict) else {}
+            self._stats_doc = {
+                "updated": raw.get("updated"),
+                "companies": {
+                    str(k): [float(x) for x in v if isinstance(x, (int, float))]
+                    for k, v in companies.items()
+                    if isinstance(v, list)
+                },
+            }
+        return self._stats_doc
+
+    def flush_stats(self) -> None:
+        if not self._stats_dirty or self._stats_doc is None:
+            return
+        self._put(STATS_KEY, self._stats_doc, ttl_seconds=STATS_TTL_SECONDS)
+        self._stats_dirty = False
+
     def _load_health(self) -> dict[str, Any]:
         if self._health_doc is None:
             try:
@@ -322,6 +361,9 @@ class StateStore:
         previous = doc["jobs"].get(job_id)
         if previous and _notification_fields(previous) == _notification_fields(entry):
             return
+        entry["first_seen"] = (
+            (previous or {}).get("first_seen") or (previous or {}).get("notified_at") or entry["notified_at"]
+        )
         doc["jobs"][job_id] = entry
         self._seen_dirty.add(company_key)
 
@@ -356,6 +398,9 @@ class StateStore:
                 changed = True
                 continue
             if (current - missing_since).total_seconds() >= PRUNE_AFTER_MISSING_SECONDS:
+                first_seen = parse_datetime(entry.get("first_seen") or entry.get("notified_at"))
+                if first_seen is not None and missing_since >= first_seen:
+                    self.record_lifetime(company_key, (missing_since - first_seen).total_seconds() / 86400)
                 del doc["jobs"][job_id]
                 changed = True
         if changed:
@@ -649,6 +694,7 @@ SCAN_STATE_PREFIXES = (
     "thread:",
     "dismissed:",
     "checked:",
+    "stats:",
 )
 
 

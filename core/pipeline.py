@@ -40,6 +40,7 @@ from core.discord import DiscordClient, DiscordMessage, PREVIEW_MAX
 from core.filters import apply_decision, evaluate_job, sort_alert_jobs
 from core.health import CompanyHealth, anomaly_lines, format_health
 from core.kv import CloudflareKV, StateStore
+from core.lifetimes import company_notes
 
 
 @dataclass
@@ -253,6 +254,11 @@ def scan(
         _report_issue(discord, result, "Company fetch looks off", line, dry_run=dry_run, state=state)
 
     prune = (not dry_run) and state.should_prune()
+    if matched_jobs:
+        try:
+            discord.company_notes = company_notes(state.lifetime_stats())
+        except Exception as exc:
+            print(f"[scan] lifetime notes unavailable: {exc}")
     for company_key, jobs in matched_jobs.items():
         config = configs[company_key]
         jobs = sort_alert_jobs(jobs)
@@ -358,6 +364,7 @@ def scan(
             state.mark_pruned()
         state.flush_dirty_seen()
         state.flush_health()
+        state.flush_stats()
         if state.write_blocked:
             _report_issue(
                 discord,
