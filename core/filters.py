@@ -30,23 +30,41 @@ INTERN_FOR_FULLTIME_RE = re.compile(
     r"\b(intern|interns|internship|internships|winternship|co-?ops?)\b",
     re.IGNORECASE,
 )
+# Non-engineering functions: dropped even when the title also names a tech area.
+FUNCTION_DROP_RE = re.compile(
+    r"\b(product manager|product management|associate product manager|\bapm\b|"
+    r"pm intern|intern(?:ship)?\s*,?\s*pm\b|sales)\b",
+    re.IGNORECASE,
+)
+# Specialties outside the target (hardware, security, marketing, ...): dropped
+# unless the title also carries a strong software/data/ML signal, e.g.
+# "Embedded Software Engineer Intern" or "Marketing Data Science Intern".
 TECH_DROP_RE = re.compile(
     r"\b(electrical|fpga|hardware|firmware|analog|embedded|civil|mechanical|"
     r"security|phishing|detection engineer|"
-    r"product manager|product management|associate product manager|\bapm\b|"
-    r"pm intern|intern(?:ship)?\s*,?\s*pm\b|"
-    r"marketing|accounting|sales)\b",
+    r"marketing|accounting)\b",
+    re.IGNORECASE,
+)
+STRONG_TECH_RE = re.compile(
+    r"\b(software|swe|sde|developer|programmer|full[\s-]?stack|back[\s-]?end|front[\s-]?end|"
+    r"data scien\w*|data engineer\w*|machine learning|\bml\b|artificial intelligence|\bai\b|"
+    r"research scientist|applied scientist)\b",
     re.IGNORECASE,
 )
 TECH_KEEP_RE = re.compile(
     r"\b(software(?:\s+engineer(?:ing)?|\s+developer|\s+intern)?|"
-    r"swe|sde|backend|full[\s-]?stack|systems software|"
+    r"swe|sde|back[\s-]?end|front[\s-]?end|full[\s-]?stack|systems software|"
+    r"developer|programmer|python|"
+    r"mobile|ios|android|web (?:developer|development|engineer\w*)|application (?:developer|development)|"
     r"research(?:\s+intern|\s+engineer|\s+scientist)?|student researcher|"
-    r"machine learning|\bml\b|"
+    r"machine learning|\bml\b|artificial intelligence|computer vision|\bnlp\b|robotics|perception|"
     r"ai(?:\s+engineer)?|applied scientist|"
-    r"data scientist|data science|data engineer|site reliability|\bsre\b|"
+    r"data scien\w*|data engineer\w*|site reliability|\bsre\b|"
     r"production engineer(?:ing)?|infrastructure|platform engineer(?:ing)?|devops|cloud engineer(?:ing)?|"
-    r"quant(?:itative)?|step)\b",
+    r"performance engineer\w*|forward deployed|"
+    r"technology intern|technology program|information technology|\bit intern|digital co-?op|"
+    r"computer science|compiler|systems engineer\w*|^engineering (?:intern|development)|"
+    r"quant(?:itative)?|trader|systematic trading|trading (?:system\w*|technology|engineer\w*)|step)\b",
     re.IGNORECASE,
 )
 PHD_RE = re.compile(r"\b(ph\.?d|doctoral|post-?doc)\b", re.IGNORECASE)
@@ -257,7 +275,11 @@ def evaluate_job(job: Job, config: CompanyConfig) -> FilterDecision:
         return FilterDecision(keep=False, stage="intern")
     if HARD_DROP_TITLE_RE.search(title):
         return FilterDecision(keep=False, stage="intern")
-    if TECH_DROP_RE.search(title) or not TECH_KEEP_RE.search(title):
+    if (
+        FUNCTION_DROP_RE.search(title)
+        or not TECH_KEEP_RE.search(title)
+        or (TECH_DROP_RE.search(title) and not STRONG_TECH_RE.search(title))
+    ):
         return FilterDecision(keep=False, stage="tech")
     if FULL_TIME_RE.search(title) and not INTERN_FOR_FULLTIME_RE.search(title):
         return FilterDecision(keep=False, stage="intern")

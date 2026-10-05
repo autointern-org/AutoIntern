@@ -408,3 +408,44 @@ def test_campus_as_a_place_is_not_an_intern_signal() -> None:
     # A plain "Campus" title counts when the JD says it's an internship.
     assert passes_filter(make_job(title="Campus Software Engineer", jd_text="This 12-week internship runs in summer."), config)
     assert not passes_filter(make_job(title="Campus Software Engineer", jd_text="Full-time role on our platform team."), config)
+
+
+def test_title_vocabulary_keeps_software_data_ml_quant_and_drops_other_functions() -> None:
+    config = CompanyConfig(name="x", adapter="greenhouse")
+    keep = [
+        "Data Engineering Intern/Co-op",
+        "Frontend Engineer Intern - Ads Interface",
+        "Android Application Developer Intern - Summer 2027",
+        "Gameplay Programmer Intern",
+        "Artificial Intelligence Intern",
+        "Embedded Software Engineer Intern",
+        "Marketing Data Science Intern",
+        "Applied Artificial Intelligence Engineering Intern - Hardware AI",
+        "Compiler Engineer Intern/Co-op",
+        "Computer Science Intern",
+        "Engineering Intern",
+        "Systems Engineer Intern - University",
+        "Trader Intern - Summer",
+        "Trading System Engineer Intern",
+        "Python Intern - Summer 2027",
+        "Technology Intern",
+        "Forward Deployed Engineer Intern",
+    ]
+    drop = [
+        "Mechanical Engineering Intern",
+        "Hardware Engineering Intern",
+        "Product Manager Intern",
+        "Software Product Manager Intern",
+        "Sales Data Analytics Intern",
+        "Medical Coding Intern",
+        "Programming and Scheduling Intern",
+        "FPGA Engineer Intern",
+        "Marketing Intern",
+        "Data Analyst Intern",
+        "Security Analyst Intern",
+        "Electrical Engineering Intern",
+    ]
+    for title in keep:
+        assert passes_filter(make_job(title=title, location="New York, NY", jd_text=""), config), title
+    for title in drop:
+        assert not passes_filter(make_job(title=title, location="New York, NY", jd_text=""), config), title
