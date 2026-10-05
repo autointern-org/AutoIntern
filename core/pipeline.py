@@ -34,6 +34,7 @@ from adapters.rippling import RipplingAdapter
 from adapters.sitemap import SitemapAdapter, SitemapBoard
 from adapters.smartrecruiters import SmartRecruitersAdapter
 from adapters.snap import SnapAdapter
+from adapters.successfactors import SuccessFactorsAdapter, SuccessFactorsBoard
 from adapters.tesla import TeslaAdapter
 from adapters.tiktok import ByteDanceAdapter, TikTokAdapter
 from adapters.workable import WorkableAdapter
@@ -712,6 +713,7 @@ KNOWN_ADAPTERS = frozenset(
         "icims",
         "gem",
         "sitemap",
+        "successfactors",
         *SIMPLE_ADAPTERS,
     }
 )
@@ -944,6 +946,15 @@ def build_adapters(companies: list[CompanyConfig], *, state: StateStore | None =
             SitemapAdapter(
                 [SitemapBoard(company=c.name, sitemap_url=f"https://{c.host}/{str(c.site).lstrip('/')}") for c in sitemap],
                 known=_known([c.name for c in sitemap]),
+            )
+        )
+
+    successfactors = [c for c in companies if c.adapter == "successfactors" and c.host]
+    if successfactors:
+        adapters.append(
+            SuccessFactorsAdapter(
+                [SuccessFactorsBoard(company=c.name, host=str(c.host), prefix=str(c.site or "")) for c in successfactors],
+                known=_known([c.name for c in successfactors]),
             )
         )
 

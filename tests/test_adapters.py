@@ -1806,3 +1806,30 @@ def test_tiktok_city_hierarchy_and_requirements() -> None:
     bytedance = ByteDanceAdapter(session=FakeSession({}))._normalize(raw)
     assert bytedance.id == "bytedance:7" and bytedance.company == "bytedance"
     assert bytedance.url == "https://jobs.bytedance.com/en/position/7/detail"
+
+
+def test_successfactors_table_and_tile_templates() -> None:
+    from adapters.successfactors import SuccessFactorsAdapter, SuccessFactorsBoard, location_country, parse_rows
+
+    table = parse_rows((FIXTURES / "successfactors_table.html").read_text(), "jobs.ulalaunch.com")
+    assert [(c["id"], c["title"], c["location"], c["country_codes"]) for c in table] == [
+        ("1427396900", "Software Engineering Internship Summer 2027", "Centennial, CO, US, 80112", ("US",)),
+        ("1427000001", "Finance Analyst", "Paris, FR", ("FR",)),
+    ]
+    assert table[0]["url"] == "https://jobs.ulalaunch.com/job/Centennial-Software-Engineering-Internship-Summer-2027-CO-80112/1427396900/"
+    tiles = parse_rows((FIXTURES / "successfactors_tiles.html").read_text(), "apply.edisoncareers.com")
+    assert [(c["id"], c["title"], c["country_codes"]) for c in tiles] == [("1424643100", "2027 Summer Internship - Computer Science (Rosemead)", ("US",))]
+    assert location_country("Rock Hill, SC, US, 29730") == ("US",) and location_country("Erie, Pennsylvania") == ()
+
+    class S(FakeSession):
+        def get(self, url: str, **kwargs: Any) -> FakeResponse:
+            self.urls.append(url)
+            if "/search/" in url:
+                return FakeResponse((FIXTURES / "successfactors_table.html").read_text() if "startrow=0" in url else "<html>jobTitle-link</html>", status_code=200)
+            return FakeResponse('<div class="job"><span itemprop="description" class="jobdescription"><p>Pursuing a <b>BS</b> in CS.</p></span></div><meta itemprop="datePosted" content="Tue Sep 08 00:00:00 UTC 2026">', status_code=200)
+
+    adapter = SuccessFactorsAdapter([SuccessFactorsBoard("united-launch-alliance", "jobs.ulalaunch.com")], session=S())
+    jobs = adapter.fetch()
+    assert [j.id for j in jobs] == ["successfactors:united-launch-alliance:1427396900"]
+    assert jobs[0].posted_at == "2026-09-08" and "Pursuing a BS in CS." in jobs[0].jd_text
+    assert adapter.source_totals == {"united-launch-alliance": (2, 2)}

@@ -351,6 +351,7 @@ companies:
 
   - name: akuna-capital
     adapter: greenhouse
+    aliases: ["Akuna Capital University", "Akuna Capital"]
     slug: akunacapital
     tier: "1"
 
@@ -1448,7 +1449,80 @@ companies:
     tier: "1"
     aliases: ["ByteDance"]
 
+  - name: united-launch-alliance
+    adapter: successfactors
+    host: jobs.ulalaunch.com
+    tier: "1"
+    aliases: ["United Launch Alliance"]
+
   # --- Tier 2 ---
+  - name: qorvo
+    adapter: successfactors
+    host: careers.qorvo.com
+    tier: "2"
+    aliases: ["Qorvo"]
+
+  - name: grainger
+    adapter: successfactors
+    host: jobs.grainger.com
+    tier: "2"
+    aliases: ["W.W. Grainger"]
+
+  - name: huntington-ingalls
+    adapter: successfactors
+    host: careers.huntingtoningalls.com
+    tier: "2"
+    aliases: ["Huntington Ingalls Industries"]
+
+  - name: corning
+    adapter: successfactors
+    host: corningjobs.corning.com
+    tier: "2"
+    aliases: ["Corning"]
+
+  - name: entergy
+    adapter: successfactors
+    host: jobs.entergy.com
+    tier: "2"
+    aliases: ["Entergy"]
+
+  - name: erie-insurance
+    adapter: successfactors
+    host: jobs.erieinsurance.com
+    tier: "2"
+    aliases: ["Erie Insurance Group"]
+
+  - name: hf-sinclair
+    adapter: successfactors
+    host: careers.hfsinclair.com
+    tier: "2"
+    aliases: ["HF Sinclair"]
+
+  - name: edison-international
+    adapter: successfactors
+    host: apply.edisoncareers.com
+    tier: "2"
+    aliases: ["Edison International"]
+
+  - name: westinghouse
+    adapter: successfactors
+    host: careers.westinghousenuclear.com
+    tier: "2"
+    aliases: ["Westinghouse Electric Company"]
+
+  - name: wec-energy-group
+    adapter: successfactors
+    host: careers.wecenergygroup.com
+    site: "/We_Energies"
+    tier: "2"
+    aliases: ["WEC Energy Group"]
+
+  - name: acuity
+    adapter: successfactors
+    host: careers.acuityinc.com
+    tier: "2"
+    aliases: ["Acuity"]
+
   - name: medpace
     adapter: phenom
     host: careers.medpace.com
