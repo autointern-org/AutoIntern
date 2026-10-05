@@ -1443,6 +1443,11 @@ companies:
     tier: "1"
     aliases: ["Stoke Space"]
 
+  - name: bytedance
+    adapter: bytedance
+    tier: "1"
+    aliases: ["ByteDance"]
+
   # --- Tier 2 ---
   - name: medpace
     adapter: phenom

@@ -1791,3 +1791,18 @@ def test_one_dead_lever_or_greenhouse_board_does_not_drop_the_others() -> None:
     assert lever.fetch() and lever.board_errors[0][0] == "dead-co" and lever.listing_counts.get("stripe")
     greenhouse = GreenhouseAdapter(["dead", "anthropic"], company_names={"dead": "dead-co", "anthropic": "anthropic"}, session=S())
     assert greenhouse.fetch() and greenhouse.board_errors[0][0] == "dead-co"
+
+
+def test_tiktok_city_hierarchy_and_requirements() -> None:
+    from adapters.tiktok import ByteDanceAdapter, TikTokAdapter, city_hierarchy
+
+    city = {"en_name": "Jakarta", "location_type": 3, "parent": {"en_name": "Jakarta Raya", "location_type": 2, "parent": {"en_name": "Indonesia", "location_type": 1, "parent": None}}}
+    assert city_hierarchy(city) == ("Jakarta, Jakarta Raya, Indonesia", ("Indonesia",))
+    assert city_hierarchy(None) == ("", ())
+    raw = {"id": "7", "title": "Software Engineer Intern - 2027 Summer", "city_info": {"en_name": "San Jose", "location_type": 3, "parent": {"en_name": "California", "location_type": 2, "parent": {"en_name": "United States of America", "location_type": 1}}}, "description": "Build.", "requirement": "Currently pursuing a PhD"}
+    tiktok = TikTokAdapter(session=FakeSession({}))._normalize(raw)
+    assert tiktok.id == "tiktok:7" and tiktok.url == "https://lifeattiktok.com/search/7"
+    assert tiktok.country_names == ("United States of America",) and "pursuing a PhD" in tiktok.jd_text
+    bytedance = ByteDanceAdapter(session=FakeSession({}))._normalize(raw)
+    assert bytedance.id == "bytedance:7" and bytedance.company == "bytedance"
+    assert bytedance.url == "https://jobs.bytedance.com/en/position/7/detail"

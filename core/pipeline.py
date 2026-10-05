@@ -35,7 +35,7 @@ from adapters.sitemap import SitemapAdapter, SitemapBoard
 from adapters.smartrecruiters import SmartRecruitersAdapter
 from adapters.snap import SnapAdapter
 from adapters.tesla import TeslaAdapter
-from adapters.tiktok import TikTokAdapter
+from adapters.tiktok import ByteDanceAdapter, TikTokAdapter
 from adapters.workable import WorkableAdapter
 from adapters.workday import WorkdayAdapter
 from core.classifier import Classifier, build_classifier_from_env
@@ -686,6 +686,7 @@ SIMPLE_ADAPTERS = {
     "atlassian": AtlassianAdapter,
     "meta": MetaAdapter,
     "goldman": GoldmanAdapter,
+    "bytedance": ByteDanceAdapter,
 }
 KNOWN_ADAPTERS = frozenset(
     {
