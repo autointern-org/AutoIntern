@@ -361,6 +361,7 @@ companies:
 
   - name: sig
     adapter: phenom
+    aliases: ["Susquehanna International Group (SIG)", "Susquehanna International Group"]
     host: careers.sig.com
     variant: get
     tier: "1"
