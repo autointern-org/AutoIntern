@@ -49,8 +49,35 @@ def test_record_health_skips_unchanged_counts() -> None:
     assert kv.puts == []
     state.record_health("anthropic", fetched=4, matched=1)
     state.flush_health()
+    assert kv.puts == []  # count-only change within the hour: held in memory
+    later = datetime.now(UTC) + timedelta(minutes=61)
+    state.flush_health(now=later)
     assert kv.puts == [("health:all", HEALTH_TTL_SECONDS)]
     assert kv.values["health:all"]["companies"]["anthropic"]["fetched"] == 4
+
+
+def test_issue_marks_and_prune_stamps_write_immediately() -> None:
+    kv = FakeKV()
+    state = StateStore(kv)
+    state.record_health("x", fetched=1, matched=0)
+    state.flush_health()
+    kv.clear_io()
+    state.mark_issue_posted("x fetch failed")
+    state.flush_health()
+    assert kv.puts == [("health:all", HEALTH_TTL_SECONDS)]
+    kv.clear_io()
+    state.mark_pruned()
+    state.flush_health()
+    assert kv.puts == [("health:all", HEALTH_TTL_SECONDS)]
+
+
+def test_lifetime_stats_key_is_per_scope() -> None:
+    kv = FakeKV()
+    StateStore(kv).record_lifetime("a", 1.0)
+    shard = StateStore(kv, health_scope="shard-1")
+    shard.record_lifetime("b", 2.0)
+    shard.flush_stats()
+    assert "stats:lifetimes:shard-1" in kv.values and "stats:lifetimes" not in kv.values
 
 
 def test_is_seen_reads_legacy_job_key_once_and_migrates_in_memory() -> None:

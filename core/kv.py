@@ -23,6 +23,9 @@ HEALTH_TTL_SECONDS = 60 * 60 * 24 * 90
 # and the seen-list prune pass runs at most once per PRUNE_INTERVAL_SECONDS,
 # so a 15-minute cadence stays far under the quota.
 PRUNE_INTERVAL_SECONDS = 60 * 60 * 24
+# Count-only health changes are written at most this often per scope; issue
+# de-dup marks and prune timestamps are written immediately.
+HEALTH_COUNTS_WRITE_SECONDS = 60 * 60
 STATS_KEY = "stats:lifetimes"
 STATS_TTL_SECONDS = 60 * 60 * 24 * 400
 LIFETIME_SAMPLES_PER_COMPANY = 50
@@ -158,6 +161,7 @@ class StateStore:
         self._health_doc: dict[str, Any] | None = None
         self._health_dirty = False
         self._health_read_failed = False
+        self._health_urgent = False
         self._stats_doc: dict[str, Any] | None = None
         self._stats_dirty = False
 
@@ -237,11 +241,21 @@ class StateStore:
         doc["companies"][company.lower()] = {"fetched": fetched, "matched": matched, "at": now_iso()}
         self._health_dirty = True
 
-    def flush_health(self) -> None:
+    def flush_health(self, now: datetime | None = None) -> None:
         if not self._health_dirty or self._health_doc is None or self._health_read_failed:
             return
+        current = now or datetime.now(UTC)
+        written = parse_datetime(self._health_doc.get("written_at"))
+        if (
+            not self._health_urgent
+            and written is not None
+            and (current - written).total_seconds() < HEALTH_COUNTS_WRITE_SECONDS
+        ):
+            return
+        self._health_doc["written_at"] = current.isoformat()
         self._put(self._health_key(), self._health_doc, ttl_seconds=HEALTH_TTL_SECONDS)
         self._health_dirty = False
+        self._health_urgent = False
 
     def should_prune(self, now: datetime | None = None) -> bool:
         """True when the last seen-list prune pass is older than PRUNE_INTERVAL_SECONDS."""
@@ -256,6 +270,7 @@ class StateStore:
         doc = self._load_health()
         doc["pruned_at"] = (now or datetime.now(UTC)).isoformat()
         self._health_dirty = True
+        self._health_urgent = True
 
     def issue_recently_posted(self, title: str, *, within_seconds: int, now: datetime | None = None) -> bool:
         doc = self._load_health()
@@ -268,6 +283,7 @@ class StateStore:
         doc = self._load_health()
         doc.setdefault("issues", {})[title] = (now or datetime.now(UTC)).isoformat()
         self._health_dirty = True
+        self._health_urgent = True
 
     def record_lifetime(self, company: str, days: float) -> None:
         """Remember how long one posting stayed open (first seen until it
@@ -282,7 +298,7 @@ class StateStore:
     def lifetime_stats(self) -> dict[str, Any]:
         if self._stats_doc is None:
             try:
-                raw = self._get(STATS_KEY) or {}
+                raw = self._get(self._stats_key()) or {}
             except Exception as exc:
                 print(f"[scan] lifetime stats read failed: {exc}")
                 raw = {}
@@ -300,7 +316,7 @@ class StateStore:
     def flush_stats(self) -> None:
         if not self._stats_dirty or self._stats_doc is None:
             return
-        self._put(STATS_KEY, self._stats_doc, ttl_seconds=STATS_TTL_SECONDS)
+        self._put(self._stats_key(), self._stats_doc, ttl_seconds=STATS_TTL_SECONDS)
         self._stats_dirty = False
 
     def _load_health(self) -> dict[str, Any]:
@@ -317,6 +333,7 @@ class StateStore:
                 "scope": self.health_scope,
                 "pruned_at": raw.get("pruned_at"),
                 "issues": {str(k): v for k, v in issues.items() if isinstance(v, str)},
+                "written_at": raw.get("written_at"),
                 "companies": {str(k): dict(v) for k, v in companies.items() if isinstance(v, dict)},
             }
         return self._health_doc
@@ -680,6 +697,11 @@ class StateStore:
 
     def _health_key(self) -> str:
         return f"health:{self.health_scope}"
+
+    def _stats_key(self) -> str:
+        # Scans run in parallel scopes (cloud shards, laptop); each keeps its own
+        # lifetime samples so concurrent writes never drop each other's data.
+        return STATS_KEY if self.health_scope == "all" else f"{STATS_KEY}:{self.health_scope}"
 
     @staticmethod
     def _checked_key(company: str) -> str:
