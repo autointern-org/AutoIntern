@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 import requests
 
 from adapters.base import Job
+from core.postdate import posted_age_days
 
 
 CHECK_EMOJI = "\u2705"
@@ -15,6 +16,9 @@ DISCORD_API_BASE = "https://discord.com/api/v10"
 PREVIEW_MAX = 5
 SUMMARY_TITLE_LIMIT = 10
 THREAD_NAME_MAX = 100
+# A posting first seen this many days after its posted date was already open
+# before the scanner could see it (new board, filter change); label it.
+CATCHUP_DAYS = 7
 
 
 @dataclass(frozen=True)
@@ -47,6 +51,8 @@ class DiscordClient:
         self.session = session or requests.Session()
         self.webhook_id, self.webhook_token = _parse_webhook(webhook_url) if webhook_url else (None, None)
         self.thread_ids: dict[str, str] = {}
+        # Per-company one-line notes appended to job embeds (posting lifetimes).
+        self.company_notes: dict[str, str] = {}
 
     def post_job(
         self,
@@ -67,6 +73,7 @@ class DiscordClient:
                     ping_kind=ping_kind,
                     ping_index=ping_index,
                     ping_total=ping_total,
+                    note=self.company_notes.get(job.company.lower()),
                 )
             ]
         }
@@ -276,6 +283,7 @@ class DiscordClient:
                     ping_kind=ping_kind,
                     ping_index=ping_index,
                     ping_total=ping_total,
+                    note=self.company_notes.get(job.company.lower()),
                 )
             ]
         }
@@ -335,16 +343,24 @@ def build_job_embed(
     ping_kind: str = "single",
     ping_index: int = 1,
     ping_total: int = 1,
+    note: str | None = None,
 ) -> dict[str, Any]:
     resume_block = _truncate_for_code_block(resume_config)
     lines = [ping_line(ping_kind, ping_index, ping_total), f"**Location:** {job.location}"]
     if job.posted_at:
         lines.append(f"**Posted:** {job.posted_at}")
+    age = posted_age_days(job.posted_at)
+    catch_up = age is not None and age >= CATCHUP_DAYS
+    if catch_up:
+        lines.append(f"**Catch-up:** posted {age} days ago; newly visible to the scanner, not newly posted")
     flags = _job_flags(job)
     if flags:
         lines.append(f"**Flags:** {', '.join(flags)}")
+    if note:
+        lines.append(note)
+    icon = "\U0001f553" if catch_up else "\U0001f6a8"
     return {
-        "title": f"\U0001f6a8 {job.company} - {job.title}"[:256],
+        "title": f"{icon} {job.company} - {job.title}"[:256],
         "url": job.url,
         "description": "\n".join(lines) + f"\n\n```text\n{resume_block}\n```",
         "color": color,

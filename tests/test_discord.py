@@ -79,7 +79,7 @@ def test_discord_embed_contains_resume_config_and_footer() -> None:
 
     embed = build_job_embed(job, "resume_config: test", color=0xEF4444)
 
-    assert embed["title"] == "🚨 anthropic - Software Engineer Intern"
+    assert embed["title"] == "🕓 anthropic - Software Engineer Intern"  # fixture date is months old
     assert embed["url"] == "https://example.com/job"
     assert "**Ping:** single" in embed["description"]
     assert "```text\nresume_config: test\n```" in embed["description"]
@@ -229,7 +229,7 @@ def test_overflow_without_forum_webhook_fails_open_to_main(capsys) -> None:
     assert len(messages) == PREVIEW_MAX + 2
     assert all(MAIN_WEBHOOK in call["url"] for call in session.calls)
     assert session.calls[0]["json"]["embeds"][0]["title"] == "TikTok — 6 new intern postings"
-    assert session.calls[1]["json"]["embeds"][0]["title"] == "🚨 TikTok - Intern 0"
+    assert session.calls[1]["json"]["embeds"][0]["title"].endswith("TikTok - Intern 0")
 
 
 def test_fetch_message_skips_rate_limit(capsys) -> None:
@@ -296,3 +296,23 @@ def test_forum_post_failure_does_not_raise(capsys) -> None:
     messages = client.post_forum_jobs("TikTok", make_company_jobs(2), ping_kind="single")
     assert messages == []
     assert "forum post TikTok job-0 failed" in capsys.readouterr().out
+
+
+def test_job_embed_marks_catch_up_versus_fresh_postings() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from core.discord import build_job_embed
+
+    fresh = make_job(posted_at=(datetime.now(UTC) - timedelta(days=1)).date().isoformat())
+    old = make_job(posted_at=(datetime.now(UTC) - timedelta(days=40)).date().isoformat())
+    workday_old = make_job(posted_at="Posted 30+ Days Ago")
+    undated = make_job(posted_at=None)
+    assert build_job_embed(fresh, "x", color=1)["title"].startswith("\U0001f6a8")
+    assert "Catch-up" not in build_job_embed(fresh, "x", color=1)["description"]
+    old_embed = build_job_embed(old, "x", color=1)
+    assert old_embed["title"].startswith("\U0001f553")
+    assert "**Catch-up:** posted 40 days ago" in old_embed["description"]
+    assert build_job_embed(workday_old, "x", color=1)["title"].startswith("\U0001f553")
+    assert build_job_embed(undated, "x", color=1)["title"].startswith("\U0001f6a8")
+    noted = build_job_embed(fresh, "x", color=1, note="**Typically open:** ~5 days")
+    assert noted["description"].count("**Typically open:** ~5 days") == 1
