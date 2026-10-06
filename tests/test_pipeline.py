@@ -69,6 +69,11 @@ class FakeDiscord:
         self.reaction_checks: list[str] = []
         self.forum_webhook_url = "https://discord.com/api/webhooks/2/forum"
         self.forum_posts: list[tuple[str, list[Job], str | None]] = []
+        self.inline_lists = False
+
+    @property
+    def lists_enabled(self) -> bool:
+        return bool(self.forum_webhook_url) or self.inline_lists
 
     def post_job(self, job: Job, resume_config: str, *, color: int) -> DiscordMessage:
         self.posts.append((job, resume_config, color))
@@ -1354,3 +1359,89 @@ def test_failed_first_look_is_retried_and_other_companies_continue() -> None:
     assert not StateStore(kv).is_bootstrapped("anthropic") and StateStore(kv).is_bootstrapped("stripe")
     result = scan(adapters=[FakeAdapter(jobs)], configs=configs, state=StateStore(kv), discord=FakeDiscord(), classifier=FakeClassifier(), skip_dismissals=True)
     assert result.recaps == 1  # anthropic's first look on the retry; stripe not repeated
+
+
+def _defense_channel() -> FakeDiscord:
+    channel = FakeDiscord()
+    channel.forum_webhook_url = None
+    channel.inline_lists = True
+    return channel
+
+
+def test_defense_companies_post_to_their_channel_and_never_push() -> None:
+    from core.push import PushNotifier
+
+    class RecordingPush(PushNotifier):
+        def __init__(self) -> None:
+            super().__init__("t", dry_run=True)
+            self.batches: list[list[str]] = []
+
+        def push_jobs(self, jobs: list[Job]) -> int:
+            self.batches.append([job.title for job in jobs])
+            return len(jobs)
+
+    state = StateStore(FakeKV())
+    state.mark_bootstrapped("l3harris")
+    state.mark_bootstrapped("anthropic")
+    main, defense, push = FakeDiscord(), _defense_channel(), RecordingPush()
+    l3 = make_job(id="d1", company="l3harris", title="Software Engineer Intern, Summer 2027", url="https://x/d1")
+    ant = make_job(id="a1", title="Software Engineer Intern, Summer 2027", url="https://x/a1")
+    result = scan(
+        adapters=[FakeAdapter([l3, ant])],
+        configs={
+            "l3harris": CompanyConfig(name="l3harris", adapter="radancy", tier="1", channel="defense"),
+            "anthropic": CompanyConfig(name="anthropic", adapter="greenhouse", tier="1"),
+        },
+        state=state,
+        discord=main,
+        channels={"defense": defense},
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+        push=push,
+    )
+    assert [job.id for job, _, _ in defense.posts] == ["d1"]
+    assert [job.id for job, _, _ in main.posts] == ["a1"]
+    assert defense.forum_posts == [] and main.forum_posts[0][0] == "anthropic"
+    assert push.batches == [["Software Engineer Intern, Summer 2027"]] and result.pushed == 1
+    assert state.is_seen("d1", company="l3harris")
+
+
+def test_defense_first_look_lists_every_job_in_the_channel() -> None:
+    state = StateStore(FakeKV())
+    main, defense = FakeDiscord(), _defense_channel()
+    jobs = [
+        make_job(id=f"n{i}", company="northrop-grumman", title=f"Software Engineer Intern {i}", url=f"https://x/n{i}")
+        for i in range(7)
+    ]
+    scan(
+        adapters=[FakeAdapter(jobs)],
+        configs={"northrop-grumman": CompanyConfig(name="northrop-grumman", adapter="workday", channel="defense")},
+        state=state,
+        discord=main,
+        channels={"defense": defense},
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+    assert main.recaps == [] and main.forum_posts == [] and main.posts == []
+    assert defense.recaps[0][0] == "northrop-grumman"
+    assert [job.id for job in defense.forum_posts[0][1]] == [f"n{i}" for i in range(7)]
+    assert state.is_bootstrapped("northrop-grumman")
+
+
+def test_defense_company_without_new_jobs_does_not_repost_its_list() -> None:
+    state = StateStore(FakeKV())
+    state.mark_bootstrapped("rtx")
+    jobs = [make_job(id=f"r{i}", company="rtx", title=f"Software Engineer Intern {i}", url=f"https://x/r{i}") for i in range(7)]
+    for job in jobs:
+        state.record_notification(job_id=job.id, company="rtx", title=job.title, url=job.url, message_id="m", channel_id="c")
+    defense = _defense_channel()
+    scan(
+        adapters=[FakeAdapter(jobs)],
+        configs={"rtx": CompanyConfig(name="rtx", adapter="workday", channel="defense")},
+        state=state,
+        discord=FakeDiscord(),
+        channels={"defense": defense},
+        classifier=FakeClassifier(),
+        skip_dismissals=True,
+    )
+    assert defense.forum_posts == [] and defense.posts == []

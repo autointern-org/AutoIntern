@@ -40,6 +40,9 @@ class CompanyConfig:
     dedupe_group: str | None = None
     # Other names the company goes by (used by the coverage audit to match lists).
     aliases: list[str] = field(default_factory=list)
+    # Discord channel other than the main one ("defense"): every ping, first
+    # look and full list for the company goes there, and it never phone-pushes.
+    channel: str | None = None
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "CompanyConfig":
@@ -63,6 +66,7 @@ class CompanyConfig:
             include_intl=bool(raw.get("include_intl", False)),
             dedupe_group=(str(raw["dedupe_group"]).lower() if raw.get("dedupe_group") else None),
             aliases=[str(alias) for alias in raw.get("aliases") or []],
+            channel=(str(raw["channel"]).lower() if raw.get("channel") else None),
         )
 
     @property

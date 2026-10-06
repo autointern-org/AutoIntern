@@ -37,7 +37,7 @@ Tier-1 companies' Summer 2027, non-PhD postings are also published to an [ntfy](
 
 ### 1. Discord webhooks
 
-Create webhooks for the alerts channel, a forum channel (full lists for large batches), and an `#issues` channel. Posts use `?wait=true` so Discord returns message IDs for KV.
+Create webhooks for the alerts channel, a forum channel (full lists for large batches), an `#issues` channel, and a defense channel. Posts use `?wait=true` so Discord returns message IDs for KV.
 
 ### 2. Cloudflare KV
 
@@ -50,6 +50,7 @@ Create a Workers KV namespace and an API token with Workers KV Storage read/writ
 | `DISCORD_WEBHOOK_URL` | Main alerts channel |
 | `DISCORD_FORUM_WEBHOOK_URL` | Forum channel for companies with more than 5 new roles |
 | `DISCORD_ISSUES_WEBHOOK_URL` | `#issues` channel |
+| `DISCORD_DEFENSE_WEBHOOK_URL` | Defense channel (companies with `channel: defense`) |
 | `CF_ACCOUNT_ID`, `CF_KV_NAMESPACE_ID`, `CF_API_TOKEN` | Cloudflare KV |
 | `NTFY_TOPIC` | Phone push topic (long random name; anyone who knows it can read it) |
 | `DISCORD_BOT_TOKEN`, `DISCORD_CHANNEL_ID` | Optional: reading ✅ reactions (off unless `CHECK_DISMISS_REACTIONS=1`) |
@@ -67,6 +68,7 @@ Create a Workers KV namespace and an API token with Workers KV Storage read/writ
 - `tier`: `"1"` (red embeds, phone push) or `"2"`.
 - `aliases`: other names the company goes by, used by the coverage audit.
 - `dedupe_group`: boards that list the same postings (Amazon/AWS, Kensho/SPGI) ping each posting once.
+- `channel: defense`: the company's pings, first look and full lists go to the defense channel instead of the main one (every posting inline, no forum thread) and never push to the phone. Used for the large defense contractors whose roles mostly require US citizenship (L3Harris, Northrop Grumman, RTX, General Dynamics, Booz Allen, CACI, ...); Leidos, Boeing and Textron stay in the main channel because of their commercial divisions.
 - `include_keywords` / `exclude_keywords`, `include_phd`, `include_intl`: per-company filter overrides.
 - `host`, `site`, `search_keywords`: board location for the listing-style adapters (`site` is the Paylocity company GUID, Taleo career section, Yello board id, Jobvite company path, or SelectMinds site path; `search_keywords` is a comma-separated keyword list such as `"intern,co-op"`).
 

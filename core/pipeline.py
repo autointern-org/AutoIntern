@@ -102,6 +102,12 @@ def run_scan(
         channel_id=os.getenv("DISCORD_CHANNEL_ID"),
         dry_run=dry_run,
     )
+    channels: dict[str, DiscordClient] = {}
+    defense_url = os.getenv("DISCORD_DEFENSE_WEBHOOK_URL")
+    if defense_url or dry_run:
+        channels["defense"] = DiscordClient(defense_url, dry_run=dry_run, inline_lists=True)
+    elif any(c.channel == "defense" for c in companies):
+        print("[scan] warning: DISCORD_DEFENSE_WEBHOOK_URL is not set; defense companies post to the main channel")
     classifier = build_classifier_from_env()
     for company in unknown_adapter_companies(companies):
         message = f"{company.name} uses adapter '{company.adapter}', which has no implementation; it is never scanned"
@@ -116,6 +122,7 @@ def run_scan(
         configs=configs,
         state=state,
         discord=discord,
+        channels=channels,
         classifier=classifier,
         dry_run=dry_run,
         skip_claude=skip_claude,
@@ -199,6 +206,7 @@ def scan(
     skip_claude: bool = True,
     skip_dismissals: bool = False,
     push: PushNotifier | None = None,
+    channels: dict[str, DiscordClient] | None = None,
 ) -> ScanResult:
     result = ScanResult()
     if not skip_dismissals:
@@ -333,13 +341,19 @@ def scan(
         _report_issue(discord, result, "Company fetch looks off", line, dry_run=dry_run, state=state)
 
     prune = (not dry_run) and state.should_prune()
+    main_discord = discord
+    channels = channels or {}
     if matched_jobs:
         try:
-            discord.company_notes = company_notes(state.lifetime_stats())
+            notes = company_notes(state.lifetime_stats())
+            for client in (main_discord, *channels.values()):
+                client.company_notes = notes
         except Exception as exc:
             print(f"[scan] lifetime notes unavailable: {exc}")
     for company_key, jobs in matched_jobs.items():
         config = configs[company_key]
+        # Companies routed to a side channel (defense) post everything there.
+        discord = channels.get(config.channel or "", main_discord)
         jobs = sort_alert_jobs(jobs)
         fetched = fetched_by_company[company_key]
         if state.write_blocked:
@@ -403,7 +417,7 @@ def scan(
             fresh.append((job, resume_config, config.color))
         if not fresh:
             if not dry_run:
-                if len(jobs) > PREVIEW_MAX and not state.get_forum_thread(company_key):
+                if len(jobs) > PREVIEW_MAX and discord.forum_webhook_url and not state.get_forum_thread(company_key):
                     try:
                         forum_messages = _post_forum_listing(
                             discord,
@@ -431,7 +445,7 @@ def scan(
             print(f"[discord] warning: notify {config.name} failed: {exc}")
             messages = []
         result.notified += _remember_fresh(state, fresh, messages, dry_run=dry_run)
-        if push is not None and messages:
+        if push is not None and messages and config.channel != "defense":
             priority = [job for job, _, _ in fresh if is_priority(job, tier1=config.is_tier1)]
             if priority:
                 result.pushed += push.push_jobs(priority)
@@ -442,6 +456,7 @@ def scan(
             _record_health(state, company_key, fetched=fetched, matched=len(jobs))
             _finalize_company_seen(state, company_key, fetched=fetched, live_jobs=jobs, prune=prune)
 
+    discord = main_discord
     if not dry_run:
         for company_key, fetched in fetched_by_company.items():
             if company_key in matched_jobs or fetched <= 0 or company_key not in configs:
@@ -1029,7 +1044,7 @@ def _post_forum_listing(
     dry_run: bool,
     ping_kind: str,
 ) -> list[DiscordMessage]:
-    if len(jobs) <= PREVIEW_MAX or not discord.forum_webhook_url:
+    if len(jobs) <= PREVIEW_MAX or not discord.lists_enabled:
         return []
     thread_id = state.get_forum_thread(config.name.lower())
     if thread_id:

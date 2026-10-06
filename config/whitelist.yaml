@@ -9,6 +9,7 @@
 # Taleo, SelectMinds, Jobvite, Paylocity, JazzHR, BambooHR, Pinpoint, ApplicantPro and Yello
 # boards use the listing adapters (host / site / search_keywords; see README). KKR's student
 # board is Greenhouse "staged"; Quantbot's is "quantbot-technologies"; Stevens Capital's is "scm".
+# channel: defense sends a company's pings to the defense Discord channel (never phone-pushed).
 # iCIMS classic portals use adapter icims; iCIMS Jibe sites (custom domains, *.jibeapply.com)
 # expose the same /api/jobs API as Phenom "get" sites.
 # Aurora posts on Ashby (aurora-operations-inc); Rippling on its own ATS board API;
@@ -387,7 +388,7 @@ companies:
     host: boeing.wd1.myworkdayjobs.com
     tenant: boeing
     site: EXTERNAL_CAREERS
-    tier: "1"
+    tier: "2"
 
   - name: dell
     adapter: oracle
@@ -668,7 +669,7 @@ companies:
     adapter: avature
     host: jobs.ea.com
     site: en_US/careers/SearchJobs/intern
-    tier: "1"
+    tier: "2"
     aliases: ["Electronic Arts", "EA"]
 
   - name: shopify
@@ -689,6 +690,7 @@ companies:
 
   - name: booz-allen
     adapter: workday
+    channel: defense
     host: "bah.wd1.myworkdayjobs.com"
     tenant: "bah"
     site: "bah_jobs"
@@ -1493,6 +1495,7 @@ companies:
 
   - name: huntington-ingalls
     adapter: successfactors
+    channel: defense
     host: careers.huntingtoningalls.com
     tier: "2"
     aliases: ["Huntington Ingalls Industries"]
@@ -2129,6 +2132,7 @@ companies:
 
   - name: caci
     adapter: workday
+    channel: defense
     host: "caci.wd1.myworkdayjobs.com"
     tenant: "caci"
     site: "external"
@@ -2193,6 +2197,7 @@ companies:
 
   - name: sierra-nevada
     adapter: workday
+    channel: defense
     host: "snc.wd1.myworkdayjobs.com"
     tenant: "snc"
     site: "snc_external_career_site"
@@ -2232,6 +2237,7 @@ companies:
 
   - name: aerovironment
     adapter: workday
+    channel: defense
     host: "avav.wd1.myworkdayjobs.com"
     tenant: "avav"
     site: "avav"
@@ -3209,11 +3215,13 @@ companies:
 
   - name: peraton
     adapter: icims
+    channel: defense
     host: careers-peraton.icims.com
     tier: "2"
 
   - name: gd-mission-systems
     adapter: icims
+    channel: defense
     host: careers-gdms.icims.com
     tier: "2"
     aliases: ["General Dynamics Mission Systems"]
@@ -3801,6 +3809,7 @@ companies:
 
   - name: l3harris
     adapter: radancy
+    channel: defense
     host: careers.l3harris.com
     tier: "2"
 
@@ -3811,6 +3820,7 @@ companies:
 
   - name: northrop-grumman
     adapter: workday
+    channel: defense
     host: ngc.wd1.myworkdayjobs.com
     tenant: ngc
     site: Northrop_Grumman_External_Site
@@ -4120,6 +4130,7 @@ companies:
 
   - name: general-dynamics
     adapter: workday
+    channel: defense
     host: gdit.wd5.myworkdayjobs.com
     tenant: gdit
     site: External_Career_Site
@@ -4230,6 +4241,7 @@ companies:
 
   - name: rtx
     adapter: workday
+    channel: defense
     host: globalhr.wd5.myworkdayjobs.com
     tenant: globalhr
     site: REC_RTX_Ext_Gateway

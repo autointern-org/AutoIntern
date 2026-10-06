@@ -40,8 +40,12 @@ class DiscordClient:
         dry_run: bool = False,
         timeout: int = 30,
         session: requests.Session | None = None,
+        inline_lists: bool = False,
     ) -> None:
         self.webhook_url = webhook_url
+        # Side channels (defense) have no forum: batches post every job in
+        # the channel itself instead of a summary plus a forum thread.
+        self.inline_lists = inline_lists
         self.forum_webhook_url = forum_webhook_url
         self.issues_webhook_url = issues_webhook_url
         self.bot_token = bot_token
@@ -84,6 +88,11 @@ class DiscordClient:
             missing_url_error="DISCORD_WEBHOOK_URL is required unless dry_run is enabled",
         )
 
+    @property
+    def lists_enabled(self) -> bool:
+        """Whether full job lists can be posted (forum threads or inline)."""
+        return bool(self.forum_webhook_url) or self.inline_lists
+
     def post_jobs_for_company(
         self,
         company: str,
@@ -107,18 +116,23 @@ class DiscordClient:
                 )
                 for index, (job, resume_config, color) in enumerate(jobs_with_resume, start=1)
             ]
-            self.post_forum_jobs(company, jobs_with_resume, ping_kind=ping_kind)
+            if not self.inline_lists:
+                self.post_forum_jobs(company, jobs_with_resume, ping_kind=ping_kind)
             return messages
 
+        footer = "Every posting follows below" if self.inline_lists else "Details in forum thread"
         messages = [
             self._post_webhook(
                 self.webhook_url,
-                {"embeds": [build_summary_embed(company, jobs_with_resume, ping_kind="batch")]},
+                {"embeds": [build_summary_embed(company, jobs_with_resume, ping_kind="batch", footer=footer)]},
                 dry_run_id=f"dry-run-summary-{company}",
                 missing_url_error="DISCORD_WEBHOOK_URL is required unless dry_run is enabled",
             )
         ]
 
+        if self.inline_lists:
+            messages.extend(self.post_forum_jobs(company, jobs_with_resume, ping_kind="batch"))
+            return messages
         if self.forum_webhook_url:
             forum_messages = self.post_forum_jobs(company, jobs_with_resume, ping_kind="batch")
             if forum_messages:
@@ -150,12 +164,19 @@ class DiscordClient:
         *,
         ping_kind: str | None = None,
     ) -> list[DiscordMessage]:
-        if not jobs_with_resume or not self.forum_webhook_url:
+        if not jobs_with_resume or not self.lists_enabled:
             return []
         total = len(jobs_with_resume)
         kind = ping_kind or ("batch" if total > PREVIEW_MAX else "single")
         messages: list[DiscordMessage] = []
         for index, (job, resume_config, color) in enumerate(jobs_with_resume, start=1):
+            if self.inline_lists:
+                # Same channel as the summary; a failure is raised so the
+                # pipeline does not record an unposted job as seen.
+                messages.append(
+                    self.post_job(job, resume_config, color=color, ping_kind=kind, ping_index=index, ping_total=total)
+                )
+                continue
             try:
                 messages.append(
                     self._post_forum_job(

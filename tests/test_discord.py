@@ -316,3 +316,29 @@ def test_job_embed_marks_catch_up_versus_fresh_postings() -> None:
     assert build_job_embed(undated, "x", color=1)["title"].startswith("\U0001f6a8")
     noted = build_job_embed(fresh, "x", color=1, note="**Typically open:** ~5 days")
     assert noted["description"].count("**Typically open:** ~5 days") == 1
+
+
+DEFENSE_WEBHOOK = "https://discord.com/api/webhooks/9/defense"
+
+
+def test_inline_channel_posts_summary_then_every_job_in_the_same_channel() -> None:
+    session = RecordingSession()
+    client = DiscordClient(DEFENSE_WEBHOOK, session=session, inline_lists=True)
+    jobs = make_company_jobs(PREVIEW_MAX + 2, company="L3Harris")
+
+    messages = client.post_jobs_for_company("L3Harris", jobs)
+
+    assert len(messages) == PREVIEW_MAX + 3
+    assert all(DEFENSE_WEBHOOK in call["url"] for call in session.calls)
+    assert all("thread_name" not in call["json"] for call in session.calls)
+    summary = session.calls[0]["json"]["embeds"][0]
+    assert summary["footer"]["text"] == "Every posting follows below"
+    assert "**Ping:** batch 7/7" in session.calls[-1]["json"]["embeds"][0]["description"]
+
+
+def test_inline_channel_small_batches_post_each_job_once() -> None:
+    session = RecordingSession()
+    client = DiscordClient(DEFENSE_WEBHOOK, session=session, inline_lists=True)
+    messages = client.post_jobs_for_company("RTX", make_company_jobs(2, company="RTX"))
+    assert len(messages) == 2 and len(session.calls) == 2
+    assert client.lists_enabled and not DiscordClient(DEFENSE_WEBHOOK, session=session).lists_enabled
