@@ -1,6 +1,6 @@
 # AutoIntern
 
-Internship monitor for ~680 companies. Every 15 minutes it fetches each company's job board, keeps US software / data / ML / quant internships, and posts the ones it has not seen before to Discord. Top-priority postings also go to your phone. There is no persistent server: GitHub Actions runs the scans and Cloudflare KV remembers what was already sent.
+Internship monitor for ~720 companies. Every 15 minutes it fetches each company's job board, keeps US software / data / ML / quant internships, and posts the ones it has not seen before to Discord. Top-priority postings also go to your phone. There is no persistent server: GitHub Actions runs the scans and Cloudflare KV remembers what was already sent.
 
 ## How it works
 
@@ -68,6 +68,7 @@ Create a Workers KV namespace and an API token with Workers KV Storage read/writ
 - `aliases`: other names the company goes by, used by the coverage audit.
 - `dedupe_group`: boards that list the same postings (Amazon/AWS, Kensho/SPGI) ping each posting once.
 - `include_keywords` / `exclude_keywords`, `include_phd`, `include_intl`: per-company filter overrides.
+- `host`, `site`, `search_keywords`: board location for the listing-style adapters (`site` is the Paylocity company GUID, Taleo career section, Yello board id, Jobvite company path, or SelectMinds site path; `search_keywords` is a comma-separated keyword list such as `"intern,co-op"`).
 
 Laptop-only companies must be named in both `SCAN_ONLY_COMPANIES` (tesla job) and `SCAN_SKIP_COMPANIES` (scan job) in the workflow.
 
@@ -75,7 +76,7 @@ Laptop-only companies must be named in both `SCAN_ONLY_COMPANIES` (tesla job) an
 
 | Adapter | Source |
 | --- | --- |
-| `greenhouse`, `ashby`, `lever`, `workable`, `smartrecruiters`, `rippling`, `gem` | Public job-board APIs by slug |
+| `greenhouse`, `ashby`, `lever`, `workable`, `smartrecruiters`, `rippling`, `gem` | Public job-board APIs by slug (Ashby boards with the API turned off are read through the hosted page's GraphQL) |
 | `workday` | `https://{host}/wday/cxs/{tenant}/{site}/jobs`: text search plus the tenant's own intern facet; also `wdN.myworkdaysite.com` hosts |
 | `oracle` | Oracle Recruiting Cloud requisitions API (newest first) |
 | `eightfold` | Eightfold `pcsx` / `apply` APIs |
@@ -86,6 +87,11 @@ Laptop-only companies must be named in both `SCAN_ONLY_COMPANIES` (tesla job) an
 | `radancy` | Radancy / TalentBrew sites |
 | `citadel` | Citadel's careers search, falling back to its career sitemap when challenged |
 | `sitemap` | Career sitemaps of job pages (Shopify) |
+| `taleo` | Oracle Taleo career sections (REST keyword search) |
+| `selectminds` | Oracle Taleo Social Sourcing (SelectMinds) sites |
+| `jobvite`, `paylocity`, `jazzhr`, `bamboohr`, `pinpoint`, `applicantpro` | Small-company job boards (shared `ListingAdapter` flow in `adapters/listing.py`) |
+| `yello` | Yello / recsolu job boards, filtered to the United States |
+| `deutschebank` | careers.db.com student-programme search |
 | `goldman` | higher.gs.com campus GraphQL |
 | `google`, `apple`, `amazon`, `meta`, `tiktok`, `bytedance`, `ibm`, `snap`, `optiver`, `atlassian`, `deshaw`, `linkedin`, `tesla` | Company-specific |
 

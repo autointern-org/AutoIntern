@@ -9,12 +9,15 @@ from time import perf_counter
 from typing import Iterable
 
 from adapters.amazon import AmazonAdapter
+from adapters.applicantpro import ApplicantProAdapter
 from adapters.apple import AppleAdapter
 from adapters.ashby import AshbyAdapter
 from adapters.atlassian import AtlassianAdapter
 from adapters.avature import AvatureAdapter, AvatureBoard
+from adapters.bamboohr import BambooHRAdapter
 from adapters.citadel import CitadelAdapter, CitadelBoard
 from adapters.deshaw import DEShawAdapter
+from adapters.deutschebank import DeutscheBankAdapter
 from adapters.base import Adapter, Job
 from adapters.eightfold import EightfoldAdapter, EightfoldBoard, infer_host
 from adapters.gem import GemAdapter
@@ -23,22 +26,30 @@ from adapters.google import GoogleAdapter
 from adapters.greenhouse import GreenhouseAdapter
 from adapters.ibm import IBMAdapter
 from adapters.icims import ICIMSAdapter, ICIMSBoard
+from adapters.jazzhr import JazzHRAdapter
+from adapters.jobvite import JobviteAdapter
 from adapters.lever import LeverAdapter
+from adapters.listing import ListingAdapter, ListingBoard
 from adapters.linkedin import LinkedInAdapter
 from adapters.meta import MetaAdapter
 from adapters.optiver import OptiverAdapter
 from adapters.oracle import OracleAdapter, OracleBoard
+from adapters.paylocity import PaylocityAdapter
 from adapters.phenom import PhenomAdapter, PhenomBoard
+from adapters.pinpoint import PinpointAdapter
 from adapters.radancy import RadancyAdapter, RadancyBoard
 from adapters.rippling import RipplingAdapter
+from adapters.selectminds import SelectMindsAdapter
 from adapters.sitemap import SitemapAdapter, SitemapBoard
 from adapters.smartrecruiters import SmartRecruitersAdapter
 from adapters.snap import SnapAdapter
 from adapters.successfactors import SuccessFactorsAdapter, SuccessFactorsBoard
+from adapters.taleo import TaleoAdapter
 from adapters.tesla import TeslaAdapter
 from adapters.tiktok import ByteDanceAdapter, TikTokAdapter
 from adapters.workable import WorkableAdapter
 from adapters.workday import WorkdayAdapter
+from adapters.yello import YelloAdapter
 from core.classifier import Classifier, build_classifier_from_env
 from core.config import CompanyConfig, Whitelist
 from core.discord import DiscordClient, DiscordMessage, PREVIEW_MAX
@@ -690,8 +701,25 @@ SIMPLE_ADAPTERS = {
     "goldman": GoldmanAdapter,
     "bytedance": ByteDanceAdapter,
 }
+# Small job boards sharing ListingAdapter's flow. Whitelist fields: host
+# (board host), site (platform board id: Paylocity company GUID, Taleo career
+# section, Yello board id, Jobvite company path, SelectMinds site path) and
+# search_keywords (comma-separated, for platforms searched by keyword).
+LISTING_ADAPTERS: dict[str, type[ListingAdapter]] = {
+    "paylocity": PaylocityAdapter,
+    "jazzhr": JazzHRAdapter,
+    "bamboohr": BambooHRAdapter,
+    "pinpoint": PinpointAdapter,
+    "applicantpro": ApplicantProAdapter,
+    "jobvite": JobviteAdapter,
+    "taleo": TaleoAdapter,
+    "selectminds": SelectMindsAdapter,
+    "yello": YelloAdapter,
+}
 KNOWN_ADAPTERS = frozenset(
     {
+        "deutschebank",
+        *LISTING_ADAPTERS,
         "greenhouse",
         "ashby",
         "workday",
@@ -958,6 +986,27 @@ def build_adapters(companies: list[CompanyConfig], *, state: StateStore | None =
                 known=_known([c.name for c in successfactors]),
             )
         )
+
+    for adapter_name, listing_cls in LISTING_ADAPTERS.items():
+        listed = [c for c in companies if c.adapter == adapter_name and (c.host or c.site)]
+        if listed:
+            adapters.append(
+                listing_cls(
+                    [
+                        ListingBoard(
+                            company=c.name,
+                            host=str(c.host or ""),
+                            site=str(c.site or ""),
+                            search=c.search_keywords or "intern",
+                        )
+                        for c in listed
+                    ],
+                    known=_known([c.name for c in listed]),
+                )
+            )
+
+    if any(c.adapter == "deutschebank" for c in companies):
+        adapters.append(DeutscheBankAdapter(known=_known(["deutsche-bank"])))
 
     for adapter_name, adapter_cls in SIMPLE_ADAPTERS.items():
         if not any(company.adapter == adapter_name for company in companies):

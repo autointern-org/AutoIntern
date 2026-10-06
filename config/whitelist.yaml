@@ -1,11 +1,14 @@
 # AutoIntern whitelist — JSON / requests-only ATS boards.
-# Tier 1 first (priority order), then tier 2 (alphabetical).
+# Tier 1 first (priority order), then tier 2.
 #
 # Skipped:
 #   HashiCorp (IBM), Replicate (Cloudflare-blocked Greenhouse), Cruise (closed), Weights &
 #   Biases (CoreWeave board), Ansys (Synopsys), AI21 (Comeet API needs a private token;
 #   roles mostly in Israel), ASML (server-rendered only), Palantir / Anduril / Lockheed
 #   Martin (excluded by choice), Spring Health and Marqeta (no public board found). Spotify's Lever board covers only part of its hiring.
+# Taleo, SelectMinds, Jobvite, Paylocity, JazzHR, BambooHR, Pinpoint, ApplicantPro and Yello
+# boards use the listing adapters (host / site / search_keywords; see README). KKR's student
+# board is Greenhouse "staged"; Quantbot's is "quantbot-technologies"; Stevens Capital's is "scm".
 # iCIMS classic portals use adapter icims; iCIMS Jibe sites (custom domains, *.jibeapply.com)
 # expose the same /api/jobs API as Phenom "get" sites.
 # Aurora posts on Ashby (aurora-operations-inc); Rippling on its own ATS board API;
@@ -4333,3 +4336,257 @@ companies:
     adapter: greenhouse
     slug: zscaler
     tier: "2"
+
+  # --- Coverage-audit gaps (2026-10-06) ---
+  - name: wex
+    adapter: workday
+    host: wexinc.wd5.myworkdayjobs.com
+    tenant: wexinc
+    site: WEXInc
+    tier: "2"
+    aliases: ["Wex", "WEX Inc."]
+
+  - name: jain-global
+    adapter: workday
+    host: jainglobal.wd5.myworkdayjobs.com
+    tenant: jainglobal
+    site: ExternalSite
+    tier: "2"
+    aliases: ["Jain Global"]
+
+  - name: midland-states-bank
+    adapter: workday
+    host: midlandsb.wd1.myworkdayjobs.com
+    tenant: midlandsb
+    site: msbcareers
+    tier: "2"
+    aliases: ["Midland States Bank"]
+
+  - name: lexisnexis-legal
+    adapter: workday
+    host: relx.wd3.myworkdayjobs.com
+    tenant: relx
+    site: LexisNexisLegal
+    tier: "2"
+    aliases: ["LexisNexis Legal & Professional", "LexisNexis"]
+
+  - name: zurn-elkay
+    adapter: workday
+    host: elkay.wd1.myworkdayjobs.com
+    tenant: elkay
+    site: Elkay_External
+    tier: "2"
+    aliases: ["Zurn Elkay Water Solutions", "Zurn Elkay", "Elkay"]
+
+  - name: syngenta
+    adapter: smartrecruiters
+    slug: "SyngentaGroup"
+    tier: "2"
+    aliases: ["Syngenta Group", "Syngenta"]
+
+  - name: whatnot
+    adapter: ashby
+    slug: whatnot
+    tier: "2"
+    aliases: ["WhatNot", "Whatnot"]
+
+  - name: highgate
+    adapter: icims
+    host: externalhourly-highgate.icims.com
+    tier: "2"
+    aliases: ["Highgate", "Highgate Hotels"]
+
+  - name: quantbot
+    adapter: greenhouse
+    slug: quantbot-technologies
+    tier: "2"
+    aliases: ["Quantbot Technologies", "Quantbot"]
+
+  - name: stevens-capital-management
+    adapter: greenhouse
+    slug: scm
+    tier: "2"
+    aliases: ["Steven's Capital Management", "Stevens Capital Management"]
+
+  - name: textron
+    adapter: taleo
+    host: textron.taleo.net
+    site: textron
+    search_keywords: "intern,co-op"
+    tier: "2"
+    aliases: ["Textron", "Textron Systems", "Bell Textron", "Textron Aviation"]
+
+  - name: zions-bank
+    adapter: taleo
+    host: zionsbancorp.taleo.net
+    site: joinexternal
+    tier: "2"
+    aliases: ["Zions Bank", "Zions Bancorporation"]
+
+  - name: energy-transfer
+    adapter: selectminds
+    host: energytransfer.referrals.selectminds.com
+    site: ETP
+    tier: "2"
+    aliases: ["Energy Transfer Partners", "Energy Transfer"]
+
+  - name: ernst-and-young
+    adapter: yello
+    host: eyglobal.yello.co
+    site: c1riT--B2O-KySgYWsZO1Q
+    tier: "2"
+    aliases: ["Ernst & Young", "EY"]
+
+  - name: deutsche-bank
+    adapter: deutschebank
+    tier: "2"
+    aliases: ["Deutsche Bank"]
+
+  - name: tyler-technologies
+    adapter: jobvite
+    site: tylertech
+    search_keywords: "intern,co-op"
+    tier: "2"
+    aliases: ["Tyler Technologies"]
+
+  - name: altamira-technologies
+    adapter: jobvite
+    site: altamiracorps
+    search_keywords: "intern,co-op"
+    tier: "2"
+    aliases: ["Altamira Technologies", "Altamira"]
+
+  - name: lunar-outpost
+    adapter: bamboohr
+    host: lunaroutpost.bamboohr.com
+    tier: "2"
+    aliases: ["Lunar Outpost"]
+
+  - name: specter-aerospace
+    adapter: bamboohr
+    host: specteraerospace.bamboohr.com
+    tier: "2"
+    aliases: ["Specter Aerospace"]
+
+  - name: ragle
+    adapter: jazzhr
+    host: ragleinc.applytojob.com
+    tier: "2"
+    aliases: ["Ragle Inc", "Ragle"]
+
+  - name: aerotech
+    adapter: jazzhr
+    host: aerotech.applytojob.com
+    tier: "2"
+    aliases: ["Aerotech"]
+
+  - name: innovative-systems
+    adapter: jazzhr
+    host: innovativesystems.applytojob.com
+    tier: "2"
+    aliases: ["Innovative Systems"]
+
+  - name: nova-tech
+    adapter: jazzhr
+    host: novatechengineering.applytojob.com
+    tier: "2"
+    aliases: ["Nova-Tech", "Nova-Tech Engineering"]
+
+  - name: quantum-signal-ai
+    adapter: jazzhr
+    host: quantumsignalai.applytojob.com
+    tier: "2"
+    aliases: ["Quantum Signal AI", "Quantum Signal"]
+
+  - name: delta-dental-of-iowa
+    adapter: paylocity
+    site: aac2a503-7f38-4705-a190-4c9cc43a0794
+    tier: "2"
+    aliases: ["Delta Dental of Iowa"]
+
+  - name: transcard-payments
+    adapter: paylocity
+    site: acf634cc-bb17-43ff-950e-ad7dfb8b47de
+    tier: "2"
+    aliases: ["Transcard Payments", "Transcard"]
+
+  - name: demco
+    adapter: paylocity
+    site: 74673d96-b1c6-4cc2-a80b-6a7cb2651486
+    tier: "2"
+    aliases: ["Demco Products", "Demco"]
+
+  - name: north-atlantic-industries
+    adapter: paylocity
+    site: 03d28297-d3eb-4490-a5a8-e525e673a55a
+    tier: "2"
+    aliases: ["North Atlantic Industries"]
+
+  - name: western-national-insurance
+    adapter: paylocity
+    site: 4caf1c72-b512-497b-b501-42f737c1dab7
+    tier: "2"
+    aliases: ["Western National Insurance", "Western National Group"]
+
+  - name: franklin-electric
+    adapter: pinpoint
+    host: franklin-electric.pinpointhq.com
+    tier: "2"
+    aliases: ["Franklin Electric"]
+
+  - name: simoncomputing
+    adapter: applicantpro
+    host: simoncomputing.applicantpro.com
+    tier: "2"
+    aliases: ["SimonComputing", "Simon Computing"]
+
+  - name: innovative-defense-technologies
+    adapter: pinpoint
+    host: idtus.pinpointhq.com
+    tier: "2"
+    aliases: ["Innovative Defense Technologies", "IDT"]
+
+  - name: liberty-mutual
+    adapter: icims
+    host: campus-libertymutual.icims.com
+    tier: "2"
+    aliases: ["Liberty Mutual", "Liberty Mutual Insurance"]
+
+  - name: idemia
+    adapter: icims
+    host: uscareers-idemia.icims.com
+    tier: "2"
+    aliases: ["IDEMIA"]
+
+  - name: aarete
+    adapter: jobvite
+    site: aarete
+    search_keywords: "intern,co-op"
+    tier: "2"
+    aliases: ["AArete"]
+
+  - name: cadence-solutions
+    adapter: greenhouse
+    slug: solutions
+    tier: "2"
+    aliases: ["Cadence Solutions"]
+
+  - name: khan-academy
+    adapter: greenhouse
+    slug: khanacademy
+    tier: "2"
+    aliases: ["Khan Academy"]
+
+  - name: kkr
+    adapter: greenhouse
+    slug: staged
+    tier: "2"
+    aliases: ["KKR", "KKR & Co."]
+
+  - name: fhlbank-chicago
+    adapter: workday
+    host: fhlbc.wd1.myworkdayjobs.com
+    tenant: fhlbc
+    site: search
+    tier: "2"
+    aliases: ["FHLBank Chicago", "Federal Home Loan Bank of Chicago"]

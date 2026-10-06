@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import re
 from typing import Any
 
 import requests
@@ -8,7 +9,25 @@ import requests
 from adapters.base import Job, compact_text, html_to_text
 
 
+GRAPHQL = "https://jobs.ashbyhq.com/api/non-user-graphql?op={op}"
+BOARD_QUERY = (
+    "query ApiJobBoardWithTeams($organizationHostedJobsPageName: String!) { "
+    "jobBoard: jobBoardWithTeams(organizationHostedJobsPageName: $organizationHostedJobsPageName) { "
+    "jobPostings { id title locationName workplaceType secondaryLocations { locationName } } } }"
+)
+POSTING_QUERY = (
+    "query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: String!) { "
+    "jobPosting(organizationHostedJobsPageName: $organizationHostedJobsPageName, jobPostingId: $jobPostingId) { "
+    "id descriptionHtml publishedDate } }"
+)
+INTERN_HINT_RE = re.compile(r"\b(intern|interns|internship|co-?op|student|new grad)\b", re.IGNORECASE)
+
+
 class AshbyAdapter:
+    """Ashby's public posting API by board slug. Some boards (Whatnot) turn
+    that API off and 404; their hosted job page's GraphQL API still lists
+    every posting, and descriptions are read only for intern-looking titles."""
+
     API = "https://api.ashbyhq.com/posting-api/job-board/{slug}?includeCompensation=true"
 
     def __init__(
@@ -34,8 +53,11 @@ class AshbyAdapter:
             name = self.company_names.get(slug, slug)
             try:
                 response = self.session.get(self.API.format(slug=slug), timeout=self.timeout)
-                response.raise_for_status()
-                rows = response.json().get("jobs", [])
+                if response.status_code == 404:
+                    rows = self._graphql_rows(slug)
+                else:
+                    response.raise_for_status()
+                    rows = response.json().get("jobs", [])
             except Exception as exc:
                 print(f"[ashby] failed to fetch {slug}: {exc}")
                 self.board_errors.append((name, str(exc)))
@@ -44,6 +66,47 @@ class AshbyAdapter:
             for raw in rows:
                 jobs.append(self._normalize(slug, raw))
         return jobs
+
+    def _graphql(self, op: str, query: str, variables: dict[str, Any]) -> dict[str, Any]:
+        response = self.session.post(
+            GRAPHQL.format(op=op),
+            json={"operationName": op, "variables": variables, "query": query},
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if payload.get("errors") or not payload.get("data"):
+            raise RuntimeError(f"ashby graphql {op}: {str(payload.get('errors'))[:200]}")
+        return payload["data"]
+
+    def _graphql_rows(self, slug: str) -> list[dict[str, Any]]:
+        board = self._graphql("ApiJobBoardWithTeams", BOARD_QUERY, {"organizationHostedJobsPageName": slug}).get("jobBoard")
+        if not board:
+            raise RuntimeError(f"ashby {slug}: posting API 404 and no hosted job board")
+        rows: list[dict[str, Any]] = []
+        for posting in board.get("jobPostings") or []:
+            places = [posting.get("locationName")] + [
+                p.get("locationName") for p in posting.get("secondaryLocations") or [] if isinstance(p, dict)
+            ]
+            row = {
+                "id": posting.get("id"),
+                "title": posting.get("title"),
+                "location": "; ".join(p for p in places if p) or posting.get("workplaceType"),
+                "jobUrl": f"https://jobs.ashbyhq.com/{slug}/{posting.get('id')}",
+            }
+            if INTERN_HINT_RE.search(str(posting.get("title") or "")):
+                try:
+                    detail = self._graphql(
+                        "ApiJobPosting",
+                        POSTING_QUERY,
+                        {"organizationHostedJobsPageName": slug, "jobPostingId": posting.get("id")},
+                    ).get("jobPosting") or {}
+                    row["descriptionHtml"] = detail.get("descriptionHtml")
+                    row["publishedAt"] = detail.get("publishedDate")
+                except Exception as exc:  # noqa: BLE001 - keep the row without a description
+                    print(f"[ashby] {slug} posting {posting.get('id')} detail failed: {exc}")
+            rows.append(row)
+        return rows
 
     def _normalize(self, slug: str, raw: dict[str, Any]) -> Job:
         location = raw.get("location")
