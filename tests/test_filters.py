@@ -428,7 +428,6 @@ def test_title_vocabulary_keeps_software_data_ml_quant_and_drops_other_functions
         "Trader Intern - Summer",
         "Trading System Engineer Intern",
         "Python Intern - Summer 2027",
-        "Technology Intern",
         "Forward Deployed Engineer Intern",
     ]
     drop = [
@@ -449,3 +448,24 @@ def test_title_vocabulary_keeps_software_data_ml_quant_and_drops_other_functions
         assert passes_filter(make_job(title=title, location="New York, NY", jd_text=""), config), title
     for title in drop:
         assert not passes_filter(make_job(title=title, location="New York, NY", jd_text=""), config), title
+
+
+def test_vague_technology_titles_need_engineering_in_the_description() -> None:
+    config = CompanyConfig(name="x", adapter="greenhouse")
+    engineering = [
+        "You will write Python services and REST APIs.",
+        "Pursuing a degree in Computer Science or a related field.",
+        "Hands-on software development in an Agile team.",
+        "Experience with C++ or C# is a plus.",
+    ]
+    vague = "Support end users, image laptops and manage help desk tickets."
+    for title in ("Technology Intern", "Information Technology Intern - Summer 2027", "Technology Program Intern"):
+        for jd in engineering:
+            assert passes_filter(make_job(title=title, location="New York, NY", jd_text=jd), config), (title, jd)
+        assert not passes_filter(make_job(title=title, location="New York, NY", jd_text=vague), config), title
+        assert not passes_filter(make_job(title=title, location="New York, NY", jd_text=""), config), title
+    # A specific tech word elsewhere in the title keeps it regardless of the description.
+    assert passes_filter(
+        make_job(title="Information Technology Intern - Software Developer", location="New York, NY", jd_text=vague),
+        config,
+    )

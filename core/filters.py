@@ -67,6 +67,16 @@ TECH_KEEP_RE = re.compile(
     r"quant(?:itative)?|trader|systematic trading|trading (?:system\w*|technology|engineer\w*)|step)\b",
     re.IGNORECASE,
 )
+# Vague tech titles ("Technology Intern", "Information Technology Intern")
+# count as tech only when the job description shows real engineering work.
+VAGUE_TECH_RE = re.compile(r"\b(?:technology intern|technology program|information technology)\b", re.IGNORECASE)
+ENGINEERING_JD_RE = re.compile(
+    r"\b(?:python|java|javascript|typescript|golang|rust|kotlin|swift|"
+    r"software (?:development|engineering|engineers?|developers?)|computer science|programming|"
+    r"full[\s-]?stack|back[\s-]?end|front[\s-]?end|web development|machine learning)\b"
+    r"|(?<![\w+#])(?:c\+\+|c#)(?![\w+#])",
+    re.IGNORECASE,
+)
 PHD_RE = re.compile(r"\b(ph\.?d|doctoral|post-?doc)\b", re.IGNORECASE)
 MASTER_RE = re.compile(
     r"\bmaster'?s\b|\bmsc\b|\bm\.s\.|\bms\b",
@@ -268,6 +278,11 @@ class FilterDecision:
     term_flag: str | None = None
 
 
+def _vague_tech_only(title: str) -> bool:
+    """True when the title is tech only through a vague phrase."""
+    return bool(VAGUE_TECH_RE.search(title)) and not TECH_KEEP_RE.search(VAGUE_TECH_RE.sub(" ", title))
+
+
 def evaluate_job(job: Job, config: CompanyConfig) -> FilterDecision:
     title = job.title
     haystack = f"{job.title}\n{job.location}\n{job.jd_text}"
@@ -280,6 +295,8 @@ def evaluate_job(job: Job, config: CompanyConfig) -> FilterDecision:
         or not TECH_KEEP_RE.search(title)
         or (TECH_DROP_RE.search(title) and not STRONG_TECH_RE.search(title))
     ):
+        return FilterDecision(keep=False, stage="tech")
+    if _vague_tech_only(title) and not ENGINEERING_JD_RE.search(job.jd_text or ""):
         return FilterDecision(keep=False, stage="tech")
     if FULL_TIME_RE.search(title) and not INTERN_FOR_FULLTIME_RE.search(title):
         return FilterDecision(keep=False, stage="intern")
